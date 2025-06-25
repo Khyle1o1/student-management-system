@@ -13,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { Save, Loader2 } from "lucide-react"
 
 interface StudentFormProps {
@@ -29,8 +28,6 @@ interface StudentFormProps {
     section: string
     course: string
     college: string
-    phoneNumber?: string
-    address?: string
   }
 }
 
@@ -42,14 +39,11 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
     lastName: "",
     middleName: "",
     email: "",
-    password: "",
     studentId: "",
     yearLevel: "",
     section: "",
     course: "",
     college: "",
-    phoneNumber: "",
-    address: "",
   })
 
   const isEditing = !!studentId
@@ -61,14 +55,11 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
         lastName: initialData.lastName,
         middleName: initialData.middleName || "",
         email: initialData.email,
-        password: "", // Don't populate password for editing
         studentId: initialData.studentId,
         yearLevel: initialData.yearLevel,
         section: initialData.section,
         course: initialData.course,
         college: initialData.college,
-        phoneNumber: initialData.phoneNumber || "",
-        address: initialData.address || "",
       })
     }
   }, [initialData])
@@ -94,9 +85,13 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
       
       const method = isEditing ? "PUT" : "POST"
       
-      const payload = isEditing 
-        ? formData // For editing, include all fields including optional password
-        : { ...formData, password: formData.password || "student123" } // For new students, provide default password if empty
+      // Prepare payload without password, phone, or address
+      const payload = {
+        ...formData,
+        name: `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim(),
+        // For OAuth-only students, no password needed
+        password: "", // Empty password for OAuth users
+      }
 
       const response = await fetch(url, {
         method,
@@ -134,6 +129,9 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
         <CardTitle className="text-2xl">
           {isEditing ? "Edit Student" : "Student Information"}
         </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Students will authenticate using Google OAuth only. No password is required.
+        </p>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-8">
@@ -172,28 +170,6 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
                   placeholder="e.g., Khim V."
                 />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phoneNumber">Phone Number</Label>
-                <Input
-                  id="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={(e) => handleInputChange("phoneNumber", e.target.value)}
-                  placeholder="+63912345678"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
-              <Textarea
-                id="address"
-                value={formData.address}
-                onChange={(e) => handleInputChange("address", e.target.value)}
-                placeholder="Enter complete address"
-                rows={3}
-                className="resize-none"
-              />
             </div>
           </div>
 
@@ -223,20 +199,9 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
                   placeholder="Auto-generated from Student ID"
                   disabled={!isEditing}
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">
-                  Password {isEditing ? "(leave empty to keep current)" : "*"}
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => handleInputChange("password", e.target.value)}
-                  required={!isEditing}
-                  placeholder={isEditing ? "Enter new password (optional)" : "Enter password"}
-                />
+                <p className="text-xs text-muted-foreground">
+                  This email must match the student's Google account for OAuth login
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -283,11 +248,11 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
                     <SelectValue placeholder="Select year level" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">Year 1</SelectItem>
-                    <SelectItem value="2">Year 2</SelectItem>
-                    <SelectItem value="3">Year 3</SelectItem>
-                    <SelectItem value="4">Year 4</SelectItem>
-                    <SelectItem value="5">Year 5</SelectItem>
+                    <SelectItem value="FIRST_YEAR">Year 1</SelectItem>
+                    <SelectItem value="SECOND_YEAR">Year 2</SelectItem>
+                    <SelectItem value="THIRD_YEAR">Year 3</SelectItem>
+                    <SelectItem value="FOURTH_YEAR">Year 4</SelectItem>
+                    <SelectItem value="GRADUATE">Graduate</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -305,7 +270,17 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-4 pt-6 border-t">
+          {/* Authentication Notice */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-medium text-blue-900 mb-2">🔐 Authentication Method</h4>
+            <p className="text-sm text-blue-700">
+              Students will log in using their Google account associated with the email address above. 
+              No password setup is required as authentication is handled through Google OAuth.
+            </p>
+          </div>
+
+          {/* Form Actions */}
+          <div className="flex flex-col sm:flex-row gap-4 sm:justify-end">
             <Button
               type="button"
               variant="outline"

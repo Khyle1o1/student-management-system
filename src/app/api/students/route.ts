@@ -22,7 +22,7 @@ export async function GET() {
         }
       },
       orderBy: {
-        enrolledAt: 'desc'
+        createdAt: 'desc'
       }
     })
 
@@ -45,18 +45,21 @@ export async function POST(request: NextRequest) {
     const {
       name,
       email,
-      password,
       studentId,
       yearLevel,
       section,
       course,
-      phoneNumber,
-      address
+      college,
+      firstName,
+      lastName,
+      middleName
     } = body
 
     // Check if user with email already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
+    const existingUser = await prisma.user.findFirst({
+      where: { 
+        email
+      }
     })
 
     if (existingUser) {
@@ -64,16 +67,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if student ID already exists
-    const existingStudent = await prisma.student.findUnique({
-      where: { studentId }
+    const existingStudent = await prisma.student.findFirst({
+      where: { 
+        studentId
+      }
     })
 
     if (existingStudent) {
       return NextResponse.json({ error: "Student ID already exists" }, { status: 400 })
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12)
+    // For OAuth students, create empty password (they'll login via Google)
+    const hashedPassword = await bcrypt.hash("", 12) // Empty password for OAuth-only users
 
     // Create user first
     const user = await prisma.user.create({
@@ -81,22 +86,22 @@ export async function POST(request: NextRequest) {
         email,
         password: hashedPassword,
         role: "STUDENT",
-        name,
+        name: name || `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`.trim(),
       }
     })
 
-    // Create student record
+    // Create student record without phone number and address
     const student = await prisma.student.create({
       data: {
         studentId,
         userId: user.id,
-        name,
+        name: name || `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`.trim(),
         email,
         yearLevel,
         section,
         course,
-        phoneNumber,
-        address,
+        // Removed phoneNumber and address fields
+        // These fields remain nullable in the database but are not used
       },
       include: {
         user: {

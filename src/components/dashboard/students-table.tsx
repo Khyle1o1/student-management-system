@@ -36,14 +36,11 @@ import Link from "next/link"
 interface Student {
   id: string
   studentId: string
-  firstName: string
-  lastName: string
-  middleName?: string
+  name: string
   email: string
   yearLevel: string
   section: string
   course: string
-  college: string
   phoneNumber?: string
   address?: string
   enrolledAt: string
@@ -82,14 +79,12 @@ export function StudentsTable() {
 
   useEffect(() => {
     const filtered = students.filter((student) => {
-      const fullName = `${student.firstName} ${student.middleName || ''} ${student.lastName}`.toLowerCase()
       const searchLower = searchTerm.toLowerCase()
       
-      return fullName.includes(searchLower) ||
+      return student.name.toLowerCase().includes(searchLower) ||
         student.studentId.toLowerCase().includes(searchLower) ||
         student.email.toLowerCase().includes(searchLower) ||
-        student.course.toLowerCase().includes(searchLower) ||
-        student.college.toLowerCase().includes(searchLower)
+        student.course.toLowerCase().includes(searchLower)
     })
     setFilteredStudents(filtered)
   }, [searchTerm, students])
@@ -124,11 +119,6 @@ export function StudentsTable() {
       case "5": return "bg-purple-100 text-purple-800"
       default: return "bg-gray-100 text-gray-800"
     }
-  }
-
-  const formatFullName = (student: Student) => {
-    const middleName = student.middleName ? ` ${student.middleName}` : ''
-    return `${student.firstName}${middleName} ${student.lastName}`
   }
 
   if (loading) {
@@ -172,7 +162,6 @@ export function StudentsTable() {
                 <TableHead>Student ID</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>College</TableHead>
                 <TableHead>Course</TableHead>
                 <TableHead>Year Level</TableHead>
                 <TableHead>Section</TableHead>
@@ -184,7 +173,7 @@ export function StudentsTable() {
             <TableBody>
               {filteredStudents.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8">
+                  <TableCell colSpan={9} className="text-center py-8">
                     <div className="flex flex-col items-center space-y-2">
                       <User className="h-8 w-8 text-muted-foreground" />
                       <span className="text-muted-foreground">
@@ -200,16 +189,13 @@ export function StudentsTable() {
                       {student.studentId}
                     </TableCell>
                     <TableCell className="font-medium">
-                      {formatFullName(student)}
+                      {student.name}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-1">
                         <Mail className="h-3 w-3 text-muted-foreground" />
                         <span className="text-sm">{student.email}</span>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-gray-600">{student.college}</span>
                     </TableCell>
                     <TableCell className="font-medium">{student.course}</TableCell>
                     <TableCell>

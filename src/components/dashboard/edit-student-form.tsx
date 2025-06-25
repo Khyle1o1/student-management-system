@@ -15,8 +15,6 @@ interface EditStudentFormProps {
     section: string
     course: string
     college: string
-    phoneNumber?: string
-    address?: string
   }
 }
 

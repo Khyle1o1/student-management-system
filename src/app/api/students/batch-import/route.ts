@@ -62,12 +62,26 @@ export async function POST(request: NextRequest) {
     const studentIds = students.map(s => s.studentId)
     const emails = students.map(s => s.email)
     
-    // Check existing students
+    // Check existing students (excluding soft-deleted)
     const existingStudents = await prisma.student.findMany({
       where: {
-        OR: [
-          { studentId: { in: studentIds } },
-          { email: { in: emails } }
+        AND: [
+          {
+            OR: [
+              { studentId: { in: studentIds } },
+              { email: { in: emails } }
+            ]
+          },
+          { deletedAt: null },
+          // Extra safety: exclude records that end with deletion suffix
+          {
+            NOT: {
+              OR: [
+                { studentId: { endsWith: "_deleted" } },
+                { email: { endsWith: "_deleted" } }
+              ]
+            }
+          }
         ]
       },
       select: {
@@ -79,10 +93,17 @@ export async function POST(request: NextRequest) {
     const existingStudentIds = new Set(existingStudents.map(s => s.studentId))
     const existingEmails = new Set(existingStudents.map(s => s.email))
 
-    // Check existing users by email
+    // Check existing users by email (excluding soft-deleted)
     const existingUsers = await prisma.user.findMany({
       where: {
-        email: { in: emails }
+        email: { in: emails },
+        deletedAt: null,
+        // Extra safety: exclude emails that end with deletion suffix
+        NOT: {
+          email: {
+            endsWith: "_deleted"
+          }
+        }
       },
       select: {
         email: true
@@ -153,8 +174,6 @@ export async function POST(request: NextRequest) {
             yearLevel: studentData.yearLevel as any,
             section: studentData.section,
             course: studentData.course,
-            phoneNumber: studentData.phoneNumber || null,
-            address: studentData.address || null,
           }
         })
 

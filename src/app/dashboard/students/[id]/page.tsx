@@ -25,11 +25,32 @@ async function getStudent(studentId: string) {
 
     if (!student) return null
 
-    // Convert null values to undefined for the form component
+    // Parse the full name into components for the form
+    const nameParts = student.name.split(' ')
+    let firstName = nameParts[0] || ''
+    let lastName = nameParts[nameParts.length - 1] || ''
+    let middleName = ''
+    
+    if (nameParts.length > 2) {
+      middleName = nameParts.slice(1, -1).join(' ')
+    } else if (nameParts.length === 2) {
+      // If only 2 parts, first is firstName, last is lastName
+      firstName = nameParts[0]
+      lastName = nameParts[1]
+    }
+
+    // Return simplified student data for OAuth authentication
     return {
-      ...student,
-      phoneNumber: student.phoneNumber || undefined,
-      address: student.address || undefined
+      id: student.id,
+      studentId: student.studentId,
+      firstName,
+      lastName,
+      middleName: middleName || undefined,
+      email: student.email,
+      yearLevel: student.yearLevel,
+      section: student.section,
+      course: student.course,
+      college: "College of Technology", // Default college, should be added to database schema
     }
   } catch (error) {
     console.error("Error fetching student:", error)
@@ -74,7 +95,7 @@ export default async function EditStudentPage({ params }: EditStudentPageProps) 
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Edit Student</h1>
               <p className="text-muted-foreground">
-                Update student information for {student.name}
+                Update student information for {student.firstName} {student.lastName}
               </p>
             </div>
           </div>

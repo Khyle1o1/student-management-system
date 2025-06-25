@@ -1,7 +1,6 @@
 import { auth } from "@/lib/auth"
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import bcrypt from "bcryptjs"
 
 export async function GET(
   request: NextRequest,
@@ -53,13 +52,14 @@ export async function PUT(
     const {
       name,
       email,
-      password,
       studentId,
       yearLevel,
       section,
       course,
-      phoneNumber,
-      address
+      college,
+      firstName,
+      lastName,
+      middleName
     } = body
 
     // Find the existing student
@@ -74,8 +74,10 @@ export async function PUT(
 
     // Check if email is being changed and if new email already exists
     if (email !== existingStudent.email) {
-      const emailExists = await prisma.user.findUnique({
-        where: { email }
+      const emailExists = await prisma.user.findFirst({
+        where: { 
+          email
+        }
       })
 
       if (emailExists && emailExists.id !== existingStudent.userId) {
@@ -85,8 +87,10 @@ export async function PUT(
 
     // Check if student ID is being changed and if new student ID already exists
     if (studentId !== existingStudent.studentId) {
-      const studentIdExists = await prisma.student.findUnique({
-        where: { studentId }
+      const studentIdExists = await prisma.student.findFirst({
+        where: { 
+          studentId
+        }
       })
 
       if (studentIdExists && studentIdExists.id !== params.id) {
@@ -94,34 +98,30 @@ export async function PUT(
       }
     }
 
-    // Update user
-    const userUpdateData: any = {
-      email,
-      name,
-    }
+    // Construct full name from parts or use provided name
+    const fullName = name || `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`.trim()
 
-    // Only update password if provided
-    if (password && password.trim() !== "") {
-      userUpdateData.password = await bcrypt.hash(password, 12)
-    }
-
+    // Update user (no password update for OAuth users)
     const updatedUser = await prisma.user.update({
       where: { id: existingStudent.userId },
-      data: userUpdateData
+      data: {
+        email,
+        name: fullName,
+        // Password is not updated for OAuth-only users
+      }
     })
 
-    // Update student
+    // Update student record (without phone number and address)
     const updatedStudent = await prisma.student.update({
       where: { id: params.id },
       data: {
         studentId,
-        name,
+        name: fullName,
         email,
         yearLevel,
         section,
         course,
-        phoneNumber,
-        address,
+        // Removed phoneNumber and address fields
       },
       include: {
         user: {
@@ -162,11 +162,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Student not found" }, { status: 404 })
     }
 
-    // Delete student record first, then user record
+    // Hard delete: Completely remove the student and associated user from the database
+    // Delete student first (due to foreign key constraints)
     await prisma.student.delete({
       where: { id: params.id }
     })
 
+    // Then delete the associated user
     await prisma.user.delete({
       where: { id: student.userId }
     })
