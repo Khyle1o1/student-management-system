@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,8 +21,21 @@ import {
   DollarSign, 
   Download,
   Settings,
-  Filter
+  Filter,
+  RefreshCw
 } from "lucide-react"
+
+interface Event {
+  id: string
+  title: string
+  description: string
+  eventDate: string
+  startTime: string
+  endTime: string
+  location: string
+  eventType: string
+  status: string
+}
 
 const reportTypes = [
   {
@@ -66,30 +79,95 @@ export function ReportGenerator() {
   const [reportTitle, setReportTitle] = useState<string>("")
   const [reportDescription, setReportDescription] = useState<string>("")
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: "", to: "" })
-  const [filters, setFilters] = useState<{ yearLevel: string; course: string; semester: string }>({
+  const [filters, setFilters] = useState<{ 
+    yearLevel: string; 
+    course: string; 
+    semester: string;
+    eventId: string;
+  }>({
     yearLevel: "",
     course: "",
-    semester: ""
+    semester: "",
+    eventId: ""
   })
   const [isGenerating, setIsGenerating] = useState(false)
+  const [events, setEvents] = useState<Event[]>([])
+  const [loadingEvents, setLoadingEvents] = useState(false)
 
   const selectedReportType = reportTypes.find(type => type.id === selectedType)
   const selectedTemplateData = selectedReportType?.templates.find(template => template.id === selectedTemplate)
 
+  // Fetch events when attendance report type is selected
+  useEffect(() => {
+    if (selectedType === "attendance") {
+      fetchEvents()
+    }
+  }, [selectedType])
+
+  const fetchEvents = async () => {
+    try {
+      setLoadingEvents(true)
+      const response = await fetch("/api/events")
+      if (response.ok) {
+        const data = await response.json()
+        setEvents(data)
+      }
+    } catch (error) {
+      console.error("Error fetching events:", error)
+    } finally {
+      setLoadingEvents(false)
+    }
+  }
+
   const handleGenerateReport = async () => {
     setIsGenerating(true)
-    // Simulate report generation
-    await new Promise(resolve => setTimeout(resolve, 3000))
-    setIsGenerating(false)
     
-    // In a real app, this would call the API to generate the report
-    console.log("Generated report with data:", {
-      type: selectedType,
-      template: selectedTemplate,
-      title: reportTitle,
-      description: reportDescription,
-      dateRange,
-      filters
+    try {
+      // Build the report parameters
+      const reportParams = {
+        type: selectedType,
+        template: selectedTemplate,
+        title: reportTitle,
+        description: reportDescription,
+        dateRange,
+        filters
+      }
+
+      // For event-specific attendance reports, use the export functionality
+      if (selectedTemplate === "event-attendance" && filters.eventId) {
+        const response = await fetch(`/api/attendance/event/${filters.eventId}/export`)
+        if (response.ok) {
+          const blob = await response.blob()
+          const url = window.URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.style.display = 'none'
+          a.href = url
+          
+          const selectedEvent = events.find(e => e.id === filters.eventId)
+          a.download = `attendance-report-${selectedEvent?.title || 'event'}-${new Date().toISOString().split('T')[0]}.csv`
+          
+          document.body.appendChild(a)
+          a.click()
+          window.URL.revokeObjectURL(url)
+          document.body.removeChild(a)
+        }
+      } else {
+        // For other report types, simulate report generation
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        console.log("Generated report with data:", reportParams)
+      }
+    } catch (error) {
+      console.error("Error generating report:", error)
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const formatEventDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     })
   }
 
@@ -125,6 +203,12 @@ export function ReportGenerator() {
                     onClick={() => {
                       setSelectedType(type.id)
                       setSelectedTemplate("")
+                      setFilters({
+                        yearLevel: "",
+                        course: "",
+                        semester: "",
+                        eventId: ""
+                      })
                     }}
                   >
                     <div className="flex items-start space-x-3">
@@ -227,6 +311,55 @@ export function ReportGenerator() {
                 <Filter className="h-4 w-4" />
                 <span>Filters</span>
               </Label>
+              
+              {/* Event Selection for Attendance Reports */}
+              {selectedType === "attendance" && selectedTemplate === "event-attendance" && (
+                <div className="space-y-2 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <Label htmlFor="eventSelect" className="text-sm font-medium text-blue-900">
+                    Select Specific Event *
+                  </Label>
+                  <div className="flex space-x-2">
+                    <Select 
+                      value={filters.eventId} 
+                      onValueChange={(value) => setFilters({...filters, eventId: value})}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder={loadingEvents ? "Loading events..." : "Choose an event"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {events.map((event) => (
+                          <SelectItem key={event.id} value={event.id}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{event.title}</span>
+                              <span className="text-sm text-gray-600">
+                                {formatEventDate(event.eventDate)} • {event.eventType} • {event.status}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={fetchEvents}
+                      disabled={loadingEvents}
+                    >
+                      {loadingEvents ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  {filters.eventId && (
+                    <div className="mt-2 p-2 bg-white border border-blue-200 rounded text-sm">
+                      <strong>Selected Event:</strong> {events.find(e => e.id === filters.eventId)?.title}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="dateFrom">Date From</Label>
@@ -268,24 +401,32 @@ export function ReportGenerator() {
           {/* Generate Button */}
           {isFormValid && (
             <div className="pt-4 border-t">
-              <Button 
-                onClick={handleGenerateReport}
-                disabled={isGenerating}
-                size="lg"
-                className="w-full md:w-auto"
-              >
-                {isGenerating ? (
-                  <>
-                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Generating Report...
-                  </>
-                ) : (
-                  <>
-                    <FileText className="mr-2 h-4 w-4" />
-                    Generate Report
-                  </>
+              <div className="flex flex-col space-y-2">
+                {selectedTemplate === "event-attendance" && !filters.eventId && (
+                  <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
+                    Please select an event to generate the attendance report.
+                  </div>
                 )}
-              </Button>
+                
+                <Button 
+                  onClick={handleGenerateReport}
+                  disabled={isGenerating || (selectedTemplate === "event-attendance" && !filters.eventId)}
+                  size="lg"
+                  className="w-full md:w-auto"
+                >
+                  {isGenerating ? (
+                    <>
+                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      {selectedTemplate === "event-attendance" ? "Generating PDF..." : "Generating Report..."}
+                    </>
+                  ) : (
+                    <>
+                      <Download className="mr-2 h-4 w-4" />
+                      {selectedTemplate === "event-attendance" ? "Download PDF Report" : "Generate Report"}
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

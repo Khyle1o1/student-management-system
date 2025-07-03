@@ -10,10 +10,8 @@ interface StudentImportData {
   studentId: string
   email: string
   yearLevel: string
-  section: string
   course: string
-  phoneNumber?: string
-  address?: string
+  college: string
   password?: string
 }
 
@@ -30,6 +28,56 @@ interface ImportResult {
 const batchStudentSchema = z.object({
   students: z.array(studentImportSchema)
 })
+
+// Helper function to retry database operations
+async function retryOperation<T>(
+  operation: () => Promise<T>,
+  maxRetries = 3,
+  delay = 1000
+): Promise<T> {
+  let lastError: any;
+  let retryCount = 0;
+  
+  while (retryCount < maxRetries) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      retryCount++;
+      
+      // Check if it's a connection error
+      const isConnectionError = 
+        error instanceof Error &&
+        'code' in error &&
+        (error.code === 'P1017' || error.code === 'P1001' || error.code === 'P1002');
+      
+      if (!isConnectionError || retryCount >= maxRetries) {
+        break;
+      }
+      
+      console.log(`Retrying operation after error: ${error}, attempt ${retryCount} of ${maxRetries}`);
+      
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, delay * retryCount));
+    }
+  }
+  
+  // Enhance error with more details if it's a database connection issue
+  if (lastError && 'code' in lastError) {
+    switch(lastError.code) {
+      case 'P1001':
+        throw new Error(`Database connection failed: Can't reach database server. Please check if the database is running. Error code: ${lastError.code}`);
+      case 'P1002':
+        throw new Error(`Database connection failed: The database server was reached but timed out. Error code: ${lastError.code}`);
+      case 'P1017':
+        throw new Error(`Database connection failed: Server has closed the connection. Error code: ${lastError.code}`);
+      default:
+        throw lastError;
+    }
+  }
+  
+  throw lastError;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -58,59 +106,60 @@ export async function POST(request: NextRequest) {
       errors: []
     }
 
-    // Check for duplicates in the database and within the batch
-    const studentIds = students.map(s => s.studentId)
-    const emails = students.map(s => s.email)
-    
-    // Check existing students (excluding soft-deleted)
-    const existingStudents = await prisma.student.findMany({
-      where: {
-        AND: [
-          {
-            OR: [
-              { studentId: { in: studentIds } },
-              { email: { in: emails } }
-            ]
-          },
-          { deletedAt: null },
-          // Extra safety: exclude records that end with deletion suffix
-          {
-            NOT: {
+    // Check database connection first
+    try {
+      await retryOperation(async () => {
+        await prisma.$queryRaw`SELECT 1`
+      })
+    } catch (error) {
+      console.error("Database connection check failed:", error);
+      return NextResponse.json({ 
+        error: error instanceof Error ? error.message : "Database connection failed", 
+        code: error instanceof Error && 'code' in error ? error.code : 'UNKNOWN',
+        status: "database_error"
+      }, { status: 503 })
+    }
+
+    // Check for duplicates with retry logic
+    const existingData = await retryOperation(async () => {
+      // Check existing students (excluding soft-deleted)
+      const existingStudents = await prisma.student.findMany({
+        where: {
+          AND: [
+            {
               OR: [
-                { studentId: { endsWith: "_deleted" } },
-                { email: { endsWith: "_deleted" } }
+                { studentId: { in: students.map(s => s.studentId) } },
+                { email: { in: students.map(s => s.email) } }
               ]
-            }
-          }
-        ]
-      },
-      select: {
-        studentId: true,
-        email: true
-      }
-    })
-
-    const existingStudentIds = new Set(existingStudents.map(s => s.studentId))
-    const existingEmails = new Set(existingStudents.map(s => s.email))
-
-    // Check existing users by email (excluding soft-deleted)
-    const existingUsers = await prisma.user.findMany({
-      where: {
-        email: { in: emails },
-        deletedAt: null,
-        // Extra safety: exclude emails that end with deletion suffix
-        NOT: {
-          email: {
-            endsWith: "_deleted"
-          }
+            },
+            { deletedAt: null }
+          ]
+        },
+        select: {
+          studentId: true,
+          email: true
         }
-      },
-      select: {
-        email: true
-      }
-    })
+      })
+    
+      // Check existing users by email (excluding soft-deleted)
+      const existingUsers = await prisma.user.findMany({
+        where: {
+          email: { in: students.map(s => s.email) },
+          deletedAt: null
+        },
+        select: {
+          email: true
+        }
+      })
+    
+      return {
+        existingStudentIds: new Set(existingStudents.map((s: { studentId: string }) => s.studentId)),
+        existingEmails: new Set(existingStudents.map((s: { email: string }) => s.email)),
+        existingUserEmails: new Set(existingUsers.map((u: { email: string }) => u.email))
+      };
+    });
 
-    const existingUserEmails = new Set(existingUsers.map(u => u.email))
+    const { existingStudentIds, existingEmails, existingUserEmails } = existingData;
 
     // Check for duplicates within the batch
     const batchStudentIds = new Set<string>()
@@ -131,73 +180,122 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Process each student
-    for (const studentData of students) {
-      try {
-        // Check for duplicates
-        if (existingStudentIds.has(studentData.studentId)) {
-          result.duplicates.push(studentData.studentId)
-          continue
-        }
-
-        if (existingEmails.has(studentData.email) || existingUserEmails.has(studentData.email)) {
-          result.duplicates.push(studentData.email)
-          continue
-        }
-
-        if (duplicatesInBatch.has(studentData.studentId) || duplicatesInBatch.has(studentData.email)) {
-          result.duplicates.push(studentData.studentId)
-          continue
-        }
-
-        // Hash password
-        const password = studentData.password || 'student123'
-        const hashedPassword = await bcrypt.hash(password, 12)
-
-        // Create user first
-        const user = await prisma.user.create({
-          data: {
-            email: studentData.email.toLowerCase(),
-            password: hashedPassword,
-            role: "STUDENT",
-            name: studentData.name,
+    // Process each student in smaller batches to prevent timeouts
+    const BATCH_SIZE = 5;
+    let processedCount = 0;
+    const totalCount = students.length;
+    
+    console.log(`⏳ Starting batch import of ${totalCount} students...`);
+    
+    for (let i = 0; i < students.length; i += BATCH_SIZE) {
+      const batch = students.slice(i, i + BATCH_SIZE);
+      
+      // Process one student at a time to avoid connection issues
+      for (const studentData of batch) {
+        try {
+          // Validate student ID is numeric
+          if (!/^\d+$/.test(studentData.studentId)) {
+            result.errorCount++;
+            result.errors.push({
+              studentId: studentData.studentId,
+              error: "Student ID must contain only numbers"
+            });
+            processedCount++;
+            console.log(`🔄 Processed: ${processedCount}/${totalCount} (${Math.round(processedCount/totalCount*100)}%) - Invalid student ID: ${studentData.studentId}`);
+            continue;
           }
-        })
+          
+          // Check for duplicates
+          if (existingStudentIds.has(studentData.studentId)) {
+            result.duplicates.push(studentData.studentId);
+            processedCount++;
+            console.log(`🔄 Processed: ${processedCount}/${totalCount} (${Math.round(processedCount/totalCount*100)}%) - Duplicate ID: ${studentData.studentId}`);
+            continue;
+          }
 
-        // Create student record
-        await prisma.student.create({
-          data: {
+          if (existingEmails.has(studentData.email) || existingUserEmails.has(studentData.email)) {
+            result.duplicates.push(studentData.email);
+            processedCount++;
+            console.log(`🔄 Processed: ${processedCount}/${totalCount} (${Math.round(processedCount/totalCount*100)}%) - Duplicate email: ${studentData.email}`);
+            continue;
+          }
+
+          if (duplicatesInBatch.has(studentData.studentId) || duplicatesInBatch.has(studentData.email)) {
+            result.duplicates.push(studentData.studentId);
+            processedCount++;
+            console.log(`🔄 Processed: ${processedCount}/${totalCount} (${Math.round(processedCount/totalCount*100)}%) - Duplicate in batch: ${studentData.studentId}`);
+            continue;
+          }
+
+          // Create user and student with retry logic
+          await retryOperation(async () => {
+            // Create in transaction to ensure data consistency
+            return await prisma.$transaction(async (tx) => {
+              // Hash password
+              const password = studentData.password || 'student123';
+              const hashedPassword = await bcrypt.hash(password, 12);
+              
+              // Create user first
+              const user = await tx.user.create({
+                data: {
+                  email: studentData.email.toLowerCase(),
+                  password: hashedPassword,
+                  role: "STUDENT",
+                  name: studentData.name,
+                }
+              });
+              
+              // Create student record
+              await tx.student.create({
+                data: {
+                  studentId: studentData.studentId,
+                  userId: user.id,
+                  name: studentData.name,
+                  email: studentData.email.toLowerCase(),
+                  yearLevel: studentData.yearLevel as any,
+                  course: studentData.course,
+                  // The college field is handled at the application level
+                } as any
+              });
+            });
+          });
+
+          result.successCount++;
+          processedCount++;
+          console.log(`✅ Processed: ${processedCount}/${totalCount} (${Math.round(processedCount/totalCount*100)}%) - Successfully created: ${studentData.name} (${studentData.studentId})`);
+          
+          // Add to sets to prevent duplicates in subsequent iterations
+          existingStudentIds.add(studentData.studentId);
+          existingEmails.add(studentData.email.toLowerCase());
+          existingUserEmails.add(studentData.email.toLowerCase());
+        } catch (error) {
+          console.error(`Error creating student ${studentData.studentId}:`, error);
+          result.errorCount++;
+          result.errors.push({
             studentId: studentData.studentId,
-            userId: user.id,
-            name: studentData.name,
-            email: studentData.email.toLowerCase(),
-            yearLevel: studentData.yearLevel as any,
-            section: studentData.section,
-            course: studentData.course,
-          }
-        })
-
-        result.successCount++
-
-        // Add to sets to prevent duplicates in subsequent iterations
-        existingStudentIds.add(studentData.studentId)
-        existingEmails.add(studentData.email.toLowerCase())
-        existingUserEmails.add(studentData.email.toLowerCase())
-
-      } catch (error) {
-        console.error(`Error creating student ${studentData.studentId}:`, error)
-        result.errorCount++
-        result.errors.push({
-          studentId: studentData.studentId,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        })
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+          processedCount++;
+          console.log(`❌ Processed: ${processedCount}/${totalCount} (${Math.round(processedCount/totalCount*100)}%) - Error creating: ${studentData.studentId}`);
+        }
       }
     }
+    
+    console.log(`🎉 Import complete! Successfully processed ${result.successCount} students with ${result.errorCount} errors and ${result.duplicates.length} duplicates.`);
 
-    return NextResponse.json(result, { status: 200 })
-
+    return NextResponse.json({
+      ...result,
+      duplicateCount: result.duplicates.length
+    }, { status: 200 });
   } catch (error) {
-    console.error("Error in batch import:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Error in batch import:", error);
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : "An unexpected error occurred";
+      
+    return NextResponse.json({ 
+      error: "Internal server error", 
+      details: errorMessage 
+    }, { status: 500 });
   }
 } 

@@ -33,16 +33,32 @@ export async function PUT(
       return NextResponse.json({ error: "Attendance record not found" }, { status: 404 })
     }
 
+    // Parse existing time data from notes
+    let existingTimeData = { timeIn: null, timeOut: null }
+    try {
+      if (existingRecord.notes) {
+        existingTimeData = JSON.parse(existingRecord.notes)
+      }
+    } catch (error) {
+      console.log("Could not parse existing time data, using defaults")
+    }
+
+    // Update time data
+    const timeData = {
+      timeIn: body.timeIn || existingTimeData.timeIn,
+      timeOut: body.timeOut || existingTimeData.timeOut,
+    }
+
     // Update the attendance record
     const currentTime = new Date()
     
     const updatedRecord = await prisma.attendance.update({
       where: { id: recordId },
       data: {
-        status: body.timeIn && body.timeOut ? "PRESENT" : body.timeIn ? "PRESENT" : "ABSENT",
+        status: timeData.timeIn && timeData.timeOut ? "PRESENT" : timeData.timeIn ? "PRESENT" : "ABSENT",
         timestamp: currentTime,
         scannedAt: (body.scannedIn || body.scannedOut) ? currentTime : existingRecord.scannedAt,
-        notes: body.status || existingRecord.notes,
+        notes: JSON.stringify(timeData),
         updatedAt: currentTime,
       },
     })
@@ -51,8 +67,8 @@ export async function PUT(
       id: updatedRecord.id,
       studentId: updatedRecord.studentId,
       eventId: updatedRecord.eventId,
-      timeIn: body.timeIn,
-      timeOut: body.timeOut,
+      timeIn: timeData.timeIn,
+      timeOut: timeData.timeOut,
       status: body.status,
       scannedIn: body.scannedIn || false,
       scannedOut: body.scannedOut || false,

@@ -124,23 +124,31 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
 
       const payload = {
         title: formData.title.trim(),
-        description: formData.description.trim() || undefined,
+        ...(formData.description.trim() && { description: formData.description.trim() }),
         type: mapEventType(formData.eventType),
         date: formData.eventDate,
         startTime: formData.startTime,
-        endTime: formData.endTime || undefined,
+        ...(formData.endTime && { endTime: formData.endTime }),
         location: formData.location.trim(),
-        maxCapacity: parseInt(formData.capacity) || undefined
+        ...(parseInt(formData.capacity) && { maxCapacity: parseInt(formData.capacity) }),
+        // Add semester and schoolYear as optional fields - can be set later if needed
+        semester: undefined, // Will be filtered out by the spread operator above
+        schoolYear: undefined, // Will be filtered out by the spread operator above
       }
 
-      console.log("Form data being sent:", payload)
+      // Remove undefined values from payload
+      const cleanPayload = Object.fromEntries(
+        Object.entries(payload).filter(([_, value]) => value !== undefined)
+      )
+
+      console.log("Form data being sent:", cleanPayload)
 
       const response = await fetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(cleanPayload),
       })
 
       if (response.ok) {

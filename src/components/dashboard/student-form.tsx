@@ -25,7 +25,6 @@ interface StudentFormProps {
     middleName?: string
     email: string
     yearLevel: string
-    section: string
     course: string
     college: string
   }
@@ -41,7 +40,6 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
     email: "",
     studentId: "",
     yearLevel: "",
-    section: "",
     course: "",
     college: "",
   })
@@ -57,7 +55,6 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
         email: initialData.email,
         studentId: initialData.studentId,
         yearLevel: initialData.yearLevel,
-        section: initialData.section,
         course: initialData.course,
         college: initialData.college,
       })
@@ -85,7 +82,7 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
       
       const method = isEditing ? "PUT" : "POST"
       
-      // Prepare payload without password, phone, or address
+      // Prepare payload without password, phone, address, or section
       const payload = {
         ...formData,
         name: `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim(),
@@ -182,10 +179,18 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
                 <Input
                   id="studentId"
                   value={formData.studentId}
-                  onChange={(e) => handleInputChange("studentId", e.target.value)}
+                  onChange={(e) => {
+                    // Only allow numeric input
+                    const value = e.target.value.replace(/\D/g, '')
+                    handleInputChange("studentId", value)
+                  }}
                   required
                   placeholder="e.g., 2101103309"
+                  pattern="\d*"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Numbers only
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -248,24 +253,12 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
                     <SelectValue placeholder="Select year level" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="FIRST_YEAR">Year 1</SelectItem>
-                    <SelectItem value="SECOND_YEAR">Year 2</SelectItem>
-                    <SelectItem value="THIRD_YEAR">Year 3</SelectItem>
-                    <SelectItem value="FOURTH_YEAR">Year 4</SelectItem>
-                    <SelectItem value="GRADUATE">Graduate</SelectItem>
+                    <SelectItem value="YEAR_1">1st Year</SelectItem>
+                    <SelectItem value="YEAR_2">2nd Year</SelectItem>
+                    <SelectItem value="YEAR_3">3rd Year</SelectItem>
+                    <SelectItem value="YEAR_4">4th Year</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="section">Section *</Label>
-                <Input
-                  id="section"
-                  value={formData.section}
-                  onChange={(e) => handleInputChange("section", e.target.value)}
-                  required
-                  placeholder="e.g., A, B, C"
-                />
               </div>
             </div>
           </div>
@@ -280,7 +273,7 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
           </div>
 
           {/* Form Actions */}
-          <div className="flex flex-col sm:flex-row gap-4 sm:justify-end">
+          <div className="flex flex-col sm:flex-row gap-4 pt-6">
             <Button
               type="button"
               variant="outline"

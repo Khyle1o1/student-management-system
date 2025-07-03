@@ -48,7 +48,6 @@ async function getStudent(studentId: string) {
       middleName: middleName || undefined,
       email: student.email,
       yearLevel: student.yearLevel,
-      section: student.section,
       course: student.course,
       college: "College of Technology", // Default college, should be added to database schema
     }

@@ -50,18 +50,31 @@ export async function GET(
 
     // Since our new system uses custom fields, we'll need to create a custom table
     // For now, let's return the existing attendance records transformed to match our interface
-    const transformedRecords = attendanceRecords.map(record => ({
-      id: record.id,
-      studentId: record.studentId,
-      eventId: record.eventId,
-      timeIn: record.scannedAt ? record.scannedAt.toTimeString().split(' ')[0].substring(0, 5) : undefined,
-      timeOut: undefined, // We'll need to extend the schema for this
-      status: record.status.toLowerCase(),
-      scannedIn: !!record.scannedAt,
-      scannedOut: false, // We'll need to extend the schema for this
-      createdAt: record.createdAt.toISOString(),
-      updatedAt: record.updatedAt.toISOString(),
-    }))
+    const transformedRecords = attendanceRecords.map(record => {
+      // Parse time data from notes
+      let timeData: { timeIn: string | null, timeOut: string | null } = { timeIn: null, timeOut: null }
+      try {
+        if (record.notes) {
+          timeData = JSON.parse(record.notes)
+        }
+      } catch (error) {
+        // Fallback to scannedAt for timeIn if notes parsing fails
+        timeData.timeIn = record.scannedAt ? record.scannedAt.toTimeString().split(' ')[0].substring(0, 5) : null
+      }
+
+      return {
+        id: record.id,
+        studentId: record.studentId,
+        eventId: record.eventId,
+        timeIn: timeData.timeIn,
+        timeOut: timeData.timeOut,
+        status: record.status.toLowerCase(),
+        scannedIn: !!timeData.timeIn,
+        scannedOut: !!timeData.timeOut,
+        createdAt: record.createdAt.toISOString(),
+        updatedAt: record.updatedAt.toISOString(),
+      }
+    })
 
     return NextResponse.json(transformedRecords)
   } catch (error) {
@@ -123,8 +136,14 @@ export async function POST(
       return NextResponse.json({ error: "Attendance record already exists" }, { status: 400 })
     }
 
-    // Create new attendance record
+    // Create new attendance record with timeIn
     const currentTime = new Date()
+    
+    // Store timeIn/timeOut data in notes as JSON
+    const timeData = {
+      timeIn: body.timeIn,
+      timeOut: body.timeOut,
+    }
     
     const attendanceRecord = await prisma.attendance.create({
       data: {
@@ -133,7 +152,7 @@ export async function POST(
         status: body.timeIn ? "PRESENT" : "ABSENT",
         timestamp: currentTime,
         scannedAt: body.scannedIn ? currentTime : null,
-        notes: body.status || "",
+        notes: JSON.stringify(timeData),
       },
     })
 

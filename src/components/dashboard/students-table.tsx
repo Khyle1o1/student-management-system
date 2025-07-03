@@ -39,10 +39,7 @@ interface Student {
   name: string
   email: string
   yearLevel: string
-  section: string
   course: string
-  phoneNumber?: string
-  address?: string
   enrolledAt: string
   user: {
     id: string
@@ -55,16 +52,49 @@ export function StudentsTable() {
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [filteredStudents, setFilteredStudents] = useState<Student[]>([])
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [hasNext, setHasNext] = useState(false)
+  const [hasPrevious, setHasPrevious] = useState(false)
+  const [pageSize] = useState(20) // Fixed page size
+
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+      setCurrentPage(1) // Reset to first page when search changes
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  useEffect(() => {
+    fetchStudents()
+  }, [currentPage, debouncedSearchTerm])
 
   const fetchStudents = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/students")
+      
+      // Build query parameters
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: pageSize.toString(),
+        ...(debouncedSearchTerm && { search: debouncedSearchTerm })
+      })
+      
+      const response = await fetch(`/api/students?${params}`)
       if (response.ok) {
         const data = await response.json()
-        setStudents(data)
-        setFilteredStudents(data)
+        setStudents(data.students)
+        setTotalPages(data.pagination.totalPages)
+        setTotalCount(data.pagination.totalCount)
+        setHasNext(data.pagination.hasNext)
+        setHasPrevious(data.pagination.hasPrevious)
       }
     } catch (error) {
       console.error("Error fetching students:", error)
@@ -72,22 +102,6 @@ export function StudentsTable() {
       setLoading(false)
     }
   }
-
-  useEffect(() => {
-    fetchStudents()
-  }, [])
-
-  useEffect(() => {
-    const filtered = students.filter((student) => {
-      const searchLower = searchTerm.toLowerCase()
-      
-      return student.name.toLowerCase().includes(searchLower) ||
-        student.studentId.toLowerCase().includes(searchLower) ||
-        student.email.toLowerCase().includes(searchLower) ||
-        student.course.toLowerCase().includes(searchLower)
-    })
-    setFilteredStudents(filtered)
-  }, [searchTerm, students])
 
   const handleDeleteStudent = async (studentId: string) => {
     if (!confirm("Are you sure you want to delete this student? This action cannot be undone.")) {
@@ -100,7 +114,7 @@ export function StudentsTable() {
       })
 
       if (response.ok) {
-        await fetchStudents() // Refresh the list
+        await fetchStudents() // Refresh the current page
       } else {
         alert("Error deleting student")
       }
@@ -110,18 +124,31 @@ export function StudentsTable() {
     }
   }
 
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+  }
+
   const getYearLevelBadgeColor = (yearLevel: string) => {
     switch (yearLevel) {
-      case "1": return "bg-green-100 text-green-800"
-      case "2": return "bg-blue-100 text-blue-800"
-      case "3": return "bg-yellow-100 text-yellow-800"
-      case "4": return "bg-red-100 text-red-800"
-      case "5": return "bg-purple-100 text-purple-800"
+      case "YEAR_1": return "bg-green-100 text-green-800"
+      case "YEAR_2": return "bg-blue-100 text-blue-800"
+      case "YEAR_3": return "bg-yellow-100 text-yellow-800"
+      case "YEAR_4": return "bg-red-100 text-red-800"
       default: return "bg-gray-100 text-gray-800"
     }
   }
 
-  if (loading) {
+  const getYearLevelDisplayText = (yearLevel: string) => {
+    switch (yearLevel) {
+      case "YEAR_1": return "1st Year"
+      case "YEAR_2": return "2nd Year"
+      case "YEAR_3": return "3rd Year"
+      case "YEAR_4": return "4th Year"
+      default: return yearLevel
+    }
+  }
+
+  if (loading && students.length === 0) {
     return (
       <Card>
         <CardContent className="p-6">
@@ -148,8 +175,8 @@ export function StudentsTable() {
               className="pl-8"
             />
           </div>
-          <Button variant="outline" onClick={fetchStudents}>
-            <RefreshCw className="h-4 w-4 mr-2" />
+          <Button variant="outline" onClick={fetchStudents} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>
@@ -164,16 +191,23 @@ export function StudentsTable() {
                 <TableHead>Email</TableHead>
                 <TableHead>Course</TableHead>
                 <TableHead>Year Level</TableHead>
-                <TableHead>Section</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Enrolled</TableHead>
+                <TableHead>Enrolled Date</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredStudents.length === 0 ? (
+              {loading && students.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8">
+                  <TableCell colSpan={7} className="text-center py-8">
+                    <div className="flex items-center justify-center space-x-2">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Loading students...</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : students.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
                     <div className="flex flex-col items-center space-y-2">
                       <User className="h-8 w-8 text-muted-foreground" />
                       <span className="text-muted-foreground">
@@ -183,7 +217,7 @@ export function StudentsTable() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredStudents.map((student) => (
+                students.map((student) => (
                   <TableRow key={student.id}>
                     <TableCell className="font-medium">
                       {student.studentId}
@@ -200,19 +234,8 @@ export function StudentsTable() {
                     <TableCell className="font-medium">{student.course}</TableCell>
                     <TableCell>
                       <Badge className={getYearLevelBadgeColor(student.yearLevel)}>
-                        Year {student.yearLevel}
+                        {getYearLevelDisplayText(student.yearLevel)}
                       </Badge>
-                    </TableCell>
-                    <TableCell>{student.section}</TableCell>
-                    <TableCell>
-                      {student.phoneNumber ? (
-                        <div className="flex items-center space-x-1">
-                          <Phone className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-sm">{student.phoneNumber}</span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400">-</span>
-                      )}
                     </TableCell>
                     <TableCell className="text-sm text-gray-600">
                       {new Date(student.enrolledAt).toLocaleDateString()}
@@ -251,9 +274,58 @@ export function StudentsTable() {
           </Table>
         </div>
         
+        {/* Pagination Controls */}
         <div className="flex items-center justify-between space-x-2 py-4">
           <div className="text-sm text-muted-foreground">
-            Showing {filteredStudents.length} of {students.length} student(s)
+            Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} student(s)
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={!hasPrevious || loading}
+            >
+              Previous
+            </Button>
+            
+            <div className="flex items-center space-x-1">
+              {/* Show page numbers */}
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={currentPage === pageNum ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handlePageChange(pageNum)}
+                    disabled={loading}
+                    className="w-8 h-8 p-0"
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+            </div>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={!hasNext || loading}
+            >
+              Next
+            </Button>
           </div>
         </div>
       </CardContent>

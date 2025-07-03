@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -38,7 +38,9 @@ import {
   X,
   Edit,
   Users,
-  CreditCard
+  CreditCard,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react"
 
 interface Student {
@@ -47,7 +49,6 @@ interface Student {
   name: string
   email: string
   yearLevel: string
-  section: string
   course: string
 }
 
@@ -80,16 +81,38 @@ interface StudentPayment {
   totalPaid: number
 }
 
+interface PaginationInfo {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
+}
+
 interface PaymentData {
   students: StudentPayment[]
   fees: Fee[]
+  pagination: PaginationInfo
 }
 
 export function PaymentManagement() {
-  const [data, setData] = useState<PaymentData>({ students: [], fees: [] })
+  const [data, setData] = useState<PaymentData>({ 
+    students: [], 
+    fees: [],
+    pagination: {
+      page: 1,
+      limit: 20,
+      total: 0,
+      totalPages: 0,
+      hasNext: false,
+      hasPrev: false,
+    }
+  })
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [filteredStudents, setFilteredStudents] = useState<StudentPayment[]>([])
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
   const [selectedPayment, setSelectedPayment] = useState<{
     studentId: string
     studentName: string
@@ -110,39 +133,41 @@ export function PaymentManagement() {
     notes: "",
   })
 
-  const fetchPayments = async () => {
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+      setCurrentPage(1) // Reset to first page when searching
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  const fetchPayments = useCallback(async (page = 1, search = "") => {
     try {
       setLoading(true)
-      const response = await fetch("/api/payments")
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: "20",
+        ...(search && { search })
+      })
+      
+      const response = await fetch(`/api/payments?${params}`)
       if (response.ok) {
         const paymentData = await response.json()
         setData(paymentData)
-        setFilteredStudents(paymentData.students)
+        setCurrentPage(page)
       }
     } catch (error) {
       console.error("Error fetching payments:", error)
     } finally {
       setLoading(false)
     }
-  }
-
-  useEffect(() => {
-    fetchPayments()
   }, [])
 
   useEffect(() => {
-    const filtered = data.students.filter((studentPayment) => {
-      const searchLower = searchTerm.toLowerCase()
-      const student = studentPayment.student
-      
-      return student.name.toLowerCase().includes(searchLower) ||
-        student.studentId.toLowerCase().includes(searchLower) ||
-        student.email.toLowerCase().includes(searchLower) ||
-        student.course.toLowerCase().includes(searchLower) ||
-        student.section.toLowerCase().includes(searchLower)
-    })
-    setFilteredStudents(filtered)
-  }, [searchTerm, data.students])
+    fetchPayments(currentPage, debouncedSearchTerm)
+  }, [currentPage, debouncedSearchTerm, fetchPayments])
 
   const handleUpdatePayment = async () => {
     if (!selectedPayment) return
@@ -167,7 +192,7 @@ export function PaymentManagement() {
       })
 
       if (response.ok) {
-        await fetchPayments() // Refresh the data
+        await fetchPayments(currentPage, debouncedSearchTerm) // Refresh the current page
         setSelectedPayment(null)
         setEditingPayment({
           status: "",
@@ -205,7 +230,7 @@ export function PaymentManagement() {
       })
 
       if (response.ok) {
-        await fetchPayments() // Refresh the data
+        await fetchPayments(currentPage, debouncedSearchTerm) // Refresh the current page
       } else {
         alert("Error updating payment status")
       }
@@ -257,6 +282,101 @@ export function PaymentManagement() {
     }).format(amount)
   }
 
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= data.pagination.totalPages) {
+      setCurrentPage(newPage)
+    }
+  }
+
+  const renderPaginationControls = () => {
+    const { page, totalPages, hasNext, hasPrev, total, limit } = data.pagination
+    const startItem = (page - 1) * limit + 1
+    const endItem = Math.min(page * limit, total)
+
+    return (
+      <div className="flex items-center justify-between px-4 py-3 border-t">
+        <div className="flex-1 flex justify-between sm:hidden">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(page - 1)}
+            disabled={!hasPrev}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(page + 1)}
+            disabled={!hasNext}
+          >
+            Next
+          </Button>
+        </div>
+        <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm text-gray-700">
+              Showing <span className="font-medium">{startItem}</span> to{' '}
+              <span className="font-medium">{endItem}</span> of{' '}
+              <span className="font-medium">{total}</span> students
+            </p>
+          </div>
+          <div>
+            <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(page - 1)}
+                disabled={!hasPrev}
+                className="relative inline-flex items-center px-2 py-2 rounded-l-md"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span className="sr-only">Previous</span>
+              </Button>
+              
+              {/* Page numbers */}
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum
+                if (totalPages <= 5) {
+                  pageNum = i + 1
+                } else if (page <= 3) {
+                  pageNum = i + 1
+                } else if (page >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i
+                } else {
+                  pageNum = page - 2 + i
+                }
+                
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={pageNum === page ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handlePageChange(pageNum)}
+                    className="relative inline-flex items-center px-4 py-2"
+                  >
+                    {pageNum}
+                  </Button>
+                )
+              })}
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(page + 1)}
+                disabled={!hasNext}
+                className="relative inline-flex items-center px-2 py-2 rounded-r-md"
+              >
+                <ChevronRight className="h-4 w-4" />
+                <span className="sr-only">Next</span>
+              </Button>
+            </nav>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <Card>
@@ -288,7 +408,7 @@ export function PaymentManagement() {
                 className="pl-8"
               />
             </div>
-            <Button variant="outline" onClick={fetchPayments}>
+            <Button variant="outline" onClick={() => fetchPayments(currentPage, debouncedSearchTerm)}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
@@ -314,7 +434,7 @@ export function PaymentManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredStudents.length === 0 ? (
+                {data.students.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={data.fees.length + 2} className="text-center py-8">
                       <div className="flex flex-col items-center space-y-3">
@@ -326,7 +446,7 @@ export function PaymentManagement() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredStudents.map((studentPayment) => (
+                  data.students.map((studentPayment) => (
                     <TableRow key={studentPayment.student.id}>
                       <TableCell>
                         <div className="flex flex-col">
@@ -473,6 +593,7 @@ export function PaymentManagement() {
               </TableBody>
             </Table>
           </div>
+          {data.pagination.total > 0 && renderPaginationControls()}
         </CardContent>
       </Card>
     </div>

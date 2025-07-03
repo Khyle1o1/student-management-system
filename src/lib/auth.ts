@@ -114,6 +114,7 @@ export const authOptions: NextAuthOptions = {
     },
     async jwt({ token, user, account }) {
       if (user) {
+        token.id = user.id
         token.role = user.role
         token.studentId = user.studentId
       }
@@ -126,6 +127,7 @@ export const authOptions: NextAuthOptions = {
         })
         
         if (dbUser) {
+          token.id = dbUser.id
           token.role = dbUser.role
           token.studentId = dbUser.student?.studentId || null
           token.name = dbUser.name
@@ -136,7 +138,7 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (token && session.user) {
-        session.user.id = token.sub!
+        session.user.id = token.id as string
         session.user.role = token.role as string
         session.user.studentId = token.studentId as string | null
         session.user.name = token.name as string

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await auth()
     
@@ -11,7 +11,35 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const { searchParams } = new URL(request.url)
+    const page = parseInt(searchParams.get('page') || '1', 10)
+    const limit = parseInt(searchParams.get('limit') || '50', 10)
+    const search = searchParams.get('search') || ''
+
+    // Calculate skip for pagination
+    const skip = (page - 1) * limit
+
+    // Build where clause for search
+    const whereClause = search ? {
+      OR: [
+        { name: { contains: search, mode: 'insensitive' as const } },
+        { studentId: { contains: search, mode: 'insensitive' as const } },
+        { email: { contains: search, mode: 'insensitive' as const } },
+        { course: { contains: search, mode: 'insensitive' as const } },
+      ],
+      deletedAt: null,
+    } : {
+      deletedAt: null,
+    }
+
+    // Get total count for pagination info
+    const totalCount = await prisma.student.count({
+      where: whereClause,
+    })
+
+    // Get paginated students
     const students = await prisma.student.findMany({
+      where: whereClause,
       include: {
         user: {
           select: {
@@ -23,10 +51,22 @@ export async function GET() {
       },
       orderBy: {
         createdAt: 'desc'
-      }
+      },
+      skip,
+      take: limit,
     })
 
-    return NextResponse.json(students)
+    return NextResponse.json({
+      students,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+        hasNext: page < Math.ceil(totalCount / limit),
+        hasPrevious: page > 1,
+      }
+    })
   } catch (error) {
     console.error("Error fetching students:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -47,13 +87,17 @@ export async function POST(request: NextRequest) {
       email,
       studentId,
       yearLevel,
-      section,
       course,
       college,
       firstName,
       lastName,
       middleName
     } = body
+
+    // Validate student ID is numeric
+    if (!/^\d+$/.test(studentId)) {
+      return NextResponse.json({ error: "Student ID must contain only numbers" }, { status: 400 })
+    }
 
     // Check if user with email already exists
     const existingUser = await prisma.user.findFirst({
@@ -90,7 +134,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Create student record without phone number and address
+    // Create student record without phone number, address, and section
     const student = await prisma.student.create({
       data: {
         studentId,
@@ -98,10 +142,9 @@ export async function POST(request: NextRequest) {
         name: name || `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`.trim(),
         email,
         yearLevel,
-        section,
         course,
-        // Removed phoneNumber and address fields
-        // These fields remain nullable in the database but are not used
+        // Removed phoneNumber, address, and section fields
+        // These fields are no longer part of the student model
       },
       include: {
         user: {

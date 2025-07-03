@@ -12,7 +12,6 @@ interface EditStudentFormProps {
     middleName?: string
     email: string
     yearLevel: string
-    section: string
     course: string
     college: string
   }

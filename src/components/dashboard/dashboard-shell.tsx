@@ -20,9 +20,13 @@ import {
   Menu,
   Bell,
   Search,
-  ChevronRight
+  ChevronRight,
+  DatabaseIcon,
+  AlertTriangle,
+  XCircle
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface DashboardShellProps {
   children: ReactNode
@@ -34,12 +38,21 @@ interface DashboardStats {
   pendingPayments: number
 }
 
+interface NavigationItem {
+  href: string
+  label: string
+  icon: any
+  badge?: string
+}
+
 export function DashboardShell({ children }: DashboardShellProps) {
   const { data: session } = useSession()
   const pathname = usePathname()
   const isAdmin = session?.user?.role === "ADMIN"
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [dbConnectionError, setDbConnectionError] = useState<string | null>(null)
+  const [showDbError, setShowDbError] = useState(false)
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -48,18 +61,43 @@ export function DashboardShell({ children }: DashboardShellProps) {
         if (response.ok) {
           const data = await response.json()
           setStats(data)
+          setDbConnectionError(null)
+        } else {
+          const errorData = await response.json()
+          // Check if it's a database connection error
+          if (errorData.error && 
+              (errorData.error.includes("Can't reach database") || 
+               errorData.error.includes("P1001") || 
+               errorData.error.includes("P1002") || 
+               errorData.error.includes("P1017"))) {
+            setDbConnectionError("Database connection error: Unable to connect to the database server.")
+            setShowDbError(true)
+          }
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to fetch dashboard stats:', error)
+        // Check if error message contains database connection error indicators
+        if (error.message && 
+            (error.message.includes("Can't reach database") || 
+             error.message.includes("P1001") || 
+             error.message.includes("P1002") || 
+             error.message.includes("P1017"))) {
+          setDbConnectionError("Database connection error: Unable to connect to the database server.")
+          setShowDbError(true)
+        }
       }
     }
 
     if (isAdmin) {
       fetchStats()
+      
+      // Poll for database connection status every 30 seconds
+      const interval = setInterval(fetchStats, 30000)
+      return () => clearInterval(interval)
     }
   }, [isAdmin])
 
-  const adminNavItems = [
+  const adminNavItems: NavigationItem[] = [
     { href: "/dashboard", label: "Overview", icon: BarChart3 },
     { 
       href: "/dashboard/students", 
@@ -84,11 +122,11 @@ export function DashboardShell({ children }: DashboardShellProps) {
     { href: "/dashboard/settings", label: "Settings", icon: Settings },
   ]
 
-  const studentNavItems = [
+  const studentNavItems: NavigationItem[] = [
     { href: "/dashboard", label: "Overview", icon: BarChart3 },
     { href: "/dashboard/profile", label: "My Profile", icon: User },
-    { href: "/dashboard/attendance", label: "My Attendance", icon: Calendar },
-    { href: "/dashboard/fees", label: "My Fees", icon: DollarSign, badge: "2" },
+    { href: "/dashboard/attendance/student", label: "My Attendance", icon: Calendar },
+    { href: "/dashboard/fees/student", label: "My Fees", icon: DollarSign },
   ]
 
   const navItems = isAdmin ? adminNavItems : studentNavItems
@@ -107,8 +145,38 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      {/* Database Connection Error Alert */}
+      {showDbError && dbConnectionError && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-red-50 border-b border-red-200 p-2">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+                <p className="text-sm text-red-800 font-medium">
+                  {dbConnectionError}
+                </p>
+                <p className="text-xs text-red-700 hidden sm:block">
+                  Some features may be unavailable. Please try again later.
+                </p>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-red-700 hover:text-red-900 hover:bg-red-100"
+                onClick={() => setShowDbError(false)}
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Enhanced Header */}
-      <header className="bg-white shadow-sm border-b backdrop-blur-sm bg-white/80 sticky top-0 z-50">
+      <header className={cn(
+        "bg-white shadow-sm border-b backdrop-blur-sm bg-white/80 sticky z-50",
+        showDbError && dbConnectionError ? "top-10" : "top-0"
+      )}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">

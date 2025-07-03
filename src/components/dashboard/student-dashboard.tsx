@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,7 +16,8 @@ import {
   User,
   AlertTriangle,
   Target,
-  Award
+  Award,
+  RefreshCw
 } from "lucide-react"
 import Link from "next/link"
 
@@ -23,186 +25,146 @@ interface StudentDashboardProps {
   studentId: string | null
 }
 
-// Mock data - in real app, this would come from API
-const studentData = {
-  attendanceRate: 85,
-  totalEvents: 20,
-  attendedEvents: 17,
-  totalFees: 1200,
-  paidFees: 800,
-  pendingFees: 400,
-  grade: "A-",
-  gpa: 3.7,
-  creditsCompleted: 45,
-  totalCredits: 60
+interface StudentStats {
+  attendanceRate: number
+  totalEvents: number
+  attendedEvents: number
+  totalFees: number
+  paidFees: number
+  pendingFees: number
+  paymentProgress: number
 }
 
-const recentAttendance = [
-  { id: 1, event: "Advanced Mathematics", date: "2025-01-10", status: "PRESENT", type: "class" },
-  { id: 2, event: "Science Fair Presentation", date: "2025-01-08", status: "PRESENT", type: "event" },
-  { id: 3, event: "Physical Education", date: "2025-01-05", status: "ABSENT", type: "class" },
-  { id: 4, event: "Art Exhibition Opening", date: "2025-01-03", status: "PRESENT", type: "event" },
-  { id: 5, event: "English Literature", date: "2025-01-02", status: "PRESENT", type: "class" },
-]
+interface RecentAttendance {
+  id: string
+  status: string
+  event: {
+    title: string
+    date: string
+    type: string
+  }
+}
 
-const feeStatus = [
-  { id: 1, name: "Registration Fee", amount: 500, status: "PAID", dueDate: "2025-01-01", category: "registration" },
-  { id: 2, name: "Laboratory Fee", amount: 300, status: "PAID", dueDate: "2025-01-15", category: "academic" },
-  { id: 3, name: "Activity Fee", amount: 200, status: "UNPAID", dueDate: "2025-02-01", category: "activity" },
-  { id: 4, name: "Library Fee", amount: 200, status: "UNPAID", dueDate: "2025-02-15", category: "academic" },
-]
-
-const upcomingEvents = [
-  { id: 1, title: "Midterm Examinations", date: "Feb 5-10", type: "exam", priority: "high" },
-  { id: 2, title: "Career Fair", date: "Feb 15", type: "event", priority: "medium" },
-  { id: 3, title: "Project Presentations", date: "Feb 20", type: "assignment", priority: "high" },
-]
-
-function StatCard({ 
-  title, 
-  value, 
-  icon: Icon, 
-  progress, 
-  description,
-  color = "blue"
-}: {
+interface UpcomingEvent {
+  id: string
   title: string
-  value: string | number
-  icon: any
-  progress?: number
-  description: string
-  color?: string
-}) {
-  const colorClasses = {
-    blue: "from-blue-500 to-blue-600",
-    green: "from-green-500 to-green-600",
-    purple: "from-purple-500 to-purple-600",
-    orange: "from-orange-500 to-orange-600"
-  }
-
-  return (
-    <Card className="relative overflow-hidden transition-all duration-200 hover:shadow-lg border-slate-200">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-gray-700">
-          {title}
-        </CardTitle>
-        <div className={`p-2 bg-gradient-to-r ${colorClasses[color as keyof typeof colorClasses]} rounded-lg`}>
-          <Icon className="h-4 w-4 text-white" />
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold text-gray-900 mb-2">
-          {value}
-        </div>
-        {progress !== undefined && (
-          <div className="mb-2">
-            <div className="flex justify-between text-xs text-gray-600 mb-1">
-              <span>Progress</span>
-              <span>{progress}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className={`bg-gradient-to-r ${colorClasses[color as keyof typeof colorClasses]} h-2 rounded-full transition-all duration-300`}
-                style={{ width: `${progress}%` }}
-              ></div>
-            </div>
-          </div>
-        )}
-        <p className="text-xs text-gray-600">
-          {description}
-        </p>
-      </CardContent>
-      <div className={`absolute top-0 right-0 w-16 h-16 bg-gradient-to-br ${colorClasses[color as keyof typeof colorClasses]} opacity-10 rounded-full -translate-y-4 translate-x-4`}></div>
-    </Card>
-  )
+  date: string
+  type: string
+  priority: string
 }
 
-function AttendanceItem({ record }: { record: typeof recentAttendance[0] }) {
-  const getTypeIcon = () => {
-    return record.type === "class" ? 
-      <BookOpen className="h-4 w-4 text-blue-500" /> : 
-      <Calendar className="h-4 w-4 text-purple-500" />
-  }
-
-  const getStatusColor = () => {
-    return record.status === "PRESENT" ? 
-      "border-l-green-400 bg-green-50" : 
-      "border-l-red-400 bg-red-50"
-  }
-
-  return (
-    <div className={`p-3 border-l-4 rounded-r-lg ${getStatusColor()}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          {getTypeIcon()}
-          <div>
-            <p className="font-medium text-gray-900 text-sm">{record.event}</p>
-            <p className="text-gray-600 text-xs capitalize">{record.type} • {record.date}</p>
-          </div>
-        </div>
-        <Badge 
-          variant={record.status === "PRESENT" ? "default" : "destructive"}
-          className="flex items-center gap-1 text-xs"
-        >
-          {record.status === "PRESENT" ? (
-            <CheckCircle className="h-3 w-3" />
-          ) : (
-            <XCircle className="h-3 w-3" />
-          )}
-          {record.status}
-        </Badge>
-      </div>
-    </div>
-  )
-}
-
-function FeeItem({ fee }: { fee: typeof feeStatus[0] }) {
-  const isOverdue = fee.status === "UNPAID" && new Date(fee.dueDate) < new Date()
-  
-  const getCategoryColor = () => {
-    switch (fee.category) {
-      case "registration": return "bg-blue-100 text-blue-800"
-      case "academic": return "bg-green-100 text-green-800"
-      case "activity": return "bg-purple-100 text-purple-800"
-      default: return "bg-gray-100 text-gray-800"
-    }
-  }
-
-  return (
-    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-      <div className="flex items-center space-x-3">
-        <div className="p-2 bg-white rounded-lg shadow-sm">
-          <CreditCard className="h-4 w-4 text-gray-600" />
-        </div>
-        <div>
-          <p className="font-medium text-gray-900">{fee.name}</p>
-          <div className="flex items-center space-x-2 mt-1">
-            <Badge variant="outline" className={`text-xs ${getCategoryColor()}`}>
-              {fee.category}
-            </Badge>
-            <span className="text-xs text-gray-500">Due: {fee.dueDate}</span>
-          </div>
-        </div>
-      </div>
-      <div className="text-right">
-        <p className="font-bold text-gray-900">₱{fee.amount}</p>
-        <div className="flex items-center space-x-2 mt-1">
-          {isOverdue && <AlertTriangle className="h-3 w-3 text-red-500" />}
-          <Badge 
-            variant={fee.status === "PAID" ? "default" : "destructive"}
-            className="text-xs"
-          >
-            {fee.status}
-          </Badge>
-        </div>
-      </div>
-    </div>
-  )
+interface FeeStatus {
+  id: string
+  name: string
+  amount: number
+  status: string
+  dueDate?: string
+  category: string
 }
 
 export function StudentDashboard({ studentId }: StudentDashboardProps) {
-  const paymentProgress = Math.round((studentData.paidFees / studentData.totalFees) * 100)
-  const creditProgress = Math.round((studentData.creditsCompleted / studentData.totalCredits) * 100)
+  const [stats, setStats] = useState<StudentStats | null>(null)
+  const [recentAttendance, setRecentAttendance] = useState<RecentAttendance[]>([])
+  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([])
+  const [feeStatus, setFeeStatus] = useState<FeeStatus[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (studentId) {
+      fetchDashboardData()
+    }
+  }, [studentId])
+
+  const fetchDashboardData = async () => {
+    if (!studentId) return
+    
+    try {
+      setLoading(true)
+      
+      // Fetch student stats, attendance, fees in parallel
+      const [statsRes, attendanceRes, feesRes] = await Promise.all([
+        fetch(`/api/students/dashboard/${studentId}`),
+        fetch(`/api/students/attendance/${studentId}`),
+        fetch(`/api/students/fees/${studentId}`)
+      ])
+
+      if (statsRes.ok) {
+        const statsData = await statsRes.json()
+        setStats(statsData.stats)
+        setUpcomingEvents(statsData.upcomingEvents || [])
+      }
+
+      if (attendanceRes.ok) {
+        const attendanceData = await attendanceRes.json()
+        // Get the last 5 attendance records
+        const recent = attendanceData.records.slice(0, 5).map((record: any) => ({
+          id: record.id,
+          status: record.status,
+          event: {
+            title: record.event.title,
+            date: record.event.date,
+            type: record.event.type
+          }
+        }))
+        setRecentAttendance(recent)
+      }
+
+      if (feesRes.ok) {
+        const feesData = await feesRes.json()
+        // Convert fees to fee status format
+        const feeStatusItems = feesData.fees.map((fee: any) => {
+          const paymentsForFee = feesData.payments.filter((payment: any) => payment.fee.id === fee.id)
+          const paidAmount = paymentsForFee
+            .filter((payment: any) => payment.status === 'PAID')
+            .reduce((sum: number, payment: any) => sum + payment.amount, 0)
+          const hasPartialPayment = paymentsForFee.some((payment: any) => payment.status === 'PARTIAL')
+          
+          let status = "UNPAID"
+          if (paidAmount >= fee.amount) status = "PAID"
+          else if (paidAmount > 0 || hasPartialPayment) status = "PARTIAL"
+
+          return {
+            id: fee.id,
+            name: fee.name,
+            amount: fee.amount,
+            status,
+            dueDate: fee.dueDate,
+            category: fee.type.toLowerCase().replace('_fee', '')
+          }
+        })
+        setFeeStatus(feeStatusItems)
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        <div className="flex items-center justify-center py-8">
+          <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
+          <span className="ml-2 text-gray-600">Loading dashboard...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (!stats) {
+    return (
+      <div className="space-y-8">
+        <div className="text-center py-8">
+          <AlertTriangle className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+          <p className="text-gray-600">Unable to load dashboard data</p>
+          <Button variant="outline" onClick={fetchDashboardData} className="mt-4">
+            Try Again
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-8">
@@ -217,51 +179,52 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
           </p>
         </div>
         <div className="flex space-x-2">
-          <Button variant="outline" size="sm" className="flex items-center space-x-2">
-            <User className="h-4 w-4" />
-            <span>Profile</span>
-          </Button>
+          <Link href="/dashboard/profile">
+            <Button variant="outline" size="sm" className="flex items-center space-x-2">
+              <User className="h-4 w-4" />
+              <span>Profile</span>
+            </Button>
+          </Link>
         </div>
       </div>
 
       {/* Enhanced Stats Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <StatCard
           title="Attendance Rate"
-          value={`${studentData.attendanceRate}%`}
+          value={`${stats.attendanceRate}%`}
           icon={Calendar}
-          progress={studentData.attendanceRate}
-          description={`${studentData.attendedEvents} of ${studentData.totalEvents} events attended`}
+          progress={stats.attendanceRate}
+          description={`${stats.attendedEvents} of ${stats.totalEvents} events attended`}
           color="blue"
         />
         <StatCard
           title="Payment Progress"
-          value={`${paymentProgress}%`}
+          value={`${stats.paymentProgress}%`}
           icon={DollarSign}
-          progress={paymentProgress}
-          description={`₱${studentData.paidFees} paid of ₱${studentData.totalFees}`}
+          progress={stats.paymentProgress}
+          description={`₱${stats.paidFees.toLocaleString()} paid of ₱${stats.totalFees.toLocaleString()}`}
           color="green"
         />
         <StatCard
-          title="Current GPA"
-          value={studentData.gpa}
+          title="Total Events"
+          value={stats.totalEvents.toString()}
           icon={Award}
-          description={`Grade: ${studentData.grade} • Excellent performance`}
+          description={`${stats.attendedEvents} attended • ${stats.totalEvents - stats.attendedEvents} missed`}
           color="purple"
         />
         <StatCard
-          title="Credits Progress"
-          value={`${studentData.creditsCompleted}/${studentData.totalCredits}`}
+          title="Pending Fees"
+          value={`₱${stats.pendingFees.toLocaleString()}`}
           icon={Target}
-          progress={creditProgress}
-          description={`${100 - creditProgress}% remaining to graduation`}
+          description={`${feeStatus.filter(f => f.status !== "PAID").length} fee(s) remaining`}
           color="orange"
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Recent Attendance */}
-        <Card className="lg:col-span-2 border-slate-200">
+        <Card className="xl:col-span-2 border-slate-200">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
@@ -269,15 +232,22 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
                 <span>Recent Attendance</span>
               </div>
               <Badge variant="outline" className="text-xs">
-                Last 5 records
+                Last {recentAttendance.length} records
               </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {recentAttendance.map((record) => (
-              <AttendanceItem key={record.id} record={record} />
-            ))}
-            <Link href="/dashboard/attendance">
+            {recentAttendance.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">
+                <Calendar className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                <p>No attendance records yet</p>
+              </div>
+            ) : (
+              recentAttendance.map((record) => (
+                <AttendanceItem key={record.id} record={record} />
+              ))
+            )}
+            <Link href="/dashboard/attendance/student">
               <Button variant="ghost" className="w-full text-sm text-gray-600 hover:text-gray-900">
                 View full attendance history
               </Button>
@@ -294,25 +264,32 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {upcomingEvents.map((event) => (
-              <div key={event.id} className="p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-gray-900 text-sm">{event.title}</h4>
-                  <Badge 
-                    variant={event.priority === "high" ? "destructive" : "secondary"}
-                    className="text-xs"
-                  >
-                    {event.priority}
-                  </Badge>
-                </div>
-                <div className="flex items-center space-x-2 text-xs text-gray-600">
-                  <Calendar className="h-3 w-3" />
-                  <span>{event.date}</span>
-                  <span>•</span>
-                  <span className="capitalize">{event.type}</span>
-                </div>
+            {upcomingEvents.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">
+                <Clock className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                <p>No upcoming events</p>
               </div>
-            ))}
+            ) : (
+              upcomingEvents.map((event) => (
+                <div key={event.id} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-gray-900 text-sm">{event.title}</h4>
+                    <Badge 
+                      variant={event.priority === "high" ? "destructive" : "secondary"}
+                      className="text-xs"
+                    >
+                      {event.priority}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center space-x-2 text-xs text-gray-600">
+                    <Calendar className="h-3 w-3" />
+                    <span>{new Date(event.date).toLocaleDateString()}</span>
+                    <span>•</span>
+                    <span className="capitalize">{event.type}</span>
+                  </div>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
@@ -322,25 +299,28 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <DollarSign className="h-5 w-5 text-blue-600" />
+              <CreditCard className="h-5 w-5 text-blue-600" />
               <span>Fee Status</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600">
-                ₱{studentData.pendingFees} pending
-              </span>
-              <Link href="/dashboard/fees">
-                <Button variant="outline" size="sm">
-                  Pay Now
-                </Button>
-              </Link>
-            </div>
+            <Link href="/dashboard/fees/student">
+              <Button variant="outline" size="sm">
+                View All Fees
+              </Button>
+            </Link>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {feeStatus.map((fee) => (
-            <FeeItem key={fee.id} fee={fee} />
-          ))}
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {feeStatus.slice(0, 6).map((fee) => (
+              <FeeItem key={fee.id} fee={fee} />
+            ))}
+          </div>
+          {feeStatus.length === 0 && (
+            <div className="text-center py-4 text-gray-500">
+              <CreditCard className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+              <p>No fees assigned yet</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -360,7 +340,7 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
                 </div>
               </Button>
             </Link>
-            <Link href="/dashboard/attendance">
+            <Link href="/dashboard/attendance/student">
               <Button variant="outline" className="w-full justify-start h-auto p-4">
                 <div className="flex flex-col items-start space-y-1">
                   <Calendar className="h-4 w-4" />
@@ -369,25 +349,138 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
                 </div>
               </Button>
             </Link>
-            <Link href="/dashboard/fees">
+            <Link href="/dashboard/fees/student">
               <Button variant="outline" className="w-full justify-start h-auto p-4">
                 <div className="flex flex-col items-start space-y-1">
                   <CreditCard className="h-4 w-4" />
-                  <span className="font-medium">Pay Fees</span>
-                  <span className="text-xs text-gray-500">Make payments online</span>
+                  <span className="font-medium">View Fees</span>
+                  <span className="text-xs text-gray-500">Check payment status</span>
                 </div>
               </Button>
             </Link>
-            <Button variant="outline" className="w-full justify-start h-auto p-4">
+            <Button variant="outline" className="w-full justify-start h-auto p-4" disabled>
               <div className="flex flex-col items-start space-y-1">
                 <BookOpen className="h-4 w-4" />
                 <span className="font-medium">Course Materials</span>
-                <span className="text-xs text-gray-500">Access study resources</span>
+                <span className="text-xs text-gray-500">Coming soon</span>
               </div>
             </Button>
           </div>
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+// Helper Components
+interface StatCardProps {
+  title: string
+  value: string
+  icon: any
+  progress?: number
+  description: string
+  color: "blue" | "green" | "purple" | "orange"
+}
+
+function StatCard({ title, value, icon: Icon, progress, description, color }: StatCardProps) {
+  const colorClasses = {
+    blue: "from-blue-500 to-blue-600 text-blue-600",
+    green: "from-green-500 to-green-600 text-green-600", 
+    purple: "from-purple-500 to-purple-600 text-purple-600",
+    orange: "from-orange-500 to-orange-600 text-orange-600"
+  }
+
+  return (
+    <Card className="relative overflow-hidden border-slate-200">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-gray-600">{title}</p>
+            <p className="text-3xl font-bold text-gray-900">{value}</p>
+            <p className="text-xs text-gray-500">{description}</p>
+          </div>
+          <div className={`h-12 w-12 rounded-lg bg-gradient-to-r ${colorClasses[color]} flex items-center justify-center`}>
+            <Icon className="h-6 w-6 text-white" />
+          </div>
+        </div>
+        {progress !== undefined && (
+          <div className="mt-4">
+            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div 
+                className={`h-full bg-gradient-to-r ${colorClasses[color]} transition-all duration-500`}
+                style={{ width: `${Math.min(progress, 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function AttendanceItem({ record }: { record: RecentAttendance }) {
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "PRESENT": return <CheckCircle className="h-4 w-4 text-green-600" />
+      case "ABSENT": return <XCircle className="h-4 w-4 text-red-600" />
+      case "LATE": return <Clock className="h-4 w-4 text-yellow-600" />
+      default: return <AlertTriangle className="h-4 w-4 text-gray-600" />
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "PRESENT": return "bg-green-100 text-green-800"
+      case "ABSENT": return "bg-red-100 text-red-800"
+      case "LATE": return "bg-yellow-100 text-yellow-800"
+      default: return "bg-gray-100 text-gray-800"
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+      <div className="flex items-center space-x-3">
+        {getStatusIcon(record.status)}
+        <div>
+          <p className="text-sm font-medium text-gray-900">{record.event.title}</p>
+          <p className="text-xs text-gray-500">
+            {new Date(record.event.date).toLocaleDateString()} • {record.event.type}
+          </p>
+        </div>
+      </div>
+      <Badge className={getStatusColor(record.status)}>
+        {record.status}
+      </Badge>
+    </div>
+  )
+}
+
+function FeeItem({ fee }: { fee: FeeStatus }) {
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "PAID": return "bg-green-100 text-green-800"
+      case "PARTIAL": return "bg-yellow-100 text-yellow-800"
+      case "UNPAID": return "bg-red-100 text-red-800"
+      default: return "bg-gray-100 text-gray-800"
+    }
+  }
+
+  return (
+    <div className="p-3 bg-gray-50 rounded-lg">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="font-medium text-gray-900 text-sm">{fee.name}</h4>
+        <Badge className={getStatusColor(fee.status)}>
+          {fee.status}
+        </Badge>
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm text-gray-600">₱{fee.amount.toLocaleString()}</p>
+        {fee.dueDate && (
+          <p className="text-xs text-gray-500">
+            Due: {new Date(fee.dueDate).toLocaleDateString()}
+          </p>
+        )}
+      </div>
     </div>
   )
 } 

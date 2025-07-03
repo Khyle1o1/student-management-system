@@ -27,42 +27,30 @@ async function main() {
     {
       email: 'john.doe@student.edu',
       name: 'John Doe',
-      studentId: 'STU2024001',
-      yearLevel: 'THIRD_YEAR',
-      section: 'A',
+      studentId: '2024001',
+      yearLevel: 'YEAR_3',
       course: 'Computer Science',
-      phoneNumber: '+1234567890',
-      address: '123 Main St, City, State'
     },
     {
       email: 'jane.smith@student.edu',
       name: 'Jane Smith',
-      studentId: 'STU2024002',
-      yearLevel: 'SECOND_YEAR',
-      section: 'B',
+      studentId: '2024002',
+      yearLevel: 'YEAR_2',
       course: 'Information Technology',
-      phoneNumber: '+1234567891',
-      address: '456 Oak Ave, City, State'
     },
     {
       email: 'mike.johnson@student.edu',
       name: 'Mike Johnson',
-      studentId: 'STU2024003',
-      yearLevel: 'FOURTH_YEAR',
-      section: 'A',
+      studentId: '2024003',
+      yearLevel: 'YEAR_4',
       course: 'Computer Engineering',
-      phoneNumber: '+1234567892',
-      address: '789 Pine St, City, State'
     },
     {
       email: 'test@student.edu',
       name: 'Test Student',
-      studentId: 'STU2024999',
-      yearLevel: 'FIRST_YEAR',
-      section: 'A',
+      studentId: '2024999',
+      yearLevel: 'YEAR_1',
       course: 'Computer Science',
-      phoneNumber: '+1234567999',
-      address: '999 Test St, City, State'
     }
   ]
 
@@ -80,20 +68,15 @@ async function main() {
     })
 
     // Create associated student record
-    const student = await prisma.student.upsert({
-      where: { studentId: studentData.studentId },
-      update: {},
-      create: {
+    const student = await prisma.student.create({
+      data: {
         studentId: studentData.studentId,
         userId: user.id,
         name: studentData.name,
         email: studentData.email,
         yearLevel: studentData.yearLevel as any,
-        section: studentData.section,
         course: studentData.course,
-        phoneNumber: studentData.phoneNumber,
-        address: studentData.address,
-      },
+      }
     })
 
     console.log('✅ Student created:', student.studentId, '-', student.name)

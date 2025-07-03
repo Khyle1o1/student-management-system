@@ -54,13 +54,17 @@ export async function PUT(
       email,
       studentId,
       yearLevel,
-      section,
       course,
       college,
       firstName,
       lastName,
       middleName
     } = body
+
+    // Validate student ID is numeric
+    if (!/^\d+$/.test(studentId)) {
+      return NextResponse.json({ error: "Student ID must contain only numbers" }, { status: 400 })
+    }
 
     // Find the existing student
     const existingStudent = await prisma.student.findUnique({
@@ -111,7 +115,7 @@ export async function PUT(
       }
     })
 
-    // Update student record (without phone number and address)
+    // Update student record (without phone number, address, and section)
     const updatedStudent = await prisma.student.update({
       where: { id: params.id },
       data: {
@@ -119,9 +123,8 @@ export async function PUT(
         name: fullName,
         email,
         yearLevel,
-        section,
         course,
-        // Removed phoneNumber and address fields
+        // Removed phoneNumber, address, and section fields
       },
       include: {
         user: {

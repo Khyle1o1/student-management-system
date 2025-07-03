@@ -19,23 +19,21 @@ The batch student import feature allows administrators to upload multiple studen
 
 #### Required Fields:
 - `name` - Full name of the student
-- `studentId` - Unique student identifier (letters and numbers only)
+- `studentId` - Unique student identifier (numbers only)
 - `email` - Valid email address
-- `yearLevel` - Must be one of: FIRST_YEAR, SECOND_YEAR, THIRD_YEAR, FOURTH_YEAR, GRADUATE
-- `section` - Class section (e.g., A, B, C)
+- `yearLevel` - Must be one of: YEAR_1, YEAR_2, YEAR_3, YEAR_4
 - `course` - Course/program name
+- `college` - College name (e.g., College of Technology, College of Engineering)
 
 #### Optional Fields:
-- `phoneNumber` - Contact number
-- `address` - Home address
 - `password` - Account password (defaults to 'student123' if not provided)
 
 ### ✅ Sample Data Format
 
 ```csv
-name,studentId,email,yearLevel,section,course,phoneNumber,address,password
-John Doe,STU2024001,john.doe@student.edu,FIRST_YEAR,A,Computer Science,+1234567890,123 Main St,student123
-Jane Smith,STU2024002,jane.smith@student.edu,SECOND_YEAR,B,Information Technology,+1234567891,456 Oak Ave,student123
+name,studentId,email,yearLevel,course,college,password
+John Doe,2024001,john.doe@student.edu,YEAR_1,Computer Science,College of Technology,student123
+Jane Smith,2024002,jane.smith@student.edu,YEAR_2,Information Technology,College of Engineering,student123
 ```
 
 ## How to Use
@@ -53,7 +51,7 @@ Jane Smith,STU2024002,jane.smith@student.edu,SECOND_YEAR,B,Information Technolog
 ### Step 3: Prepare Your Data
 1. Create your student data file using the same column structure as the template
 2. Ensure all required fields are filled
-3. Use the exact year level values: FIRST_YEAR, SECOND_YEAR, THIRD_YEAR, FOURTH_YEAR, GRADUATE
+3. Use the exact year level values: YEAR_1, YEAR_2, YEAR_3, YEAR_4
 
 ### Step 4: Upload and Preview
 1. Click "Choose File" and select your CSV or Excel file
@@ -81,7 +79,7 @@ The system will show:
 | "name is required" | Empty name field | Ensure all students have names |
 | "Invalid email format" | Malformed email | Use valid email format (user@domain.com) |
 | "Student ID already exists" | Duplicate student ID | Use unique student IDs |
-| "Year level must be one of..." | Invalid year level | Use exact values: FIRST_YEAR, SECOND_YEAR, etc. |
+| "Year level must be one of..." | Invalid year level | Use exact values: YEAR_1, YEAR_2, etc. |
 
 ### Data Formatting Tips:
 - Remove any extra spaces before/after values

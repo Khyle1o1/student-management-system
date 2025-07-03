@@ -26,12 +26,9 @@ import {
 interface Student {
   id: string
   studentId: string
-  firstName: string
-  lastName: string
-  middleName?: string
+  name: string
   course: string
   yearLevel: string
-  section: string
 }
 
 interface EventAttendance {
@@ -65,40 +62,54 @@ export function EventAttendanceTable({ eventId, eventDetails }: EventAttendanceT
   const [attendanceRecords, setAttendanceRecords] = useState<EventAttendance[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [filteredStudents, setFilteredStudents] = useState<Student[]>([])
   const [scanning, setScanning] = useState(false)
   const [scanInput, setScanInput] = useState("")
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [hasNext, setHasNext] = useState(false)
+  const [hasPrevious, setHasPrevious] = useState(false)
+  const [pageSize] = useState(20) // Fixed page size
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
+
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+      setCurrentPage(1) // Reset to first page when search changes
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [searchTerm])
 
   useEffect(() => {
     fetchStudentsAndAttendance()
-  }, [eventId])
-
-  useEffect(() => {
-    const filtered = students.filter((student) => {
-      const fullName = `${student.firstName} ${student.middleName || ''} ${student.lastName}`.toLowerCase()
-      const searchLower = searchTerm.toLowerCase()
-      
-      return fullName.includes(searchLower) ||
-        student.studentId.toLowerCase().includes(searchLower) ||
-        student.course.toLowerCase().includes(searchLower) ||
-        student.section.toLowerCase().includes(searchLower)
-    })
-    setFilteredStudents(filtered)
-  }, [searchTerm, students])
+  }, [eventId, currentPage, debouncedSearchTerm])
 
   const fetchStudentsAndAttendance = async () => {
     try {
       setLoading(true)
-      // Fetch all students
-      const studentsResponse = await fetch("/api/students")
-      const studentsData = await studentsResponse.json()
       
-      // Fetch attendance for this event
-      const attendanceResponse = await fetch(`/api/attendance/event/${eventId}`)
-      const attendanceData = attendanceResponse.ok ? await attendanceResponse.json() : []
+      // Build query parameters
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: pageSize.toString(),
+        eventId: eventId,
+        ...(debouncedSearchTerm && { search: debouncedSearchTerm })
+      })
       
-      setStudents(studentsData)
-      setAttendanceRecords(attendanceData)
+      const response = await fetch(`/api/attendance/students?${params}`)
+      if (response.ok) {
+        const data = await response.json()
+        setStudents(data.students)
+        setAttendanceRecords(data.attendanceRecords)
+        setTotalPages(data.pagination.totalPages)
+        setTotalCount(data.pagination.totalCount)
+        setHasNext(data.pagination.hasNext)
+        setHasPrevious(data.pagination.hasPrevious)
+      }
     } catch (error) {
       console.error("Error fetching data:", error)
     } finally {
@@ -164,21 +175,47 @@ export function EventAttendanceTable({ eventId, eventDetails }: EventAttendanceT
   const handleBarcodeScanning = async () => {
     if (!scanInput.trim()) return
     
-    // Find student by ID
-    const student = students.find(s => s.studentId === scanInput.trim())
-    if (!student) {
-      alert("Student not found!")
-      setScanInput("")
-      return
-    }
+    try {
+      // Search for student by ID across all students (not just current page)
+      const response = await fetch(`/api/attendance/students?search=${scanInput.trim()}&limit=1`)
+      if (!response.ok) {
+        alert("Error searching for student!")
+        setScanInput("")
+        return
+      }
+      
+      const data = await response.json()
+      const student = data.students.find((s: Student) => s.studentId === scanInput.trim())
+      
+      if (!student) {
+        alert("Student not found!")
+        setScanInput("")
+        return
+      }
 
-    const existingRecord = getStudentAttendance(student.id)
-    
-    // Determine if this should be IN or OUT
-    const isTimeIn = !existingRecord || !existingRecord.timeIn
-    
-    await markAttendance(student.id, isTimeIn ? 'in' : 'out')
-    setScanInput("")
+      const existingRecord = getStudentAttendance(student.id)
+      
+      // Determine if this should be IN or OUT
+      const isTimeIn = !existingRecord || !existingRecord.timeIn
+      
+      await markAttendance(student.id, isTimeIn ? 'in' : 'out')
+      setScanInput("")
+      
+      // Refresh the current page to show updated attendance
+      await fetchStudentsAndAttendance()
+    } catch (error) {
+      console.error("Error during barcode scanning:", error)
+      alert("Error processing barcode scan!")
+      setScanInput("")
+    }
+  }
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value)
+  }
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
   }
 
   const exportAttendance = async () => {
@@ -201,8 +238,7 @@ export function EventAttendanceTable({ eventId, eventDetails }: EventAttendanceT
   }
 
   const formatStudentName = (student: Student) => {
-    const middleName = student.middleName ? ` ${student.middleName}` : ''
-    return `${student.firstName}${middleName} ${student.lastName}`
+    return student.name
   }
 
   const formatTime = (time?: string) => {
@@ -239,7 +275,7 @@ export function EventAttendanceTable({ eventId, eventDetails }: EventAttendanceT
           <Input
             placeholder="Search students..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-8"
           />
         </div>
@@ -279,7 +315,6 @@ export function EventAttendanceTable({ eventId, eventDetails }: EventAttendanceT
               <TableHead>Student</TableHead>
               <TableHead>Student ID</TableHead>
               <TableHead>Course & Year</TableHead>
-              <TableHead>Section</TableHead>
               <TableHead>Time IN</TableHead>
               <TableHead>Time OUT</TableHead>
               <TableHead>Status</TableHead>
@@ -287,9 +322,9 @@ export function EventAttendanceTable({ eventId, eventDetails }: EventAttendanceT
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredStudents.length === 0 ? (
+            {students.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8">
+                <TableCell colSpan={7} className="text-center py-8">
                   <div className="flex flex-col items-center space-y-2">
                     <User className="h-8 w-8 text-muted-foreground" />
                     <span className="text-muted-foreground">
@@ -299,7 +334,7 @@ export function EventAttendanceTable({ eventId, eventDetails }: EventAttendanceT
                 </TableCell>
               </TableRow>
             ) : (
-              filteredStudents.map((student) => {
+              students.map((student) => {
                 const attendance = getStudentAttendance(student.id)
                 const statusInfo = getAttendanceStatus(attendance)
                 
@@ -320,7 +355,6 @@ export function EventAttendanceTable({ eventId, eventDetails }: EventAttendanceT
                         <div className="text-gray-600">Year {student.yearLevel}</div>
                       </div>
                     </TableCell>
-                    <TableCell>{student.section}</TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-1">
                         <Clock className="h-3 w-3 text-muted-foreground" />
@@ -368,29 +402,84 @@ export function EventAttendanceTable({ eventId, eventDetails }: EventAttendanceT
         </Table>
       </div>
 
+      {/* Pagination Controls */}
+      <div className="flex items-center justify-between px-2">
+        <div className="text-sm text-muted-foreground">
+          Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} students
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={!hasPrevious || loading}
+          >
+            Previous
+          </Button>
+          
+          <div className="flex items-center space-x-1">
+            {/* Show page numbers */}
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+              
+              return (
+                <Button
+                  key={pageNum}
+                  variant={currentPage === pageNum ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handlePageChange(pageNum)}
+                  disabled={loading}
+                  className="w-8 h-8 p-0"
+                >
+                  {pageNum}
+                </Button>
+              );
+            })}
+          </div>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={!hasNext || loading}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+
       {/* Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-center">
         <div className="bg-green-50 p-4 rounded-lg">
           <div className="text-2xl font-bold text-green-600">
             {attendanceRecords.filter(r => r.timeIn && r.timeOut).length}
           </div>
-          <div className="text-sm text-green-700">Fully Attended</div>
+          <div className="text-sm text-green-700">Fully Attended (This Page)</div>
         </div>
         <div className="bg-yellow-50 p-4 rounded-lg">
           <div className="text-2xl font-bold text-yellow-600">
             {attendanceRecords.filter(r => r.timeIn && !r.timeOut).length}
           </div>
-          <div className="text-sm text-yellow-700">Checked IN Only</div>
+          <div className="text-sm text-yellow-700">Checked IN Only (This Page)</div>
         </div>
         <div className="bg-red-50 p-4 rounded-lg">
           <div className="text-2xl font-bold text-red-600">
             {students.length - attendanceRecords.filter(r => r.timeIn).length}
           </div>
-          <div className="text-sm text-red-700">Absent</div>
+          <div className="text-sm text-red-700">Absent (This Page)</div>
         </div>
         <div className="bg-blue-50 p-4 rounded-lg">
           <div className="text-2xl font-bold text-blue-600">
-            {students.length}
+            {totalCount}
           </div>
           <div className="text-sm text-blue-700">Total Students</div>
         </div>
