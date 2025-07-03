@@ -267,73 +267,96 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-col lg:flex-row gap-6">
+          {/* Mobile Sidebar Backdrop */}
+          {isMobileMenuOpen && (
+            <div 
+              className="fixed inset-0 bg-gray-600 bg-opacity-50 transition-opacity lg:hidden z-40"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+          )}
+
           {/* Enhanced Sidebar */}
           <aside className={cn(
-            "w-full lg:w-64 flex-shrink-0 transition-all duration-300",
-            isMobileMenuOpen ? "block" : "hidden lg:block"
+            "fixed inset-y-0 left-0 z-50 w-64 bg-white transform transition-transform duration-300 ease-in-out lg:relative lg:transform-none",
+            isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           )}>
-            <Card className="p-2 shadow-sm border-slate-200">
-              <nav className="space-y-1">
-                {navItems.map((item) => {
-                  const Icon = item.icon
-                  const isActive = pathname === item.href || 
-                    (pathname.startsWith(item.href) && item.href !== '/dashboard')
-                  
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        "flex items-center justify-between p-3 rounded-lg transition-all duration-200 group",
-                        isActive
-                          ? "bg-gradient-to-r from-blue-50 to-purple-50 text-blue-700 border border-blue-200"
-                          : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                      )}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <Icon className={cn(
-                          "h-5 w-5 transition-colors",
-                          isActive ? "text-blue-600" : "text-gray-500 group-hover:text-gray-700"
-                        )} />
-                        <span className="text-sm font-medium">{item.label}</span>
-                      </div>
-                      {item.badge && (
-                        <Badge 
-                          variant={isActive ? "default" : "secondary"}
-                          className="text-xs h-5 px-2"
-                        >
-                          {item.badge}
-                        </Badge>
-                      )}
-                    </Link>
-                  )
-                })}
-              </nav>
+            <div className="h-full flex flex-col">
+              <div className="flex items-center justify-between p-4 lg:hidden">
+                <h2 className="text-lg font-semibold text-gray-900">Menu</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <XCircle className="h-5 w-5" />
+                </Button>
+              </div>
 
-              {/* Quick Stats in Sidebar */}
-              {isAdmin && stats && (
-                <div className="mt-6 pt-4 border-t border-gray-200">
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                    Quick Stats
-                  </h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Active Students</span>
-                      <span className="font-medium text-green-600">{stats.totalStudents}</span>
+              <div className="flex-1 overflow-y-auto">
+                <Card className="m-2 shadow-sm border-slate-200">
+                  <nav className="space-y-1 p-2">
+                    {navItems.map((item) => {
+                      const Icon = item.icon
+                      const isActive = pathname === item.href || 
+                        (pathname.startsWith(item.href) && item.href !== '/dashboard')
+                      
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={cn(
+                            "flex items-center justify-between p-3 rounded-lg transition-all duration-200 group",
+                            isActive
+                              ? "bg-gradient-to-r from-blue-50 to-purple-50 text-blue-700 border border-blue-200"
+                              : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                          )}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <Icon className={cn(
+                              "h-5 w-5 transition-colors",
+                              isActive ? "text-blue-600" : "text-gray-500 group-hover:text-gray-700"
+                            )} />
+                            <span className="text-sm font-medium">{item.label}</span>
+                          </div>
+                          {item.badge && (
+                            <Badge 
+                              variant={isActive ? "default" : "secondary"}
+                              className="text-xs h-5 px-2"
+                            >
+                              {item.badge}
+                            </Badge>
+                          )}
+                        </Link>
+                      )
+                    })}
+                  </nav>
+
+                  {/* Quick Stats in Sidebar */}
+                  {isAdmin && stats && (
+                    <div className="mt-6 mx-2 pt-4 border-t border-gray-200">
+                      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                        Quick Stats
+                      </h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Active Students</span>
+                          <span className="font-medium text-green-600">{stats.totalStudents}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Total Events</span>
+                          <span className="font-medium text-blue-600">{stats.totalEvents}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Pending Payments</span>
+                          <span className="font-medium text-orange-600">{stats.pendingPayments}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Total Events</span>
-                      <span className="font-medium text-blue-600">{stats.totalEvents}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Pending Payments</span>
-                      <span className="font-medium text-orange-600">{stats.pendingPayments}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </Card>
+                  )}
+                </Card>
+              </div>
+            </div>
           </aside>
 
           {/* Enhanced Main Content */}

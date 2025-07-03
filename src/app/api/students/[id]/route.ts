@@ -165,18 +165,42 @@ export async function DELETE(
       return NextResponse.json({ error: "Student not found" }, { status: 404 })
     }
 
-    // Hard delete: Completely remove the student and associated user from the database
-    // Delete student first (due to foreign key constraints)
-    await prisma.student.delete({
-      where: { id: params.id }
+    // Delete all associated records in a transaction
+    await prisma.$transaction(async (tx) => {
+      // Delete attendance records (including soft-deleted ones)
+      await tx.attendance.deleteMany({
+        where: { 
+          studentId: params.id,
+          OR: [
+            { deletedAt: null },
+            { deletedAt: { not: null } }
+          ]
+        }
+      })
+
+      // Delete payment records (including soft-deleted ones)
+      await tx.payment.deleteMany({
+        where: { 
+          studentId: params.id,
+          OR: [
+            { deletedAt: null },
+            { deletedAt: { not: null } }
+          ]
+        }
+      })
+
+      // Delete student record (force delete even if soft-deleted)
+      await tx.student.delete({
+        where: { id: params.id }
+      })
+
+      // Finally delete the user record (force delete even if soft-deleted)
+      await tx.user.delete({
+        where: { id: student.userId }
+      })
     })
 
-    // Then delete the associated user
-    await prisma.user.delete({
-      where: { id: student.userId }
-    })
-
-    return NextResponse.json({ message: "Student deleted successfully" })
+    return NextResponse.json({ message: "Student and all associated records permanently deleted" })
   } catch (error) {
     console.error("Error deleting student:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

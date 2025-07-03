@@ -10,17 +10,68 @@ export async function DELETE() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Soft delete all students by setting deletedAt
-    await prisma.student.updateMany({
-      where: {
-        deletedAt: null,
-      },
-      data: {
-        deletedAt: new Date(),
-      },
+    // Get all student IDs (including soft-deleted ones)
+    const students = await prisma.student.findMany({
+      select: {
+        id: true,
+        userId: true
+      }
     })
 
-    return NextResponse.json({ message: "All students have been deleted" })
+    if (students.length === 0) {
+      return NextResponse.json({ message: "No students found to delete" })
+    }
+
+    // Delete all associated records in a transaction
+    await prisma.$transaction(async (tx) => {
+      // Delete attendance records (including soft-deleted ones)
+      await tx.attendance.deleteMany({
+        where: {
+          studentId: {
+            in: students.map(s => s.id)
+          },
+          OR: [
+            { deletedAt: null },
+            { deletedAt: { not: null } }
+          ]
+        }
+      })
+
+      // Delete payment records (including soft-deleted ones)
+      await tx.payment.deleteMany({
+        where: {
+          studentId: {
+            in: students.map(s => s.id)
+          },
+          OR: [
+            { deletedAt: null },
+            { deletedAt: { not: null } }
+          ]
+        }
+      })
+
+      // Delete student records (force delete)
+      await tx.student.deleteMany({
+        where: {
+          id: {
+            in: students.map(s => s.id)
+          }
+        }
+      })
+
+      // Finally delete user records (force delete)
+      await tx.user.deleteMany({
+        where: {
+          id: {
+            in: students.map(s => s.userId)
+          }
+        }
+      })
+    })
+
+    return NextResponse.json({ 
+      message: `Successfully deleted ${students.length} students and all their associated records permanently` 
+    })
   } catch (error) {
     console.error("Error deleting students:", error)
     return NextResponse.json(
