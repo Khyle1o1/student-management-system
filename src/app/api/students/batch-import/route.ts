@@ -254,7 +254,7 @@ export async function POST(request: NextRequest) {
                   email: studentData.email.toLowerCase(),
                   yearLevel: studentData.yearLevel as any,
                   course: studentData.course,
-                  // The college field is handled at the application level
+                  college: studentData.college,
                 } as any
               });
             });

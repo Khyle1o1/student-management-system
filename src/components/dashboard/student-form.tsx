@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Save, Loader2 } from "lucide-react"
+import { COLLEGES, COURSES_BY_COLLEGE } from "@/lib/constants/academic-programs"
 
 interface StudentFormProps {
   studentId?: string
@@ -213,33 +214,46 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
                 <Label htmlFor="college">College *</Label>
                 <Select
                   value={formData.college}
-                  onValueChange={(value) => handleInputChange("college", value)}
+                  onValueChange={(value) => {
+                    handleInputChange("college", value)
+                    // Reset course when college changes
+                    handleInputChange("course", "")
+                  }}
                   required
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select college" />
+                    <SelectValue placeholder="Select a college" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="College of Technology">College of Technology</SelectItem>
-                    <SelectItem value="College of Engineering">College of Engineering</SelectItem>
-                    <SelectItem value="College of Education">College of Education</SelectItem>
-                    <SelectItem value="College of Business">College of Business</SelectItem>
-                    <SelectItem value="College of Arts and Sciences">College of Arts and Sciences</SelectItem>
-                    <SelectItem value="College of Medicine">College of Medicine</SelectItem>
-                    <SelectItem value="College of Nursing">College of Nursing</SelectItem>
+                    {COLLEGES.map((college) => (
+                      <SelectItem key={college} value={college}>
+                        {college}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="course">Course *</Label>
-                <Input
-                  id="course"
+                <Select
                   value={formData.course}
-                  onChange={(e) => handleInputChange("course", e.target.value)}
+                  onValueChange={(value) => handleInputChange("course", value)}
                   required
-                  placeholder="e.g., BSIT, BSCS, BSEE"
-                />
+                  disabled={!formData.college}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a course" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {formData.college &&
+                      COURSES_BY_COLLEGE[formData.college as keyof typeof COURSES_BY_COLLEGE].map((course) => (
+                        <SelectItem key={course} value={course}>
+                          {course}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">

@@ -31,6 +31,7 @@ model Student {
   email      String       @unique
   yearLevel  YearLevel
   course     String
+  college    String @default("Unassigned")
   enrolledAt DateTime     @default(now())
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt

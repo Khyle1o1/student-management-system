@@ -78,6 +78,7 @@ export default function LoginPage() {
       await signIn("google", {
         callbackUrl: "/dashboard",
         redirect: true,
+        prompt: "select_account",
       })
     } catch (error) {
       setError("Google sign-in failed. Please try again.")

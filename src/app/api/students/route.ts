@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
         { studentId: { contains: search, mode: 'insensitive' as const } },
         { email: { contains: search, mode: 'insensitive' as const } },
         { course: { contains: search, mode: 'insensitive' as const } },
+        { college: { contains: search, mode: 'insensitive' as const } },
       ],
       deletedAt: null,
     } : {
@@ -143,18 +144,17 @@ export async function POST(request: NextRequest) {
         email,
         yearLevel,
         course,
-        // Removed phoneNumber, address, and section fields
-        // These fields are no longer part of the student model
-      },
+        college,
+      } as any,
       include: {
         user: {
           select: {
             id: true,
             email: true,
             role: true,
-          }
-        }
-      }
+          },
+        },
+      },
     })
 
     return NextResponse.json(student, { status: 201 })

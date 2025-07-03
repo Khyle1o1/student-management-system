@@ -57,6 +57,7 @@ export async function GET(
             id: true,
             name: true,
             type: true,
+            amount: true,
           }
         }
       },
@@ -65,12 +66,21 @@ export async function GET(
       }
     })
 
+    // Ensure fee list includes any fee referenced by payments (covers past years)
+    const feeMap: Record<string, number> = {}
+    fees.forEach(f => { feeMap[f.id] = f.amount })
+    payments.forEach(p => {
+      if (!(p.fee.id in feeMap)) {
+        feeMap[p.fee.id] = p.fee.amount
+      }
+    })
+
     // Calculate summary statistics
-    const totalFees = fees.reduce((sum, fee) => sum + fee.amount, 0)
+    const totalFees = Object.values(feeMap).reduce((sum, amt) => sum + amt, 0)
     const totalPaid = payments
-      .filter(payment => payment.status === 'PAID')
-      .reduce((sum, payment) => sum + payment.amount, 0)
-    const totalPending = totalFees - totalPaid
+      .filter(p => p.status === 'PAID')
+      .reduce((sum, p) => sum + p.amount, 0)
+    const totalPending = Math.max(totalFees - totalPaid, 0)
     const paymentProgress = totalFees > 0 ? Math.round((totalPaid / totalFees) * 100) : 0
 
     const summary = {

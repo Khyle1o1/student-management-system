@@ -124,8 +124,8 @@ export async function PUT(
         email,
         yearLevel,
         course,
-        // Removed phoneNumber, address, and section fields
-      },
+        college,
+      } as any,
       include: {
         user: {
           select: {

@@ -230,7 +230,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => signOut()}
+                onClick={() => signOut({ callbackUrl: "/auth/login" })}
                 className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
               >
                 <LogOut className="h-4 w-4" />

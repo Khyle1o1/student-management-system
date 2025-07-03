@@ -29,9 +29,14 @@ import {
   Mail, 
   Phone,
   User,
-  RefreshCw
+  RefreshCw,
+  Download,
+  Save,
+  Loader2,
+  Plus
 } from "lucide-react"
 import Link from "next/link"
+import { ConfirmModal } from "@/components/ui/confirm-modal"
 
 interface Student {
   id: string
@@ -40,6 +45,7 @@ interface Student {
   email: string
   yearLevel: string
   course: string
+  college: string
   enrolledAt: string
   user: {
     id: string
@@ -61,6 +67,7 @@ export function StudentsTable() {
   const [hasNext, setHasNext] = useState(false)
   const [hasPrevious, setHasPrevious] = useState(false)
   const [pageSize] = useState(20) // Fixed page size
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   // Debounce search term
   useEffect(() => {
@@ -148,6 +155,29 @@ export function StudentsTable() {
     }
   }
 
+  const handleDeleteAll = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch("/api/students/bulk-delete", {
+        method: "DELETE",
+      })
+
+      if (response.ok) {
+        // Refresh the table data
+        fetchStudents()
+      } else {
+        const error = await response.json()
+        alert(error.error || "An error occurred")
+      }
+    } catch (error) {
+      console.error("Error deleting students:", error)
+      alert("An error occurred while deleting students")
+    } finally {
+      setLoading(false)
+      setShowDeleteModal(false)
+    }
+  }
+
   if (loading && students.length === 0) {
     return (
       <Card>
@@ -162,173 +192,204 @@ export function StudentsTable() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Students</CardTitle>
-        <div className="flex items-center space-x-2">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search students..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
-          </div>
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <Input
+            placeholder="Search students..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-[300px]"
+          />
           <Button variant="outline" onClick={fetchStudents} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Student ID</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Course</TableHead>
-                <TableHead>Year Level</TableHead>
-                <TableHead>Enrolled Date</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading && students.length === 0 ? (
+        <div className="flex items-center gap-4">
+          <Button
+            variant="destructive"
+            onClick={() => setShowDeleteModal(true)}
+            disabled={loading}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete All Students
+          </Button>
+          <Button asChild>
+            <Link href="/dashboard/students/new">
+              <Plus className="h-4 w-4 mr-2" />
+              Add New Student
+            </Link>
+          </Button>
+        </div>
+      </div>
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteAll}
+        title="Delete All Students"
+        description="Are you sure you want to delete all students? This action cannot be undone."
+        confirmText="Delete All"
+        cancelText="Cancel"
+        variant="destructive"
+      />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Students</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
-                    <div className="flex items-center justify-center space-x-2">
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span>Loading students...</span>
-                    </div>
-                  </TableCell>
+                  <TableHead>Student ID</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>College</TableHead>
+                  <TableHead>Course</TableHead>
+                  <TableHead>Year Level</TableHead>
+                  <TableHead>Enrolled Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ) : students.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
-                    <div className="flex flex-col items-center space-y-2">
-                      <User className="h-8 w-8 text-muted-foreground" />
-                      <span className="text-muted-foreground">
-                        {searchTerm ? "No students found matching your search." : "No students found."}
-                      </span>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                students.map((student) => (
-                  <TableRow key={student.id}>
-                    <TableCell className="font-medium">
-                      {student.studentId}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {student.name}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-1">
-                        <Mail className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-sm">{student.email}</span>
+              </TableHeader>
+              <TableBody>
+                {loading && students.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8">
+                      <div className="flex items-center justify-center space-x-2">
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        <span>Loading students...</span>
                       </div>
                     </TableCell>
-                    <TableCell className="font-medium">{student.course}</TableCell>
-                    <TableCell>
-                      <Badge className={getYearLevelBadgeColor(student.yearLevel)}>
-                        {getYearLevelDisplayText(student.yearLevel)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-600">
-                      {new Date(student.enrolledAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem asChild>
-                            <Link href={`/dashboard/students/${student.id}`}>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDeleteStudent(student.id)}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                  </TableRow>
+                ) : students.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8">
+                      <div className="flex flex-col items-center space-y-2">
+                        <User className="h-8 w-8 text-muted-foreground" />
+                        <span className="text-muted-foreground">
+                          {searchTerm ? "No students found matching your search." : "No students found."}
+                        </span>
+                      </div>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        
-        {/* Pagination Controls */}
-        <div className="flex items-center justify-between space-x-2 py-4">
-          <div className="text-sm text-muted-foreground">
-            Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} student(s)
+                ) : (
+                  students.map((student) => (
+                    <TableRow key={student.id}>
+                      <TableCell className="font-medium">
+                        {student.studentId}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {student.name}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-1">
+                          <Mail className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-sm">{student.email}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium">{student.college}</TableCell>
+                      <TableCell className="font-medium">{student.course}</TableCell>
+                      <TableCell>
+                        <Badge className={getYearLevelBadgeColor(student.yearLevel)}>
+                          {getYearLevelDisplayText(student.yearLevel)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-gray-600">
+                        {new Date(student.enrolledAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/students/${student.id}`}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteStudent(student.id)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={!hasPrevious || loading}
-            >
-              Previous
-            </Button>
-            
-            <div className="flex items-center space-x-1">
-              {/* Show page numbers */}
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
-                
-                return (
-                  <Button
-                    key={pageNum}
-                    variant={currentPage === pageNum ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handlePageChange(pageNum)}
-                    disabled={loading}
-                    className="w-8 h-8 p-0"
-                  >
-                    {pageNum}
-                  </Button>
-                );
-              })}
+          
+          {/* Pagination Controls */}
+          <div className="flex items-center justify-between space-x-2 py-4">
+            <div className="text-sm text-muted-foreground">
+              Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} student(s)
             </div>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={!hasNext || loading}
-            >
-              Next
-            </Button>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={!hasPrevious || loading}
+              >
+                Previous
+              </Button>
+              
+              <div className="flex items-center space-x-1">
+                {/* Show page numbers */}
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(pageNum)}
+                      disabled={loading}
+                      className="w-8 h-8 p-0"
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={!hasNext || loading}
+              >
+                Next
+              </Button>
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   )
 } 
