@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -70,34 +70,14 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    console.log('StudentDashboard: studentId received:', studentId)
-    if (studentId) {
-      fetchDashboardData()
-    } else {
-      console.error('StudentDashboard: No studentId provided')
-      
-      // Try to refresh session if studentId is missing but we're a student
-      const refreshSession = async () => {
-        const { getSession } = await import('next-auth/react')
-        console.log('StudentDashboard: Attempting to refresh session...')
-        await getSession()
-        window.location.reload() // Force page reload to get fresh session
-      }
-      
-      // Only try refresh once, then show error
-      const hasTriedRefresh = sessionStorage.getItem('session-refresh-attempted')
-      if (!hasTriedRefresh) {
-        sessionStorage.setItem('session-refresh-attempted', 'true')
-        refreshSession()
-      } else {
-        setError('No student ID available')
-        setLoading(false)
-      }
-    }
-  }, [studentId])
+  const refreshSession = useCallback(async () => {
+    const { getSession } = await import('next-auth/react')
+    console.log('StudentDashboard: Attempting to refresh session...')
+    await getSession()
+    window.location.reload() // Force page reload to get fresh session
+  }, [])
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     if (!studentId) return
     
     try {
@@ -216,7 +196,23 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [studentId])
+
+  useEffect(() => {
+    if (studentId) {
+      fetchDashboardData()
+    } else {
+      // If no studentId and we haven't tried refreshing the session yet
+      const hasTriedRefresh = sessionStorage.getItem('session-refresh-attempted')
+      if (!hasTriedRefresh) {
+        sessionStorage.setItem('session-refresh-attempted', 'true')
+        refreshSession()
+      } else {
+        setError('No student ID available')
+        setLoading(false)
+      }
+    }
+  }, [studentId, fetchDashboardData, refreshSession])
 
   if (loading) {
     return (

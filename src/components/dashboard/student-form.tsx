@@ -231,7 +231,7 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
                   disabled={!isEditing}
                 />
                 <p className="text-xs text-muted-foreground">
-                  This email must match the student's Google account for OAuth login
+                  This email must match the student&apos;s Google account for OAuth login
                 </p>
               </div>
 
@@ -299,7 +299,7 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Select the student's current year level
+                  Select the student&apos;s current year level
                 </p>
               </div>
             </div>

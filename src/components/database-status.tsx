@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { AlertTriangle, XCircle, Database, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -21,7 +21,7 @@ export function DatabaseStatus({
   const [showAlert, setShowAlert] = useState(false)
   const [isPolling, setIsPolling] = useState(false)
 
-  const checkDatabaseConnection = async () => {
+  const checkDatabaseConnection = useCallback(async () => {
     try {
       setIsPolling(true)
       const response = await fetch('/api/system/db-status')
@@ -57,7 +57,7 @@ export function DatabaseStatus({
     } finally {
       setIsPolling(false)
     }
-  }
+  }, [onStatusChange, showAlert])
 
   useEffect(() => {
     // Check connection immediately on mount
@@ -67,7 +67,7 @@ export function DatabaseStatus({
     const interval = setInterval(checkDatabaseConnection, pollingInterval)
     
     return () => clearInterval(interval)
-  }, [pollingInterval, onStatusChange])
+  }, [pollingInterval, checkDatabaseConnection])
 
   if (isConnected === null) {
     return null // Don't show anything while initial check is in progress

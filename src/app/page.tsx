@@ -433,7 +433,7 @@ export default function HomePage() {
                     <span className="block text-[#fbbf24]">Learning Platform Offers</span>
                   </h2>
                   <p className="text-xl text-slate-600 leading-relaxed">
-                    BukSU's student management system serves thousands of students across multiple programs, 
+                    BukSU&apos;s student management system serves thousands of students across multiple programs, 
                     providing comprehensive digital services that enhance the educational experience.
                   </p>
                 </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -50,13 +50,7 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (studentId) {
-      fetchAttendanceData()
-    }
-  }, [studentId])
-
-  const fetchAttendanceData = async () => {
+  const fetchAttendanceData = useCallback(async () => {
     if (!studentId) return
 
     try {
@@ -86,7 +80,13 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [studentId])
+
+  useEffect(() => {
+    if (studentId) {
+      fetchAttendanceData()
+    }
+  }, [studentId, fetchAttendanceData])
 
   const getStatusIcon = (status: string) => {
     switch (status) {

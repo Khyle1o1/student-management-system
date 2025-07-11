@@ -491,7 +491,7 @@ export function BatchStudentImport() {
               ))}
             </div>
             <p className="text-xs text-blue-700 mt-2">
-              Optional fields: password (defaults to 'student123')
+              Optional fields: password (defaults to &apos;student123&apos;)
             </p>
             <div className="mt-2 text-xs text-blue-700">
               <strong>Year Level Format:</strong> YEAR_1, YEAR_2, YEAR_3, YEAR_4<br/>

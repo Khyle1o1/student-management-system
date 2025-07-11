@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -108,31 +108,34 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
     loadEventData()
   }, [eventId])
 
-  const fetchStudentCount = async (
+  const fetchStudentCount = useCallback(async (
     scope: string,
     collegeId?: string,
     courseId?: string
   ) => {
     try {
       const params = new URLSearchParams({
-        scope: scope,
-        ...(collegeId && { collegeId }),
-        ...(courseId && { courseId })
+        scope,
+        ...(collegeId && { college: collegeId }),
+        ...(courseId && { course: courseId })
       })
-
+      
       const response = await fetch(`/api/students/count?${params}`)
+      const data = await response.json()
+      
       if (response.ok) {
-        const data = await response.json()
         setStudentCount(data.count)
-        // Update max capacity based on student count
-        handleInputChange("max_capacity", data.count)
+        setFormData(prev => ({
+          ...prev,
+          max_capacity: data.count
+        }))
       } else {
-        console.error('Failed to fetch student count')
+        console.error("Failed to fetch student count")
       }
     } catch (error) {
-      console.error('Error fetching student count:', error)
+      console.error("Error fetching student count:", error)
     }
-  }
+  }, [])
 
   // Update student count when scope changes
   useEffect(() => {
@@ -143,7 +146,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
     } else if (formData.scope_type === "COURSE_SPECIFIC" && formData.scope_course) {
       fetchStudentCount("COURSE_SPECIFIC", undefined, formData.scope_course)
     }
-  }, [formData.scope_type, formData.scope_college, formData.scope_course])
+  }, [formData.scope_type, formData.scope_college, formData.scope_course, fetchStudentCount])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -369,7 +372,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
                   </div>
                 </div>
                 <p className="text-sm text-gray-600">
-                  Capacity is automatically set based on the number of eligible students for this event's scope.
+                  Capacity is automatically set based on the number of eligible students for this event&apos;s scope.
                 </p>
               </div>
 

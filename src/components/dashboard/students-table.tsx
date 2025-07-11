@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -79,11 +79,7 @@ export function StudentsTable() {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
-  useEffect(() => {
-    fetchStudents()
-  }, [currentPage, debouncedSearchTerm])
-
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     try {
       setLoading(true)
       
@@ -108,7 +104,11 @@ export function StudentsTable() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentPage, debouncedSearchTerm, pageSize])
+
+  useEffect(() => {
+    fetchStudents()
+  }, [fetchStudents])
 
   const handleDeleteStudent = async (studentId: string) => {
     if (!confirm("Are you sure you want to delete this student? This action cannot be undone.")) {

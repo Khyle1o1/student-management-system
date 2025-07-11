@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -140,36 +140,7 @@ export default function ManageAttendancePage() {
     }
   }
 
-  // Fetch events on component mount
-  useEffect(() => {
-    fetchEvents()
-  }, [])
-
-  // Fetch stats when event is selected
-  useEffect(() => {
-    if (selectedEvent) {
-      fetchAttendanceStats()
-      // Check initial event time status
-      const timeStatus = checkEventTimeStatus(selectedEvent)
-      setEventTimeStatus(timeStatus)
-    } else {
-      setEventTimeStatus(null)
-    }
-  }, [selectedEvent])
-
-  // Periodic update for event time status (every minute)
-  useEffect(() => {
-    if (!selectedEvent) return
-
-    const interval = setInterval(() => {
-      const timeStatus = checkEventTimeStatus(selectedEvent)
-      setEventTimeStatus(timeStatus)
-    }, 60000) // Update every minute
-
-    return () => clearInterval(interval)
-  }, [selectedEvent])
-
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       setEventsLoading(true)
       const response = await fetch("/api/events")
@@ -191,9 +162,9 @@ export default function ManageAttendancePage() {
     } finally {
       setEventsLoading(false)
     }
-  }
+  }, [toast])
 
-  const fetchAttendanceStats = async () => {
+  const fetchAttendanceStats = useCallback(async () => {
     if (!selectedEvent) return
 
     try {
@@ -205,7 +176,36 @@ export default function ManageAttendancePage() {
     } catch (error) {
       console.error("Error fetching attendance stats:", error)
     }
-  }
+  }, [selectedEvent])
+
+  // Fetch events on component mount
+  useEffect(() => {
+    fetchEvents()
+  }, [fetchEvents])
+
+  // Fetch stats when event is selected
+  useEffect(() => {
+    if (selectedEvent) {
+      fetchAttendanceStats()
+      // Check initial event time status
+      const timeStatus = checkEventTimeStatus(selectedEvent)
+      setEventTimeStatus(timeStatus)
+    } else {
+      setEventTimeStatus(null)
+    }
+  }, [selectedEvent, fetchAttendanceStats])
+
+  // Periodic update for event time status (every minute)
+  useEffect(() => {
+    if (!selectedEvent) return
+
+    const interval = setInterval(() => {
+      const timeStatus = checkEventTimeStatus(selectedEvent)
+      setEventTimeStatus(timeStatus)
+    }, 60000) // Update every minute
+
+    return () => clearInterval(interval)
+  }, [selectedEvent])
 
   const handleBarcodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

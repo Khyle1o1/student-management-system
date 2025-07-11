@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -135,12 +135,7 @@ export function FeeManagement({ feeId }: FeeManagementProps) {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
-  // Fetch data when debounced search term changes
-  useEffect(() => {
-    fetchFeeData(1, debouncedSearchTerm)
-  }, [feeId, debouncedSearchTerm])
-
-  const fetchFeeData = async (page = 1, search = "") => {
+  const fetchFeeData = useCallback(async (page = 1, search = "") => {
     try {
       setLoading(true)
       const params = new URLSearchParams({
@@ -162,7 +157,12 @@ export function FeeManagement({ feeId }: FeeManagementProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [feeId])
+
+  // Fetch data when debounced search term changes
+  useEffect(() => {
+    fetchFeeData(1, debouncedSearchTerm)
+  }, [feeId, debouncedSearchTerm, fetchFeeData])
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= (feeData?.pagination.totalPages || 1)) {

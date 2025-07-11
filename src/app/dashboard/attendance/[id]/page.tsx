@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -46,12 +46,7 @@ export default function EventAttendancePage() {
   const [activeTab, setActiveTab] = useState("all")
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    fetchEventDetails()
-    fetchAttendanceRecords()
-  }, [id])
-
-  const fetchEventDetails = async () => {
+  const fetchEventDetails = useCallback(async () => {
     try {
       const response = await fetch(`/api/events/${id}`)
       const data = await response.json()
@@ -65,9 +60,9 @@ export default function EventAttendancePage() {
         variant: "destructive",
       })
     }
-  }
+  }, [id, toast])
 
-  const fetchAttendanceRecords = async () => {
+  const fetchAttendanceRecords = useCallback(async () => {
     try {
       const response = await fetch(`/api/attendance/event/${id}/records`)
       const data = await response.json()
@@ -83,7 +78,12 @@ export default function EventAttendancePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id, toast])
+
+  useEffect(() => {
+    fetchEventDetails()
+    fetchAttendanceRecords()
+  }, [fetchEventDetails, fetchAttendanceRecords])
 
   const handleBarcodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

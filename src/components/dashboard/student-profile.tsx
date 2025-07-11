@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,13 +49,7 @@ export function StudentProfile({ studentId }: StudentProfileProps) {
     course: "",
   })
 
-  useEffect(() => {
-    if (studentId) {
-      fetchStudentData()
-    }
-  }, [studentId])
-
-  const fetchStudentData = async () => {
+  const fetchStudentData = useCallback(async () => {
     if (!studentId) return
     
     try {
@@ -75,7 +69,13 @@ export function StudentProfile({ studentId }: StudentProfileProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [studentId])
+
+  useEffect(() => {
+    if (studentId) {
+      fetchStudentData()
+    }
+  }, [studentId, fetchStudentData])
 
   const handleSave = async () => {
     if (!studentId) return

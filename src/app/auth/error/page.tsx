@@ -66,7 +66,7 @@ export default function AuthErrorPage() {
               <ul className="list-disc list-inside space-y-1">
                 <li>Contact your system administrator</li>
                 <li>Verify your student email address is registered</li>
-                <li>Ensure you're using your institutional Google account</li>
+                <li>Ensure you&apos;re using your institutional Google account</li>
               </ul>
             </div>
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -72,13 +72,7 @@ export function StudentFees({ studentId }: StudentFeesProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState<"fees" | "payments">("fees")
 
-  useEffect(() => {
-    if (studentId) {
-      fetchFeeData()
-    }
-  }, [studentId])
-
-  const fetchFeeData = async () => {
+  const fetchFeeData = useCallback(async () => {
     if (!studentId) return
     
     try {
@@ -93,7 +87,13 @@ export function StudentFees({ studentId }: StudentFeesProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [studentId])
+
+  useEffect(() => {
+    if (studentId) {
+      fetchFeeData()
+    }
+  }, [studentId, fetchFeeData])
 
   const getStatusBadge = (feeId: string, feeAmount: number) => {
     if (!feeData) return null
