@@ -3,6 +3,9 @@ import { auth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
 import { z } from "zod"
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic'
+
 // Temporary schema that works with current database (before complete migration)
 const tempEventSchema = z.object({
   title: z.string().min(1, "Title is required"),

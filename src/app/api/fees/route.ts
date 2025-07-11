@@ -4,6 +4,9 @@ import { supabase } from "@/lib/supabase"
 import { feeSchema } from "@/lib/validations"
 import { z } from "zod"
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   try {
     const session = await auth()

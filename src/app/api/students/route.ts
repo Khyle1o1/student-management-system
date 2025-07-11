@@ -3,6 +3,9 @@ import { supabase } from "@/lib/supabase"
 import { hashPassword } from "@/lib/auth"
 import { z } from "zod"
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic'
+
 const yearLevelMap = {
   'YEAR_1': 1,
   'YEAR_2': 2,

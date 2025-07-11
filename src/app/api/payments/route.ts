@@ -1,7 +1,10 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse, NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
 import { z } from "zod"
+
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = 'force-dynamic'
 
 const paymentSchema = z.object({
   studentId: z.string().min(1),
