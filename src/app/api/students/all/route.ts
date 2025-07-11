@@ -1,36 +1,36 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
+import { supabase } from "@/lib/supabase"
 import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 
 export async function GET() {
   try {
     const session = await auth()
-    
-    if (!session || session.user.role !== "ADMIN") {
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const students = await prisma.student.findMany({
-      where: {
-        deletedAt: null,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            role: true,
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    })
+    const { data: students, error } = await supabase
+      .from('students')
+      .select(`
+        *,
+        user:users(
+          id,
+          email,
+          name,
+          role
+        )
+      `)
+      .order('created_at', { ascending: false })
 
-    return NextResponse.json(students)
+    if (error) {
+      console.error('Error fetching students:', error)
+      return NextResponse.json({ error: 'Failed to fetch students' }, { status: 500 })
+    }
+
+    return NextResponse.json(students || [])
+
   } catch (error) {
-    console.error("Error fetching students:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error('Error in GET /api/students/all:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 } 

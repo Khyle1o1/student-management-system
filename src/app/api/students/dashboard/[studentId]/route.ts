@@ -1,154 +1,138 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
+import { supabase } from "@/lib/supabase"
 import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 
 export async function GET(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { studentId: string } }
 ) {
   try {
     const session = await auth()
-    
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Students can only access their own dashboard data
-    if (session.user.role === "STUDENT" && session.user.studentId !== params.studentId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    const { studentId } = params
+
+    // Check if student exists
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('*')
+      .eq('student_id', studentId)
+      .single()
+
+    if (studentError) {
+      if (studentError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+      }
+      console.error('Error fetching student:', studentError)
+      return NextResponse.json({ error: 'Failed to fetch student' }, { status: 500 })
     }
 
-    // Find the student
-    const student = await prisma.student.findUnique({
-      where: { 
-        studentId: params.studentId,
-        deletedAt: null,
-      }
-    })
+    // Get attendance records
+    const { data: attendanceRecords, error: attendanceError } = await supabase
+      .from('attendance')
+      .select(`
+        *,
+        event:events(
+          id,
+          title,
+          description,
+          date
+        )
+      `)
+      .eq('student_id', student.id)
+      .order('created_at', { ascending: false })
 
-    if (!student) {
-      return NextResponse.json({ error: "Student not found" }, { status: 404 })
+    if (attendanceError) {
+      console.error('Error fetching attendance:', attendanceError)
+      return NextResponse.json({ error: 'Failed to fetch attendance' }, { status: 500 })
     }
 
-    // Get attendance statistics
-    const attendanceRecords = await prisma.attendance.findMany({
-      where: {
-        studentId: student.id,
-      }
-    })
+    // Get all fees
+    const { data: fees, error: feesError } = await supabase
+      .from('fee_structures')
+      .select('*')
+      .order('due_date', { ascending: false })
 
-    const totalEvents = attendanceRecords.length
-    const attendedEvents = attendanceRecords.filter(record => record.status === 'PRESENT').length
-    const attendanceRate = totalEvents > 0 ? Math.round((attendedEvents / totalEvents) * 100) : 0
+    if (feesError) {
+      console.error('Error fetching fees:', feesError)
+      return NextResponse.json({ error: 'Failed to fetch fees' }, { status: 500 })
+    }
 
-    // Get fee statistics
-    const currentYear = new Date().getFullYear()
-    const fees = await prisma.feeStructure.findMany({
-      where: {
-        schoolYear: currentYear.toString(),
-        isActive: true,
-        deletedAt: null,
-      }
-    })
+    // Get student's payments
+    const { data: payments, error: paymentsError } = await supabase
+      .from('payments')
+      .select(`
+        *,
+        fee:fee_structures(
+          id,
+          name,
+          amount,
+          due_date
+        )
+      `)
+      .eq('student_id', student.id)
+      .order('payment_date', { ascending: false })
 
-    const payments = await prisma.payment.findMany({
-      where: {
-        studentId: student.id,
-        deletedAt: null,
-      },
-      include: {
-        fee: {
-          select: {
-            id: true,
-            amount: true,
-          }
-        }
-      }
-    })
+    if (paymentsError) {
+      console.error('Error fetching payments:', paymentsError)
+      return NextResponse.json({ error: 'Failed to fetch payments' }, { status: 500 })
+    }
 
-    // Determine the set of relevant fee structures
-    const feeIdsFromPayments = payments.map(p => p.feeId)
-    const additionalFees = await prisma.feeStructure.findMany({
-      where: {
-        id: { in: feeIdsFromPayments },
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        amount: true,
-      }
-    })
-
-    // Merge fees from current year and those referenced in payments
-    const feeMap: Record<string, number> = {}
-    fees.forEach(f => {
-      feeMap[f.id] = f.amount
-    })
-    additionalFees.forEach(f => {
-      feeMap[f.id] = f.amount
-    })
-
-    const totalFees = Object.values(feeMap).reduce((sum, amt) => sum + amt, 0)
-    const paidFees = payments
-      .filter(payment => payment.status === 'PAID')
+    // Calculate payment statistics
+    const totalFees = fees.reduce((sum, fee) => sum + fee.amount, 0)
+    const totalPaid = payments
+      .filter(p => p.status === 'PAID')
       .reduce((sum, payment) => sum + payment.amount, 0)
-    const pendingFees = Math.max(totalFees - paidFees, 0)
-    const paymentProgress = totalFees > 0 ? Math.round((paidFees / totalFees) * 100) : 0
+    const totalPending = totalFees - totalPaid
 
-    // Get upcoming events (next 7 days)
-    const today = new Date()
-    const nextWeek = new Date(today.getTime() + (7 * 24 * 60 * 60 * 1000))
+    // Get upcoming events
+    const now = new Date()
+    const { data: upcomingEvents, error: eventsError } = await supabase
+      .from('events')
+      .select('*')
+      .gt('date', now.toISOString())
+      .order('date', { ascending: true })
+      .limit(5)
 
-    const upcomingEvents = await prisma.event.findMany({
-      where: {
-        date: {
-          gte: today,
-          lte: nextWeek
-        },
-        isActive: true,
-        deletedAt: null,
-      },
-      orderBy: {
-        date: 'asc'
-      },
-      take: 5 // Limit to 5 upcoming events
-    })
-
-    // Format upcoming events with priority
-    const formattedUpcomingEvents = upcomingEvents.map(event => {
-      // Simple priority logic based on event type
-      let priority = "medium"
-      if (event.type === "ACADEMIC" || event.type === "SEMINAR") {
-        priority = "high"
-      } else if (event.type === "MEETING") {
-        priority = "low"
-      }
-
-      return {
-        id: event.id,
-        title: event.title,
-        date: event.date,
-        type: event.type.toLowerCase(),
-        priority
-      }
-    })
-
-    const stats = {
-      attendanceRate,
-      totalEvents,
-      attendedEvents,
-      totalFees,
-      paidFees,
-      pendingFees,
-      paymentProgress
+    if (eventsError) {
+      console.error('Error fetching events:', eventsError)
+      return NextResponse.json({ error: 'Failed to fetch events' }, { status: 500 })
     }
+
+    // Calculate attendance statistics
+    const totalEvents = attendanceRecords?.length || 0
+    const presentCount = attendanceRecords?.filter(r => r.status === 'PRESENT').length || 0
+    const absentCount = attendanceRecords?.filter(r => r.status === 'ABSENT').length || 0
+    const lateCount = attendanceRecords?.filter(r => r.status === 'LATE').length || 0
+    const attendanceRate = totalEvents > 0 ? Math.round((presentCount / totalEvents) * 100) : 0
 
     return NextResponse.json({
-      stats,
-      upcomingEvents: formattedUpcomingEvents
+      student,
+      attendance: {
+        records: attendanceRecords || [],
+        stats: {
+          total: totalEvents,
+          present: presentCount,
+          absent: absentCount,
+          late: lateCount,
+          rate: attendanceRate
+        }
+      },
+      payments: {
+        records: payments || [],
+        stats: {
+          total: totalFees,
+          paid: totalPaid,
+          pending: totalPending
+        }
+      },
+      upcomingEvents: upcomingEvents || []
     })
+
   } catch (error) {
-    console.error("Error fetching student dashboard data:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error('Error in GET /api/students/dashboard/[studentId]:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 } 

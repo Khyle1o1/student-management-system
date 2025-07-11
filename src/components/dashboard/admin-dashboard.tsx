@@ -25,23 +25,66 @@ import Link from "next/link"
 import { useState, useEffect } from "react"
 
 interface DashboardStats {
-  totalStudents: number
-  studentGrowth: number
-  totalEvents: number
-  eventGrowth: number
-  upcomingEvents: number
-  totalRevenue: number
-  revenueGrowth: number
-  pendingPayments: number
-  totalFees: number
-  activities: Array<{
-    id: string
-    type: string
-    title: string
-    description: string
-    time: string
-    status: string
-  }>
+  students: {
+    total: number
+    new: number
+    growthPercent: number
+  }
+  events: {
+    total: number
+    upcoming: number
+    thisMonth: number
+    growthPercent: number
+  }
+  revenue: {
+    total: number
+    monthly: number
+    growthPercent: number
+  }
+  payments: {
+    pending: number
+    unpaidPercent: number
+  }
+  recent: {
+    students: Array<{
+      id: string
+      name: string
+      studentId: string
+      email: string
+      createdAt: string
+    }>
+    payments: Array<{
+      id: string
+      amount: number
+      status: string
+      paymentDate: string
+      student: {
+        id: string
+        name: string
+        studentId: string
+      }
+      fee: {
+        id: string
+        name: string
+      }
+    }>
+    events: Array<{
+      id: string
+      name: string
+      date: string
+      type: string
+      status: string
+    }>
+  }
+}
+
+interface Activity {
+  id: string
+  type: string
+  title: string
+  description: string
+  time: string
+  status: string
 }
 
 const quickActions = [
@@ -144,9 +187,9 @@ function StatCard({
   )
 }
 
-function ActivityItem({ activity }: { activity: DashboardStats['activities'][0] }) {
+function ActivityItem({ activity }: { activity: Activity }) {
   const getStatusIcon = () => {
-    switch (activity.status) {
+    switch (activity.status?.toLowerCase()) {
       case "success":
         return <CheckCircle className="h-4 w-4 text-green-500" />
       case "warning":
@@ -159,7 +202,7 @@ function ActivityItem({ activity }: { activity: DashboardStats['activities'][0] 
   }
 
   const getStatusColor = () => {
-    switch (activity.status) {
+    switch (activity.status?.toLowerCase()) {
       case "success":
         return "border-l-green-400 bg-green-50"
       case "warning":
@@ -177,11 +220,11 @@ function ActivityItem({ activity }: { activity: DashboardStats['activities'][0] 
         <div className="flex items-start space-x-3">
           {getStatusIcon()}
           <div>
-            <p className="font-medium text-gray-900 text-sm">{activity.title}</p>
-            <p className="text-gray-600 text-sm">{activity.description}</p>
+            <p className="font-medium text-gray-900 text-sm">{activity.title || 'Untitled Activity'}</p>
+            <p className="text-gray-600 text-sm">{activity.description || 'No description'}</p>
           </div>
         </div>
-        <span className="text-xs text-gray-500">{activity.time}</span>
+        <span className="text-xs text-gray-500">{activity.time || 'Unknown time'}</span>
       </div>
     </div>
   )
@@ -189,6 +232,7 @@ function ActivityItem({ activity }: { activity: DashboardStats['activities'][0] 
 
 export function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -202,8 +246,39 @@ export function AdminDashboard() {
         }
         const data = await response.json()
         setStats(data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load dashboard data')
+
+        // Convert recent activities to activity format
+        const recentActivities: Activity[] = [
+          ...(data.recent?.students || []).map((student: any) => ({
+            id: student.id,
+            type: 'student',
+            title: 'New Student Enrolled',
+            description: `${student.name || 'Unknown'} (${student.studentId || 'No ID'})`,
+            time: new Date(student.createdAt).toLocaleDateString(),
+            status: 'success'
+          })),
+          ...(data.recent?.payments || []).map((payment: any) => ({
+            id: payment.id,
+            type: 'payment',
+            title: `Payment ${payment.status || 'Unknown'}`,
+            description: `${payment.student?.name || 'Unknown Student'} - ${payment.fee?.name || 'Unknown Fee'}`,
+            time: new Date(payment.paymentDate).toLocaleDateString(),
+            status: payment.status?.toLowerCase() === 'paid' ? 'success' : 'warning'
+          })),
+          ...(data.recent?.events || []).map((event: any) => ({
+            id: event.id,
+            type: 'event',
+            title: event.name || 'Untitled Event',
+            description: `${event.type || 'Unknown Type'} Event`,
+            time: new Date(event.date).toLocaleDateString(),
+            status: event.status?.toLowerCase() || 'pending'
+          }))
+        ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+
+        setActivities(recentActivities)
+      } catch (error) {
+        console.error('Error fetching dashboard stats:', error)
+        setError('Failed to load dashboard data')
       } finally {
         setLoading(false)
       }
@@ -214,192 +289,94 @@ export function AdminDashboard() {
 
   if (error) {
     return (
-      <div className="space-y-8">
-        <div className="text-center py-8">
-          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Failed to load dashboard</h3>
-          <p className="text-gray-600">{error}</p>
-          <Button 
-            onClick={() => window.location.reload()} 
-            className="mt-4"
-          >
-            Try Again
-          </Button>
-        </div>
+      <div className="p-4">
+        <Card>
+          <CardContent className="py-8">
+            <div className="text-center text-red-500">
+              {error}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-            Admin Dashboard
-          </h2>
-          <p className="text-gray-600 mt-1">
-            Overview of your student management system
-          </p>
-        </div>
-        <div className="flex space-x-2">
-          <Button variant="outline" size="sm" className="flex items-center space-x-2">
-            <BarChart3 className="h-4 w-4" />
-            <span>Analytics</span>
-          </Button>
-          <Button size="sm" className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-            <Plus className="h-4 w-4 mr-2" />
-            Quick Add
-          </Button>
-        </div>
+      {/* Quick Actions */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {quickActions.map((action) => (
+          <Link key={action.href} href={action.href}>
+            <Card className={`${action.color} text-white cursor-pointer transition-all duration-200 hover:shadow-lg`}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {action.label}
+                </CardTitle>
+                <action.icon className="h-4 w-4" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm opacity-90">{action.description}</p>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
       </div>
 
-      {/* Enhanced Stats Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      {/* Stats Overview */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Students"
-          value={stats?.totalStudents || 0}
+          value={stats?.students.total || 0}
           icon={Users}
-          growth={stats?.studentGrowth || 0}
-          growthLabel="from last month"
+          growth={stats?.students.growthPercent || 0}
+          growthLabel="this month"
           isLoading={loading}
         />
         <StatCard
           title="Active Events"
-          value={stats?.totalEvents || 0}
+          value={stats?.events.total || 0}
           icon={Calendar}
-          growth={stats?.eventGrowth || 0}
-          growthLabel="new this month"
+          growth={stats?.events.growthPercent || 0}
+          growthLabel="this month"
           isLoading={loading}
         />
         <StatCard
           title="Total Revenue"
-          value={stats?.totalRevenue || 0}
+          value={stats?.revenue.total || 0}
           icon={DollarSign}
-          growth={stats?.revenueGrowth || 0}
-          growthLabel="from last month"
+          growth={stats?.revenue.growthPercent || 0}
+          growthLabel="vs last month"
           prefix="₱"
           isLoading={loading}
         />
         <StatCard
           title="Pending Payments"
-          value={stats?.pendingPayments || 0}
+          value={stats?.payments.pending || 0}
           icon={FileText}
-          growth={0}
-          growthLabel="unpaid fees"
+          growth={stats?.payments.unpaidPercent || 0}
+          growthLabel="unpaid"
           isLoading={loading}
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Enhanced Quick Actions */}
-        <Card className="border-slate-200">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Plus className="h-5 w-5 text-blue-600" />
-              <span>Quick Actions</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {quickActions.map((action) => {
-              const Icon = action.icon
-              return (
-                <Link key={action.href} href={action.href}>
-                  <Card className="p-4 hover:shadow-md transition-all duration-200 cursor-pointer border border-gray-200 hover:border-blue-300">
-                    <div className="flex items-center space-x-4">
-                      <div className={`p-3 rounded-lg ${action.color} text-white`}>
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900">{action.label}</h4>
-                        <p className="text-sm text-gray-600">{action.description}</p>
-                      </div>
-                    </div>
-                  </Card>
-                </Link>
-              )
-            })}
-          </CardContent>
-        </Card>
-
-        {/* Recent Activities */}
-        <Card className="border-slate-200">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Activity className="h-5 w-5 text-blue-600" />
-                <span>Recent Activities</span>
-              </div>
-              <Badge variant="secondary" className="text-xs">
-                Live
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {loading ? (
-              <div className="space-y-3">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="p-3 border-l-4 border-l-gray-200 bg-gray-50 rounded-r-lg">
-                    <div className="flex items-center space-x-3">
-                      <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                      <div className="space-y-1">
-                        <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
-                        <div className="h-3 w-32 bg-gray-200 rounded animate-pulse"></div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : stats?.activities && stats.activities.length > 0 ? (
-              <>
-                {stats.activities.map((activity) => (
-                  <ActivityItem key={activity.id} activity={activity} />
-                ))}
-                <Button variant="ghost" className="w-full text-sm text-gray-600 hover:text-gray-900">
-                  View all activities
-                </Button>
-              </>
-            ) : (
-              <div className="text-center py-4 text-gray-500">
-                <Activity className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                <p>No recent activities</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* System Status */}
-      <Card className="border-slate-200">
+      {/* Recent Activity */}
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <BarChart3 className="h-5 w-5 text-blue-600" />
-              <span>System Overview</span>
-            </div>
-            <Badge variant="outline" className="text-green-600 border-green-200">
-              <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-              System Online
-            </Badge>
-          </CardTitle>
+          <CardTitle>Recent Activity</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <h4 className="font-medium text-blue-900">Total Students</h4>
-              <p className="text-2xl font-bold text-blue-600">{stats?.totalStudents || 0}</p>
-              <p className="text-sm text-blue-600">Enrolled</p>
-            </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <h4 className="font-medium text-green-900">Upcoming Events</h4>
-              <p className="text-2xl font-bold text-green-600">{stats?.upcomingEvents || 0}</p>
-              <p className="text-sm text-green-600">Scheduled</p>
-            </div>
-            <div className="text-center p-4 bg-orange-50 rounded-lg">
-              <h4 className="font-medium text-orange-900">Active Fees</h4>
-              <p className="text-2xl font-bold text-orange-600">{stats?.totalFees || 0}</p>
-              <p className="text-sm text-orange-600">Structures</p>
-            </div>
+          <div className="space-y-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              </div>
+            ) : activities.length === 0 ? (
+              <p className="text-center text-gray-500 py-4">No recent activity</p>
+            ) : (
+              activities.map((activity) => (
+                <ActivityItem key={activity.id} activity={activity} />
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

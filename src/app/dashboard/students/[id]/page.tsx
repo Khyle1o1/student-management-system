@@ -6,24 +6,25 @@ import { EditStudentForm } from "@/components/dashboard/edit-student-form"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { prisma } from "@/lib/prisma"
+import { supabase } from "@/lib/supabase"
 
 async function getStudent(studentId: string) {
   try {
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            role: true,
-          }
-        }
-      }
-    })
+    const { data: student, error } = await supabase
+      .from('students')
+      .select(`
+        *,
+        user:users(
+          id,
+          email,
+          name,
+          role
+        )
+      `)
+      .eq('id', studentId)
+      .single()
 
-    if (!student) return null
+    if (error || !student) return null
 
     // Parse the full name into components for the form
     const nameParts = student.name.split(' ')

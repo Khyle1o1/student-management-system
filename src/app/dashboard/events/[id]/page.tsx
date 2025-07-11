@@ -6,30 +6,9 @@ import { EditEventForm } from "@/components/dashboard/edit-event-form"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { prisma } from "@/lib/prisma"
+import { supabase } from "@/lib/supabase"
 
-async function getEvent(eventId: string) {
-  try {
-    const event = await prisma.event.findUnique({
-      where: { id: eventId }
-    })
-
-    if (!event) return null
-
-    return event
-  } catch (error) {
-    console.error("Error fetching event:", error)
-    return null
-  }
-}
-
-interface EditEventPageProps {
-  params: {
-    id: string
-  }
-}
-
-export default async function EditEventPage({ params }: EditEventPageProps) {
+export default async function EditEventPage({ params }: { params: { id: string } }) {
   const session = await auth()
 
   if (!session) {
@@ -40,10 +19,31 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
     redirect("/dashboard")
   }
 
-  const event = await getEvent(params.id)
+  const { data: rawEvent, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('id', params.id)
+    .single()
 
-  if (!event) {
+  if (error || !rawEvent) {
     notFound()
+  }
+
+  // Transform database column names to match the TypeScript interface
+  const event = {
+    id: rawEvent.id,
+    title: rawEvent.title || '',
+    description: rawEvent.description || '',
+    eventDate: rawEvent.date || '',
+    startTime: rawEvent.start_time || '09:00',
+    endTime: rawEvent.end_time || '17:00',
+    location: rawEvent.location || '',
+    eventType: rawEvent.type || 'ACADEMIC',
+    capacity: rawEvent.max_capacity || 100,
+    status: rawEvent.status || 'ACTIVE',
+    scope_type: rawEvent.scope_type || 'UNIVERSITY_WIDE',
+    scope_college: rawEvent.scope_college || '',
+    scope_course: rawEvent.scope_course || ''
   }
 
   return (

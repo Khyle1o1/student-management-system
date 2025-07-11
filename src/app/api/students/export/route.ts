@@ -1,93 +1,47 @@
 import { NextResponse } from "next/server"
+import { supabase } from "@/lib/supabase"
 import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 
 export async function GET() {
   try {
-    // Authenticate user
     const session = await auth()
-
-    if (!session || session.user.role !== "ADMIN") {
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Fetch students data
-    const students = await prisma.student.findMany({
-      where: {
-        deletedAt: null,
-      },
-      select: {
-        studentId: true,
-        name: true,
-        user: {
-          select: { email: true },
-        },
-        course: true,
-        yearLevel: true,
-        enrolledAt: true,
-        college: true,
-      } as any,
-      orderBy: {
-        name: "asc",
-      },
-    })
+    const { data: students, error } = await supabase
+      .from('students')
+      .select(`
+        *,
+        user:users(
+          id,
+          email,
+          role
+        )
+      `)
+      .order('created_at', { ascending: false })
 
-    // CSV headers
-    const csvLines: string[] = []
-    csvLines.push(
-      "Student ID,Student Name,Email,College,Course,Year Level,Enrolled Date"
-    )
-
-    // Helper to convert YEAR_1 -> 1st Year, etc.
-    const getYearLevelDisplayText = (yearLevel: string) => {
-      switch (yearLevel) {
-        case "YEAR_1":
-          return "1st Year"
-        case "YEAR_2":
-          return "2nd Year"
-        case "YEAR_3":
-          return "3rd Year"
-        case "YEAR_4":
-          return "4th Year"
-        default:
-          return yearLevel
-      }
+    if (error) {
+      console.error('Error fetching students:', error)
+      return NextResponse.json({ error: 'Failed to fetch students' }, { status: 500 })
     }
 
-    (students as any[]).forEach((student) => {
-      const line = [
-        student.studentId,
-        `"${student.name}"`,
-        student.user?.email ?? "",
-        student.college,
-        student.course,
-        getYearLevelDisplayText(student.yearLevel),
-        new Date(student.enrolledAt).toLocaleDateString("en-US"),
-      ].join(",")
+    // Transform data for export
+    const exportData = students.map(student => ({
+      'Student ID': student.student_id,
+      'Name': student.name,
+      'Email': student.email,
+      'Phone': student.phone || '',
+      'College': student.college,
+      'Course': student.course,
+      'Year Level': student.year_level,
+      'Created At': new Date(student.created_at).toLocaleDateString()
+    }))
 
-      csvLines.push(line)
-    })
+    return NextResponse.json(exportData)
 
-    const csvContent = csvLines.join("\n")
-
-    const headers = new Headers()
-    headers.set("Content-Type", "text/csv; charset=utf-8")
-
-    const today = new Date().toISOString().split("T")[0]
-    headers.set(
-      "Content-Disposition",
-      `attachment; filename="students_export_${today}.csv"`
-    )
-
-    return new NextResponse(csvContent, {
-      status: 200,
-      headers,
-    })
   } catch (error) {
-    console.error("Error generating students export:", error)
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    )
+    console.error('Error in GET /api/students/export:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 } 

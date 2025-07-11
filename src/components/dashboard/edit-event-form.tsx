@@ -15,6 +15,9 @@ interface EditEventFormProps {
     eventType: string
     capacity: number
     status: string
+    scope_type: string
+    scope_college: string
+    scope_course: string
   }
 }
 

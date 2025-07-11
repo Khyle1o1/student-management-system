@@ -27,20 +27,26 @@ export function DatabaseStatus({
       const response = await fetch('/api/system/db-status')
       const data = await response.json()
       
-      const connected = response.ok && data.status === 'connected'
+      // Fix: Check for 'ok' status instead of 'connected' to match the API response
+      const connected = response.ok && (data.status === 'ok' || data.status === 'connected')
       setIsConnected(connected)
       
       if (!connected) {
-        setErrorMessage(data.error || "Unable to connect to database")
+        setErrorMessage(data.error || data.message || "Unable to connect to database")
         setShowAlert(true)
       } else {
         setErrorMessage(null)
+        // Auto-hide success message after 3 seconds
+        if (showAlert) {
+          setTimeout(() => setShowAlert(false), 3000)
+        }
       }
       
       if (onStatusChange) {
         onStatusChange(connected)
       }
     } catch (error) {
+      console.error('Database status check failed:', error)
       setIsConnected(false)
       setErrorMessage("Failed to check database connection")
       setShowAlert(true)

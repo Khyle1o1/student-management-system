@@ -238,6 +238,8 @@ export function BatchStudentImport() {
       const allErrors: ValidationError[] = []
       const validRecords: StudentRecord[] = []
       const duplicates: string[] = []
+      let totalSuccessCount = 0
+      let totalDuplicateCount = 0
 
       setImportProgress({ 
         current: 0, 
@@ -246,7 +248,7 @@ export function BatchStudentImport() {
         status: "Validating records..." 
       })
 
-      // Validate all records
+      // Validate all records first
       records.forEach((record, index) => {
         const errors = validateStudentRecord(record, index + 1)
         allErrors.push(...errors)
@@ -263,138 +265,91 @@ export function BatchStudentImport() {
           })
         }
         
-        // Update validation progress
         setImportProgress(prev => ({ 
           current: index + 1, 
           total: records.length, 
-          percentage: Math.round(((index + 1) / records.length) * 100), 
+          percentage: Math.round(((index + 1) / records.length) * 50), // Up to 50% for validation 
           status: "Validating records..." 
         }))
       })
 
-      // Send valid records to API for processing
+      // Process valid records in chunks of 50
       if (validRecords.length > 0) {
+        const CHUNK_SIZE = 50
+        const chunks = []
+        for (let i = 0; i < validRecords.length; i += CHUNK_SIZE) {
+          chunks.push(validRecords.slice(i, i + CHUNK_SIZE))
+        }
+
         setImportProgress({ 
           current: 0, 
           total: validRecords.length, 
-          percentage: 0, 
-          status: "Sending data to server..." 
+          percentage: 50, // Start from 50% after validation
+          status: `Processing records in batches (0/${chunks.length} batches)...` 
         })
 
-        // Start polling for progress updates
-        const progressInterval = setInterval(() => {
-          // Simulate progress updates before we get real feedback
-          setImportProgress(prev => {
-            if (!prev) return null
-            
-            // Don't exceed 90% until we get actual completion
-            const newPercentage = Math.min(90, prev.percentage + 1)
-            return {
-              ...prev,
-              percentage: newPercentage,
-              status: `Processing records (${newPercentage}%)...`
-            }
-          })
-        }, 300)
-
-        try {
-          const response = await fetch('/api/students/batch-import', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ students: validRecords }),
-          })
-
-          // Clear the interval once we get a response
-          clearInterval(progressInterval)
-          
-          const result = await response.json()
-
-          if (response.ok) {
-            setImportProgress({ 
-              current: validRecords.length, 
-              total: validRecords.length, 
-              percentage: 100, 
-              status: "Import complete!" 
+        // Process each chunk
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i]
+          try {
+            const response = await fetch('/api/students/batch-import', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ students: chunk }),
             })
-            
-            setImportResult({
-              totalRows: records.length,
-              successCount: result.successCount,
-              errorCount: allErrors.length,
-              duplicateCount: result.duplicates?.length || 0,
-              errors: allErrors,
-              duplicates: result.duplicates || []
-            })
-          } else {
-            // Check if it's a database connection error
-            const errorMessage = result.error || result.details || 'Import failed';
-            const isDbConnectionError = 
-              errorMessage.includes("Can't reach database") || 
-              errorMessage.includes("Database connection failed") ||
-              errorMessage.includes("P1001") || 
-              errorMessage.includes("P1002") ||
-              errorMessage.includes("P1017") ||
-              result.status === "database_error";
-              
-            const errorDetails = isDbConnectionError 
-              ? "The system cannot connect to the database server. This is likely a temporary issue."
-              : errorMessage;
-              
-            setImportProgress({ 
-              current: 0, 
-              total: validRecords.length, 
-              percentage: 0, 
-              status: isDbConnectionError 
-                ? "Database connection error. Please try again later." 
-                : `Import failed: ${errorMessage}` 
-            })
-            
-            if (isDbConnectionError) {
-              setConnectionError(`Database connection error: ${errorDetails}`);
+
+            const result = await response.json()
+
+            if (response.ok) {
+              totalSuccessCount += result.successCount
+              totalDuplicateCount += result.duplicates?.length || 0
+              duplicates.push(...(result.duplicates || []))
+
+              // Update progress (remaining 50% divided among chunks)
+              const progressPercentage = 50 + Math.round(((i + 1) / chunks.length) * 50)
+              setImportProgress({ 
+                current: (i + 1) * CHUNK_SIZE,
+                total: validRecords.length, 
+                percentage: progressPercentage,
+                status: `Processing records in batches (${i + 1}/${chunks.length} batches)...` 
+              })
             } else {
-              setConnectionError(`Import failed: ${errorMessage}`);
+              // Handle error for this chunk
+              const errorMessage = result.error || result.details || 'Import failed'
+              throw new Error(`Batch ${i + 1} failed: ${errorMessage}`)
             }
-            
-            throw new Error(errorMessage)
+
+            // Add a small delay between chunks to prevent rate limiting
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          } catch (error) {
+            // Log the error but continue with next chunk
+            console.error(`Error processing batch ${i + 1}:`, error)
+            allErrors.push({
+              row: i * CHUNK_SIZE + 1,
+              field: 'batch',
+              message: `Batch ${i + 1} failed: ${error instanceof Error ? error.message : String(error)}`,
+              value: `Records ${i * CHUNK_SIZE + 1} to ${Math.min((i + 1) * CHUNK_SIZE, validRecords.length)}`
+            })
           }
-        } catch (error) {
-          clearInterval(progressInterval)
-          
-          // Check if it's a network error
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          const isNetworkError = 
-            errorMessage.includes("NetworkError") || 
-            errorMessage.includes("Failed to fetch");
-          const isDbError = 
-            errorMessage.includes("Database connection failed") ||
-            errorMessage.includes("Can't reach database") ||
-            errorMessage.includes("P1001") || 
-            errorMessage.includes("P1002") ||
-            errorMessage.includes("P1017");
-            
-          setImportProgress({ 
-            current: 0, 
-            total: validRecords.length, 
-            percentage: 0, 
-            status: isNetworkError
-              ? "Network connection error. Please check your internet connection."
-              : isDbError
-                ? "Database connection error. Please try again later."
-                : `Import error: ${errorMessage}`
-          })
-          
-          if (isNetworkError) {
-            setConnectionError("Network connection error: Failed to reach the server. Please check your internet connection.");
-          } else if (isDbError) {
-            setConnectionError(`Database connection error: ${errorMessage}`);
-          } else {
-            setConnectionError(`Import error: ${errorMessage}`);
-          }
-          
-          throw error
         }
+
+        setImportProgress({ 
+          current: validRecords.length, 
+          total: validRecords.length, 
+          percentage: 100, 
+          status: "Import complete!" 
+        })
+        
+        setImportResult({
+          totalRows: records.length,
+          successCount: totalSuccessCount,
+          errorCount: allErrors.length,
+          duplicateCount: totalDuplicateCount,
+          errors: allErrors,
+          duplicates: duplicates
+        })
       } else {
         setImportProgress({ 
           current: records.length, 

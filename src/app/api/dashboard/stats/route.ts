@@ -1,244 +1,203 @@
 import { NextResponse } from "next/server"
+import { supabase } from "@/lib/supabase"
 import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 
 export async function GET() {
   try {
     const session = await auth()
-    
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Get current date for filtering
+    // Get total students count
+    const { count: totalStudents } = await supabase
+      .from('students')
+      .select('*', { count: 'exact', head: true })
+
+    // Get students added this month
+    const startOfMonth = new Date()
+    startOfMonth.setDate(1)
+    startOfMonth.setHours(0, 0, 0, 0)
+
+    const { count: newStudents } = await supabase
+      .from('students')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', startOfMonth.toISOString())
+
+    // Get students added last month
+    const lastMonth = new Date()
+    lastMonth.setMonth(lastMonth.getMonth() - 1)
+    lastMonth.setDate(1)
+    lastMonth.setHours(0, 0, 0, 0)
+
+    const { count: lastMonthStudents } = await supabase
+      .from('students')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', lastMonth.toISOString())
+      .lt('created_at', startOfMonth.toISOString())
+
+    // Calculate student growth percentage
+    const studentGrowthPercent = lastMonthStudents && newStudents ? 
+      Math.round((newStudents / lastMonthStudents - 1) * 100) : 0
+
     const now = new Date()
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0)
 
-    // Fetch all statistics in parallel
-    const [
-      totalStudents,
-      lastMonthStudents,
-      totalEvents,
-      upcomingEvents,
-      lastMonthEvents,
-      totalFees,
-      pendingPayments,
-      totalRevenue,
-      lastMonthRevenue,
-      recentActivities
-    ] = await Promise.all([
-      // Total students
-      prisma.student.count({
-        where: { deletedAt: null }
-      }),
-      
-      // Students from last month for growth calculation
-      prisma.student.count({
-        where: {
-          deletedAt: null,
-          createdAt: {
-            gte: startOfLastMonth,
-            lte: endOfLastMonth
-          }
-        }
-      }),
-      
-      // Total active events
-      prisma.event.count({
-        where: {
-          deletedAt: null,
-          isActive: true
-        }
-      }),
-      
-      // Upcoming events (for this month)
-      prisma.event.count({
-        where: {
-          deletedAt: null,
-          isActive: true,
-          date: {
-            gte: now
-          }
-        }
-      }),
-      
-      // Events created this month for growth
-      prisma.event.count({
-        where: {
-          deletedAt: null,
-          isActive: true,
-          createdAt: {
-            gte: startOfMonth
-          }
-        }
-      }),
-      
-      // Total active fees
-      prisma.feeStructure.count({
-        where: {
-          deletedAt: null,
-          isActive: true
-        }
-      }),
-      
-      // Pending payments count (UNPAID status)
-      prisma.payment.count({
-        where: {
-          status: "UNPAID"
-        }
-      }),
-      
-      // Total revenue (sum of paid payments)
-      prisma.payment.aggregate({
-        where: {
-          status: "PAID"
+    // Get total events count for active events
+    const { count: totalEvents } = await supabase
+      .from('events')
+      .select('*', { count: 'exact', head: true })
+      .gt('date', now.toISOString())
+
+    // Get upcoming events
+    const { count: upcomingEvents } = await supabase
+      .from('events')
+      .select('*', { count: 'exact', head: true })
+      .gt('date', now.toISOString())
+
+    // Get events this month
+    const { count: eventsThisMonth } = await supabase
+      .from('events')
+      .select('*', { count: 'exact', head: true })
+      .gte('date', startOfMonth.toISOString())
+      .lt('date', now.toISOString())
+
+    // Calculate events this month percentage
+    const eventsGrowthPercent = eventsThisMonth && totalEvents ? 
+      Math.round((eventsThisMonth / totalEvents) * 100) : 0
+
+    // Get total fees
+    const { count: totalFees } = await supabase
+      .from('fee_structures')
+      .select('*', { count: 'exact', head: true })
+
+    // Get total payments
+    const { count: totalPayments } = await supabase
+      .from('payments')
+      .select('*', { count: 'exact', head: true })
+
+    // Get total amount collected
+    const { data: totalAmountData } = await supabase
+      .from('payments')
+      .select('amount')
+      .eq('status', 'PAID')
+
+    const totalAmount = totalAmountData?.reduce((sum, payment) => sum + payment.amount, 0) || 0
+
+    // Get total revenue from paid payments
+    const { data: totalRevenueData } = await supabase
+      .from('payments')
+      .select('amount')
+      .eq('status', 'PAID')
+
+    const totalRevenue = totalRevenueData?.reduce((sum, payment) => sum + payment.amount, 0) || 0
+
+    // Get this month's revenue
+    const { data: monthlyAmountData } = await supabase
+      .from('payments')
+      .select('amount')
+      .eq('status', 'PAID')
+      .gte('payment_date', startOfMonth.toISOString())
+
+    const monthlyAmount = monthlyAmountData?.reduce((sum, payment) => sum + payment.amount, 0) || 0
+
+    // Get last month's revenue
+    const { data: lastMonthRevenueData } = await supabase
+      .from('payments')
+      .select('amount')
+      .eq('status', 'PAID')
+      .gte('payment_date', lastMonth.toISOString())
+      .lt('payment_date', startOfMonth.toISOString())
+
+    const lastMonthRevenue = lastMonthRevenueData?.reduce((sum, payment) => sum + payment.amount, 0) || 0
+
+    // Calculate revenue growth percentage
+    const revenueGrowthPercent = lastMonthRevenue ? 
+      Math.round((monthlyAmount / lastMonthRevenue - 1) * 100) : 0
+
+    // Get pending payments count
+    const { count: pendingPayments } = await supabase
+      .from('payments')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'PENDING')
+
+    // Calculate unpaid fees percentage
+    const { count: totalPaymentsCount } = await supabase
+      .from('payments')
+      .select('*', { count: 'exact', head: true })
+
+    const unpaidFeesPercent = totalPaymentsCount && pendingPayments ? 
+      Math.round((pendingPayments / totalPaymentsCount) * 100) : 0
+
+    // Get recent students
+    const { data: recentStudents } = await supabase
+      .from('students')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(5)
+
+    // Get recent payments
+    const { data: recentPayments } = await supabase
+      .from('payments')
+      .select(`
+        *,
+        student:students(
+          id,
+          name,
+          student_id
+        ),
+        fee:fee_structures(
+          id,
+          name
+        )
+      `)
+      .order('payment_date', { ascending: false })
+      .limit(5)
+
+    // Get recent events
+    const { data: recentEvents } = await supabase
+      .from('events')
+      .select('*')
+      .order('date', { ascending: false })
+      .limit(5)
+
+    return NextResponse.json({
+      students: {
+        total: totalStudents || 0,
+        new: newStudents || 0,
+        growthPercent: studentGrowthPercent
+      },
+      events: {
+        total: totalEvents || 0,
+        upcoming: upcomingEvents || 0,
+        thisMonth: eventsThisMonth || 0,
+        growthPercent: eventsGrowthPercent
+      },
+      fees: {
+        total: totalFees || 0
+      },
+      payments: {
+        total: totalPayments || 0,
+        amount: {
+          total: totalAmount,
+          monthly: monthlyAmount
         },
-        _sum: {
-          amount: true
-        }
-      }),
-      
-      // Last month revenue for growth
-      prisma.payment.aggregate({
-        where: {
-          status: "PAID",
-          createdAt: {
-            gte: startOfLastMonth,
-            lte: endOfLastMonth
-          }
-        },
-        _sum: {
-          amount: true
-        }
-      }),
-      
-      // Recent activities (last 10 records across different tables)
-      Promise.all([
-        prisma.student.findMany({
-          take: 5,
-          orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            name: true,
-            createdAt: true
-          }
-        }),
-        prisma.payment.findMany({
-          take: 5,
-          orderBy: { createdAt: 'desc' },
-          where: {
-            status: { in: ["PAID", "UNPAID"] }
-          },
-          select: {
-            id: true,
-            amount: true,
-            status: true,
-            createdAt: true,
-            student: {
-              select: { name: true }
-            }
-          }
-        }),
-        prisma.event.findMany({
-          take: 3,
-          orderBy: { createdAt: 'desc' },
-          where: {
-            deletedAt: null,
-            isActive: true,
-            date: {
-              gte: now
-            }
-          },
-          select: {
-            id: true,
-            title: true,
-            date: true,
-            createdAt: true
-          }
-        })
-      ])
-    ])
+        pending: pendingPayments || 0,
+        unpaidPercent: unpaidFeesPercent
+      },
+      revenue: {
+        total: totalRevenue,
+        monthly: monthlyAmount,
+        growthPercent: revenueGrowthPercent
+      },
+      recent: {
+        students: recentStudents || [],
+        payments: recentPayments || [],
+        events: recentEvents || []
+      }
+    })
 
-    // Calculate growth percentages
-    const studentGrowth = lastMonthStudents > 0 
-      ? Math.round(((totalStudents - lastMonthStudents) / lastMonthStudents) * 100)
-      : 0
-
-    const currentRevenue = totalRevenue._sum?.amount || 0
-    const lastRevenue = lastMonthRevenue._sum?.amount || 0
-    const revenueGrowth = lastRevenue > 0 
-      ? Math.round(((currentRevenue - lastRevenue) / lastRevenue) * 100)
-      : 0
-
-    // Process recent activities
-    const [recentStudents, recentPayments, recentEvents] = recentActivities
-    
-    const activities = [
-      ...recentStudents.map(student => ({
-        id: `student-${student.id}`,
-        type: "student",
-        title: "New student enrolled",
-        description: `${student.name} joined the system`,
-        time: getTimeAgo(student.createdAt),
-        status: "success"
-      })),
-      ...recentPayments.map(payment => ({
-        id: `payment-${payment.id}`,
-        type: "payment",
-        title: payment.status === "PAID" ? "Payment received" : "Payment pending",
-        description: `₱${payment.amount.toLocaleString()} from ${payment.student?.name || 'Unknown'}`,
-        time: getTimeAgo(payment.createdAt),
-        status: payment.status === "PAID" ? "success" : payment.status === "UNPAID" ? "warning" : "error"
-      })),
-      ...recentEvents.map(event => ({
-        id: `event-${event.id}`,
-        type: "event",
-        title: "Event scheduled",
-        description: `${event.title} - ${new Date(event.date).toLocaleDateString()}`,
-        time: getTimeAgo(event.createdAt),
-        status: "info"
-      }))
-    ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 10)
-
-    const stats = {
-      totalStudents,
-      studentGrowth,
-      totalEvents,
-      eventGrowth: lastMonthEvents,
-      upcomingEvents,
-      totalRevenue: currentRevenue,
-      revenueGrowth,
-      pendingPayments,
-      totalFees,
-      activities
-    }
-
-    return NextResponse.json(stats)
   } catch (error) {
-    console.error("Error fetching dashboard stats:", error)
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    )
-  }
-}
-
-function getTimeAgo(date: Date): string {
-  const now = new Date()
-  const diffInMs = now.getTime() - date.getTime()
-  const diffInMinutes = Math.floor(diffInMs / (1000 * 60))
-  const diffInHours = Math.floor(diffInMinutes / 60)
-  const diffInDays = Math.floor(diffInHours / 24)
-
-  if (diffInMinutes < 1) {
-    return "Just now"
-  } else if (diffInMinutes < 60) {
-    return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`
-  } else if (diffInHours < 24) {
-    return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`
-  } else {
-    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`
+    console.error('Error fetching dashboard stats:', error)
+    return NextResponse.json({ error: 'Failed to fetch dashboard stats' }, { status: 500 })
   }
 } 

@@ -14,7 +14,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Save, Loader2, DollarSign, Calendar, GraduationCap } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Save, Loader2, DollarSign, Calendar, GraduationCap, Users, AlertTriangle } from "lucide-react"
+import { COLLEGES, COURSES_BY_COLLEGE, EVENT_SCOPE_TYPES, EVENT_SCOPE_LABELS, EVENT_SCOPE_DESCRIPTIONS } from "@/lib/constants/academic-programs"
 
 interface FeeFormProps {
   feeId?: string
@@ -27,12 +29,16 @@ interface FeeFormProps {
     dueDate: string
     semester: string
     schoolYear: string
+    scope_type: string
+    scope_college: string
+    scope_course: string
   }
 }
 
 export function FeeForm({ feeId, initialData }: FeeFormProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [studentCount, setStudentCount] = useState<number | null>(null)
   const [formData, setFormData] = useState({
     name: "",
     type: "",
@@ -41,6 +47,9 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
     dueDate: "",
     semester: "",
     schoolYear: "",
+    scope_type: "UNIVERSITY_WIDE",
+    scope_college: "",
+    scope_course: "",
   })
 
   const isEditing = !!feeId
@@ -55,9 +64,47 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
         dueDate: initialData.dueDate,
         semester: initialData.semester,
         schoolYear: initialData.schoolYear,
+        scope_type: initialData.scope_type || "UNIVERSITY_WIDE",
+        scope_college: initialData.scope_college || "",
+        scope_course: initialData.scope_course || "",
       })
     }
   }, [initialData])
+
+  const fetchStudentCount = async (
+    scope: string,
+    collegeId?: string,
+    courseId?: string
+  ) => {
+    try {
+      const params = new URLSearchParams({
+        scope: scope,
+        ...(collegeId && { collegeId }),
+        ...(courseId && { courseId })
+      })
+
+      const response = await fetch(`/api/students/count?${params}`)
+      if (response.ok) {
+        const data = await response.json()
+        setStudentCount(data.count)
+      } else {
+        console.error('Failed to fetch student count')
+      }
+    } catch (error) {
+      console.error('Error fetching student count:', error)
+    }
+  }
+
+  // Update student count when scope changes
+  useEffect(() => {
+    if (formData.scope_type === "UNIVERSITY_WIDE") {
+      fetchStudentCount("UNIVERSITY_WIDE")
+    } else if (formData.scope_type === "COLLEGE_WIDE" && formData.scope_college) {
+      fetchStudentCount("COLLEGE_WIDE", formData.scope_college)
+    } else if (formData.scope_type === "COURSE_SPECIFIC" && formData.scope_course) {
+      fetchStudentCount("COURSE_SPECIFIC", undefined, formData.scope_course)
+    }
+  }, [formData.scope_type, formData.scope_college, formData.scope_course])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -108,6 +155,19 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
         return
       }
 
+      // Scope validation
+      if (formData.scope_type === "COLLEGE_WIDE" && !formData.scope_college) {
+        alert("College must be selected for college-wide fees")
+        setLoading(false)
+        return
+      }
+
+      if (formData.scope_type === "COURSE_SPECIFIC" && (!formData.scope_college || !formData.scope_course)) {
+        alert("Both college and course must be selected for course-specific fees")
+        setLoading(false)
+        return
+      }
+
       const payload = {
         name: formData.name.trim(),
         type: mapFeeType(formData.type),
@@ -116,6 +176,13 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
         dueDate: formData.dueDate || undefined,
         semester: formData.semester.trim() || undefined,
         schoolYear: formData.schoolYear.trim(),
+        scope_type: formData.scope_type,
+        ...(formData.scope_type !== "UNIVERSITY_WIDE" && formData.scope_college && {
+          scope_college: formData.scope_college
+        }),
+        ...(formData.scope_type === "COURSE_SPECIFIC" && formData.scope_course && {
+          scope_course: formData.scope_course
+        })
       }
 
       console.log("Fee form data being sent:", payload)
@@ -145,10 +212,44 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
   }
 
   const handleInputChange = (name: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }))
+    setFormData(prev => {
+      const newData = { ...prev, [name]: value }
+      
+      // Reset dependent fields when scope type changes
+      if (name === "scope_type") {
+        newData.scope_college = ""
+        newData.scope_course = ""
+      }
+      
+      // Reset course when college changes
+      if (name === "scope_college") {
+        newData.scope_course = ""
+      }
+      
+      return newData
+    })
+  }
+
+  const getAvailableCourses = () => {
+    if (!formData.scope_college) return []
+    return COURSES_BY_COLLEGE[formData.scope_college as keyof typeof COURSES_BY_COLLEGE] || []
+  }
+
+  const getStudentImpact = () => {
+    switch (formData.scope_type) {
+      case "UNIVERSITY_WIDE":
+        return studentCount ? `All students (${studentCount.toLocaleString()}) across all colleges` : "All students across all colleges"
+      case "COLLEGE_WIDE":
+        return formData.scope_college 
+          ? `Students from ${formData.scope_college} only ${studentCount ? `(${studentCount.toLocaleString()} students)` : ''}`
+          : "Students from selected college only"
+      case "COURSE_SPECIFIC":
+        return formData.scope_course 
+          ? `Students from ${formData.scope_course} only ${studentCount ? `(${studentCount.toLocaleString()} students)` : ''}`
+          : "Students from selected course only"
+      default:
+        return ""
+    }
   }
 
   return (
@@ -186,6 +287,95 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
                   rows={3}
                   className="resize-none"
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* Fee Scope Section */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Fee Scope</h3>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="scope_type">Who does this fee apply to? *</Label>
+                <Select
+                  value={formData.scope_type}
+                  onValueChange={(value) => handleInputChange("scope_type", value)}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select fee scope" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EVENT_SCOPE_TYPES.map((scopeType) => (
+                      <SelectItem key={scopeType} value={scopeType}>
+                        {EVENT_SCOPE_LABELS[scopeType]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-gray-600">
+                  {EVENT_SCOPE_DESCRIPTIONS[formData.scope_type as keyof typeof EVENT_SCOPE_DESCRIPTIONS]}
+                </p>
+              </div>
+
+              {formData.scope_type !== "UNIVERSITY_WIDE" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="scope_college">College *</Label>
+                    <Select
+                      value={formData.scope_college}
+                      onValueChange={(value) => handleInputChange("scope_college", value)}
+                      required={formData.scope_type !== "UNIVERSITY_WIDE"}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select college" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COLLEGES.map((college) => (
+                          <SelectItem key={college} value={college}>
+                            {college}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {formData.scope_type === "COURSE_SPECIFIC" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="scope_course">Course *</Label>
+                      <Select
+                        value={formData.scope_course}
+                        onValueChange={(value) => handleInputChange("scope_course", value)}
+                        required={formData.scope_type === "COURSE_SPECIFIC"}
+                        disabled={!formData.scope_college}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select course" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getAvailableCourses().map((course) => (
+                            <SelectItem key={course} value={course}>
+                              {course}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Fee Impact Indicator */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <Users className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <h3 className="text-sm font-medium text-blue-900">Student Impact</h3>
+                    <p className="text-sm text-blue-700 mt-1">
+                      This fee will apply to: {getStudentImpact()}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

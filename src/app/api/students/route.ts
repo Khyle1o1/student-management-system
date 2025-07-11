@@ -1,165 +1,195 @@
-import { auth } from "@/lib/auth"
-import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-import bcrypt from "bcryptjs"
+import { NextResponse } from "next/server"
+import { supabase } from "@/lib/supabase"
+import { hashPassword } from "@/lib/auth"
+import { z } from "zod"
 
-export async function GET(request: NextRequest) {
+const yearLevelMap = {
+  'YEAR_1': 1,
+  'YEAR_2': 2,
+  'YEAR_3': 3,
+  'YEAR_4': 4
+}
+
+const studentSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().optional(),
+  studentId: z.string().min(1),
+  college: z.string().min(1),
+  yearLevel: z.string().refine(val => val in yearLevelMap, {
+    message: "Invalid year level"
+  }),
+  course: z.string().min(1),
+  phone: z.string().optional(),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  middleName: z.string().optional()
+})
+
+export async function GET(request: Request) {
   try {
-    const session = await auth()
-    
-    if (!session || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1', 10)
-    const limit = parseInt(searchParams.get('limit') || '50', 10)
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '10')
     const search = searchParams.get('search') || ''
+    
+    const offset = (page - 1) * limit
 
-    // Calculate skip for pagination
-    const skip = (page - 1) * limit
-
-    // Build where clause for search
-    const whereClause = search ? {
-      OR: [
-        { name: { contains: search, mode: 'insensitive' as const } },
-        { studentId: { contains: search, mode: 'insensitive' as const } },
-        { email: { contains: search, mode: 'insensitive' as const } },
-        { course: { contains: search, mode: 'insensitive' as const } },
-        { college: { contains: search, mode: 'insensitive' as const } },
-      ],
-      deletedAt: null,
-    } : {
-      deletedAt: null,
-    }
-
-    // Get total count for pagination info
-    const totalCount = await prisma.student.count({
-      where: whereClause,
-    })
+    // Get total count for pagination
+    const { count } = await supabase
+      .from('students')
+      .select('*', { count: 'exact', head: true })
+      .ilike('name', `%${search}%`)
 
     // Get paginated students
-    const students = await prisma.student.findMany({
-      where: whereClause,
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            role: true,
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      skip,
-      take: limit,
-    })
+    const { data: studentsData, error } = await supabase
+      .from('students')
+      .select(`
+        id,
+        student_id,
+        name,
+        email,
+        college,
+        course,
+        year_level,
+        created_at,
+        user:users(
+          id,
+          email,
+          name,
+          role
+        )
+      `)
+      .ilike('name', `%${search}%`)
+      .range(offset, offset + limit - 1)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching students:', error)
+      return NextResponse.json({ error: 'Failed to fetch students' }, { status: 500 })
+    }
+
+    // Transform the data to match the expected format
+    const formattedStudents = studentsData.map(student => ({
+      id: student.id,
+      studentId: student.student_id,
+      name: student.name,
+      email: student.email,
+      college: student.college,
+      course: student.course,
+      yearLevel: `YEAR_${student.year_level}`,
+      enrolledAt: student.created_at,
+      user: student.user
+    }))
+
+    const totalPages = Math.ceil((count || 0) / limit)
 
     return NextResponse.json({
-      students,
+      students: formattedStudents,
       pagination: {
-        page,
-        limit,
-        totalCount,
-        totalPages: Math.ceil(totalCount / limit),
-        hasNext: page < Math.ceil(totalCount / limit),
-        hasPrevious: page > 1,
+        totalPages,
+        totalCount: count || 0,
+        currentPage: page,
+        hasNext: page < totalPages,
+        hasPrevious: page > 1
       }
     })
+
   } catch (error) {
-    console.error("Error fetching students:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error('Error in GET /api/students:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const session = await auth()
-    
-    if (!session || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const body = await request.json()
-    const {
-      name,
-      email,
-      studentId,
-      yearLevel,
-      course,
-      college,
-      firstName,
-      lastName,
-      middleName
-    } = body
+    const data = studentSchema.parse(body)
 
-    // Validate student ID is numeric
-    if (!/^\d+$/.test(studentId)) {
-      return NextResponse.json({ error: "Student ID must contain only numbers" }, { status: 400 })
-    }
-
-    // Check if user with email already exists
-    const existingUser = await prisma.user.findFirst({
-      where: { 
-        email
-      }
-    })
+    // Check if email already exists
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', data.email)
+      .single()
 
     if (existingUser) {
-      return NextResponse.json({ error: "User with this email already exists" }, { status: 400 })
+      return NextResponse.json({ error: 'Email already exists' }, { status: 400 })
     }
 
     // Check if student ID already exists
-    const existingStudent = await prisma.student.findFirst({
-      where: { 
-        studentId
-      }
-    })
+    const { data: existingStudent } = await supabase
+      .from('students')
+      .select('id')
+      .eq('student_id', data.studentId)
+      .single()
 
     if (existingStudent) {
-      return NextResponse.json({ error: "Student ID already exists" }, { status: 400 })
+      return NextResponse.json({ error: 'Student ID already exists' }, { status: 400 })
     }
 
-    // For OAuth students, create empty password (they'll login via Google)
-    const hashedPassword = await bcrypt.hash("", 12) // Empty password for OAuth-only users
-
     // Create user first
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        role: "STUDENT",
-        name: name || `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`.trim(),
-      }
-    })
+    // For OAuth users, we'll set a random password that they won't use
+    const hashedPassword = await hashPassword(data.password || Math.random().toString(36).slice(-8))
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .insert([{
+        email: data.email,
+        password: hashedPassword, // This will never be null now
+        name: data.name,
+        role: 'STUDENT'
+      }])
+      .select()
+      .single()
 
-    // Create student record without phone number, address, and section
-    const student = await prisma.student.create({
-      data: {
-        studentId,
-        userId: user.id,
-        name: name || `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`.trim(),
-        email,
-        yearLevel,
-        course,
-        college,
-      } as any,
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            role: true,
-          },
-        },
-      },
-    })
+    if (userError) {
+      console.error('Error creating user:', userError)
+      return NextResponse.json({ error: 'Failed to create user' }, { status: 500 })
+    }
+
+    // Then create student record
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .insert([{
+        user_id: user.id,
+        student_id: data.studentId,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        college: data.college,
+        year_level: yearLevelMap[data.yearLevel as keyof typeof yearLevelMap],
+        course: data.course
+      }])
+      .select(`
+        *,
+        user:users(
+          id,
+          email,
+          name,
+          role
+        )
+      `)
+      .single()
+
+    if (studentError) {
+      // Rollback user creation if student creation fails
+      await supabase
+        .from('users')
+        .delete()
+        .eq('id', user.id)
+
+      console.error('Error creating student:', studentError)
+      return NextResponse.json({ error: 'Failed to create student' }, { status: 500 })
+    }
 
     return NextResponse.json(student, { status: 201 })
+
   } catch (error) {
-    console.error("Error creating student:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.errors }, { status: 400 })
+    }
+    
+    console.error('Error in POST /api/students:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 } 

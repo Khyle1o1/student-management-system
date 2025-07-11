@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import bcrypt from "bcryptjs"
+import { supabase } from "@/lib/supabase"
+import { hashPassword } from "@/lib/auth"
 import { studentImportSchema } from "@/lib/validations"
 import { z } from "zod"
 
@@ -28,6 +28,13 @@ interface ImportResult {
 const batchStudentSchema = z.object({
   students: z.array(studentImportSchema)
 })
+
+const yearLevelMap = {
+  'YEAR_1': 1,
+  'YEAR_2': 2,
+  'YEAR_3': 3,
+  'YEAR_4': 4
+}
 
 // Helper function to retry database operations
 async function retryOperation<T>(
@@ -99,6 +106,16 @@ export async function POST(request: NextRequest) {
     }
 
     const { students } = validation.data
+
+    // Check student limit - reduced to prevent URL length issues
+    const MAX_STUDENTS = 50;
+    if (students.length > MAX_STUDENTS) {
+      return NextResponse.json({ 
+        error: `Batch size too large. Maximum allowed is ${MAX_STUDENTS} students per batch to prevent URL length issues. Please split your data into smaller batches.`,
+        status: "batch_too_large"
+      }, { status: 400 })
+    }
+
     const result: ImportResult = {
       successCount: 0,
       errorCount: 0,
@@ -109,7 +126,7 @@ export async function POST(request: NextRequest) {
     // Check database connection first
     try {
       await retryOperation(async () => {
-        await prisma.$queryRaw`SELECT 1`
+        await supabase.from('students').select('id').limit(1)
       })
     } catch (error) {
       console.error("Database connection check failed:", error);
@@ -123,39 +140,29 @@ export async function POST(request: NextRequest) {
     // Check for duplicates with retry logic
     const existingData = await retryOperation(async () => {
       // Check existing students (excluding soft-deleted)
-      const existingStudents = await prisma.student.findMany({
-        where: {
-          AND: [
-            {
-              OR: [
-                { studentId: { in: students.map(s => s.studentId) } },
-                { email: { in: students.map(s => s.email) } }
-              ]
-            },
-            { deletedAt: null }
-          ]
-        },
-        select: {
-          studentId: true,
-          email: true
-        }
-      })
-    
+      const { data: existingStudents, error: studentsError } = await supabase
+        .from('students')
+        .select('student_id')
+        .in('student_id', students.map(s => s.studentId))
+
+      if (studentsError) {
+        throw new Error(`Error checking existing students: ${studentsError.message}`)
+      }
+
       // Check existing users by email (excluding soft-deleted)
-      const existingUsers = await prisma.user.findMany({
-        where: {
-          email: { in: students.map(s => s.email) },
-          deletedAt: null
-        },
-        select: {
-          email: true
-        }
-      })
-    
+      const { data: existingUsers, error: usersError } = await supabase
+        .from('users')
+        .select('email')
+        .in('email', students.map(s => s.email))
+
+      if (usersError) {
+        throw new Error(`Error checking existing users: ${usersError.message}`)
+      }
+
       return {
-        existingStudentIds: new Set(existingStudents.map((s: { studentId: string }) => s.studentId)),
-        existingEmails: new Set(existingStudents.map((s: { email: string }) => s.email)),
-        existingUserEmails: new Set(existingUsers.map((u: { email: string }) => u.email))
+        existingStudentIds: new Set(existingStudents?.map(s => s.student_id) || []),
+        existingEmails: new Set(existingStudents?.map(s => s.student_id) || []),
+        existingUserEmails: new Set(existingUsers?.map(u => u.email) || [])
       };
     });
 
@@ -227,42 +234,48 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
-          // Create user and student with retry logic
-          await retryOperation(async () => {
-            // Create in transaction to ensure data consistency
-            return await prisma.$transaction(async (tx) => {
-              // Hash password
-              const password = studentData.password || 'student123';
-              const hashedPassword = await bcrypt.hash(password, 12);
-              
-              // Create user first
-              const user = await tx.user.create({
-                data: {
-                  email: studentData.email.toLowerCase(),
-                  password: hashedPassword,
-                  role: "STUDENT",
-                  name: studentData.name,
-                }
-              });
-              
-              // Create student record
-              await tx.student.create({
-                data: {
-                  studentId: studentData.studentId,
-                  userId: user.id,
-                  name: studentData.name,
-                  email: studentData.email.toLowerCase(),
-                  yearLevel: studentData.yearLevel as any,
-                  course: studentData.course,
-                  college: studentData.college,
-                } as any
-              });
-            });
-          });
+          // Create user first
+          const hashedPassword = await hashPassword(studentData.password || Math.random().toString(36).slice(-8))
+          const { data: user, error: userError } = await supabase
+            .from('users')
+            .insert([{
+              email: studentData.email,
+              password: hashedPassword,
+              name: studentData.name,
+              role: 'STUDENT'
+            }])
+            .select()
+            .single()
 
-          result.successCount++;
-          processedCount++;
-          console.log(`✅ Processed: ${processedCount}/${totalCount} (${Math.round(processedCount/totalCount*100)}%) - Successfully created: ${studentData.name} (${studentData.studentId})`);
+          if (userError) {
+            throw new Error(`Error creating user: ${userError.message}`)
+          }
+
+          // Create student record
+          const { error: studentError } = await supabase
+            .from('students')
+            .insert([{
+              user_id: user.id,
+              student_id: studentData.studentId,
+              name: studentData.name,
+              email: studentData.email,
+              college: studentData.college,
+              year_level: yearLevelMap[studentData.yearLevel as keyof typeof yearLevelMap],
+              course: studentData.course
+            }])
+
+          if (studentError) {
+            // Rollback user creation if student creation fails
+            await supabase
+              .from('users')
+              .delete()
+              .eq('id', user.id)
+            throw new Error(`Error creating student: ${studentError.message}`)
+          }
+
+          result.successCount++
+          processedCount++
+          console.log(`✅ Processed: ${processedCount}/${totalCount} (${Math.round(processedCount/totalCount*100)}%) - Success: ${studentData.studentId}`)
           
           // Add to sets to prevent duplicates in subsequent iterations
           existingStudentIds.add(studentData.studentId);

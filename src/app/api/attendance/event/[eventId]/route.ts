@@ -1,178 +1,170 @@
-import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { NextResponse } from "next/server"
+import { supabase } from "@/lib/supabase"
+import { z } from "zod"
+
+const attendanceSchema = z.object({
+  student_id: z.string().min(1),
+  status: z.enum(['PRESENT', 'ABSENT', 'LATE'])
+})
 
 export async function GET(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { eventId: string } }
 ) {
   try {
-    const session = await auth()
-    
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
-
     const { eventId } = params
+    const { searchParams } = new URL(request.url)
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '10')
+    const search = searchParams.get('search') || ''
+    
+    const offset = (page - 1) * limit
 
-    // First verify the event exists
-    const event = await prisma.event.findUnique({
-      where: { id: eventId, deletedAt: null },
-    })
+    // First check if event exists
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', eventId)
+      .single()
 
-    if (!event) {
-      return NextResponse.json({ error: "Event not found" }, { status: 404 })
+    if (eventError) {
+      if (eventError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+      }
+      console.error('Error fetching event:', eventError)
+      return NextResponse.json({ error: 'Failed to fetch event' }, { status: 500 })
     }
 
-    // Fetch all attendance records for this event with student information
-    const attendanceRecords = await prisma.attendance.findMany({
-      where: {
-        eventId: eventId,
-        deletedAt: null,
-      },
-      include: {
-        student: {
-          select: {
-            id: true,
-            studentId: true,
-            name: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+    // Get total count for pagination
+    const { count } = await supabase
+      .from('attendance')
+      .select('*', { count: 'exact', head: true })
+      .eq('event_id', eventId)
+
+    // Get attendance records with student details
+    const { data: records, error } = await supabase
+      .from('attendance')
+      .select(`
+        *,
+        student:students(
+          id,
+          student_id,
+          name,
+          email,
+          college,
+          course,
+          year_level
+        )
+      `)
+      .eq('event_id', eventId)
+      .range(offset, offset + limit - 1)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching attendance records:', error)
+      return NextResponse.json({ error: 'Failed to fetch attendance records' }, { status: 500 })
+    }
+
+    return NextResponse.json({
+      event,
+      records,
+      total: count || 0,
+      page,
+      limit
     })
 
-    // Since our new system uses custom fields, we'll need to create a custom table
-    // For now, let's return the existing attendance records transformed to match our interface
-    const transformedRecords = attendanceRecords.map(record => {
-      // Parse time data from notes
-      let timeData: { timeIn: string | null, timeOut: string | null } = { timeIn: null, timeOut: null }
-      try {
-        if (record.notes) {
-          timeData = JSON.parse(record.notes)
-        }
-      } catch (error) {
-        // Fallback to scannedAt for timeIn if notes parsing fails
-        timeData.timeIn = record.scannedAt ? record.scannedAt.toTimeString().split(' ')[0].substring(0, 5) : null
-      }
-
-      return {
-        id: record.id,
-        studentId: record.studentId,
-        eventId: record.eventId,
-        timeIn: timeData.timeIn,
-        timeOut: timeData.timeOut,
-        status: record.status.toLowerCase(),
-        scannedIn: !!timeData.timeIn,
-        scannedOut: !!timeData.timeOut,
-        createdAt: record.createdAt.toISOString(),
-        updatedAt: record.updatedAt.toISOString(),
-      }
-    })
-
-    return NextResponse.json(transformedRecords)
   } catch (error) {
-    console.error("Error fetching attendance records:", error)
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    )
+    console.error('Error in GET /api/attendance/event/[eventId]:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function POST(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { eventId: string } }
 ) {
   try {
-    const session = await auth()
-    
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
-
     const { eventId } = params
     const body = await request.json()
+    const data = attendanceSchema.parse(body)
 
-    // Verify the event exists
-    const event = await prisma.event.findUnique({
-      where: { id: eventId, deletedAt: null },
-    })
+    // Check if event exists
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', eventId)
+      .single()
 
-    if (!event) {
-      return NextResponse.json({ error: "Event not found" }, { status: 404 })
+    if (eventError) {
+      if (eventError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+      }
+      console.error('Error fetching event:', eventError)
+      return NextResponse.json({ error: 'Failed to fetch event' }, { status: 500 })
     }
 
-    // Verify the student exists
-    const student = await prisma.student.findUnique({
-      where: { id: body.studentId, deletedAt: null },
-    })
+    // Check if student exists
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('*')
+      .eq('student_id', data.student_id)
+      .single()
 
-    if (!student) {
-      return NextResponse.json({ error: "Student not found" }, { status: 404 })
+    if (studentError) {
+      if (studentError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+      }
+      console.error('Error fetching student:', studentError)
+      return NextResponse.json({ error: 'Failed to fetch student' }, { status: 500 })
     }
 
     // Check if attendance record already exists
-    const existingRecord = await prisma.attendance.findUnique({
-      where: {
-        studentId_eventId: {
-          studentId: body.studentId,
-          eventId: eventId,
-        },
-      },
-    })
+    const { data: existingRecord } = await supabase
+      .from('attendance')
+      .select('id')
+      .eq('event_id', eventId)
+      .eq('student_id', student.id)
+      .single()
 
     if (existingRecord) {
-      return NextResponse.json({ error: "Attendance record already exists" }, { status: 400 })
+      return NextResponse.json({ error: 'Attendance record already exists' }, { status: 400 })
     }
 
-    // Create new attendance record with timeIn
-    const currentTime = new Date()
-    
-    // Store timeIn/timeOut data in notes as JSON
-    const timeData = {
-      timeIn: body.timeIn,
-      timeOut: body.timeOut,
-    }
-    
-    const attendanceRecord = await prisma.attendance.create({
-      data: {
-        studentId: body.studentId,
-        eventId: eventId,
-        status: body.timeIn ? "PRESENT" : "ABSENT",
-        timestamp: currentTime,
-        scannedAt: body.scannedIn ? currentTime : null,
-        notes: JSON.stringify(timeData),
-      },
-    })
+    // Create attendance record
+    const { data: record, error } = await supabase
+      .from('attendance')
+      .insert([{
+        event_id: eventId,
+        student_id: student.id,
+        status: data.status
+      }])
+      .select(`
+        *,
+        student:students(
+          id,
+          student_id,
+          name,
+          email,
+          college,
+          course,
+          year_level
+        )
+      `)
+      .single()
 
-    return NextResponse.json({
-      id: attendanceRecord.id,
-      studentId: attendanceRecord.studentId,
-      eventId: attendanceRecord.eventId,
-      timeIn: body.timeIn,
-      timeOut: body.timeOut,
-      status: body.status,
-      scannedIn: body.scannedIn || false,
-      scannedOut: body.scannedOut || false,
-      createdAt: attendanceRecord.createdAt.toISOString(),
-      updatedAt: attendanceRecord.updatedAt.toISOString(),
-    }, { status: 201 })
+    if (error) {
+      console.error('Error creating attendance record:', error)
+      return NextResponse.json({ error: 'Failed to create attendance record' }, { status: 500 })
+    }
+
+    return NextResponse.json(record, { status: 201 })
+
   } catch (error) {
-    console.error("Error creating attendance record:", error)
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    )
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.errors }, { status: 400 })
+    }
+
+    console.error('Error in POST /api/attendance/event/[eventId]:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 } 

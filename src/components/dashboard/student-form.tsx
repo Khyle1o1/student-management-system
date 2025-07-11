@@ -77,19 +77,34 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
     setLoading(true)
 
     try {
+      // Validate required fields
+      if (!formData.firstName || !formData.lastName || !formData.studentId || 
+          !formData.yearLevel || !formData.course || !formData.college) {
+        alert("Please fill in all required fields")
+        setLoading(false)
+        return
+      }
+
       const url = isEditing 
         ? `/api/students/${studentId}` 
         : "/api/students"
       
       const method = isEditing ? "PUT" : "POST"
       
-      // Prepare payload without password, phone, address, or section
       const payload = {
-        ...formData,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        middleName: formData.middleName,
+        email: formData.email,
+        studentId: formData.studentId,
+        yearLevel: formData.yearLevel,
+        course: formData.course,
+        college: formData.college,
         name: `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim(),
-        // For OAuth-only students, no password needed
-        password: "", // Empty password for OAuth users
+        password: "" // Empty password for OAuth users
       }
+
+      console.log('Submitting form data:', payload) // Add this for debugging
 
       const response = await fetch(url, {
         method,
@@ -99,16 +114,26 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
         body: JSON.stringify(payload),
       })
 
-      if (response.ok) {
-        router.push("/dashboard/students")
-        router.refresh()
-      } else {
+      if (!response.ok) {
         const error = await response.json()
-        alert(error.error || "An error occurred")
+        console.error('Server error:', error) // Log the full error for debugging
+        if (error.error && Array.isArray(error.error)) {
+          // Handle Zod validation errors
+          const errorMessages = error.error.map((err: any) => `${err.path.join('.')}: ${err.message}`).join('\n')
+          alert(errorMessages)
+        } else {
+          // Handle other types of errors
+          const errorMessage = error.error || error.message || "An error occurred while saving the student"
+          alert(errorMessage)
+        }
+        return
       }
+
+      router.push("/dashboard/students")
+      router.refresh()
     } catch (error) {
       console.error("Error submitting form:", error)
-      alert("An error occurred while saving the student")
+      alert("An error occurred while saving the student. Please check the console for more details.")
     } finally {
       setLoading(false)
     }
@@ -273,6 +298,9 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
                     <SelectItem value="YEAR_4">4th Year</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Select the student's current year level
+                </p>
               </div>
             </div>
           </div>

@@ -1,52 +1,47 @@
-import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+import { NextResponse } from "next/server"
+import { supabase } from "@/lib/supabase"
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // Database status check should be publicly accessible for system monitoring
-    // No authentication required for health checks
-    
-    // Try a simple query to check database connection
-    await prisma.$queryRaw`SELECT 1`
-    
-    return NextResponse.json({ 
-      status: 'connected',
-      timestamp: new Date().toISOString()
-    })
-  } catch (error) {
-    console.error("Database connection check failed:", error)
-    
-    // Determine the specific error type
-    let errorCode = 'UNKNOWN'
-    let errorMessage = 'Failed to connect to database'
-    
-    if (error instanceof Error) {
-      errorMessage = error.message
-      
-      // Check for Prisma specific error codes
-      if ('code' in error) {
-        const prismaError = error as any
-        errorCode = prismaError.code
-        
-        switch(prismaError.code) {
-          case 'P1001':
-            errorMessage = "Can't reach database server"
-            break
-          case 'P1002':
-            errorMessage = "Database server connection timed out"
-            break
-          case 'P1017':
-            errorMessage = "Server has closed the connection"
-            break
+    // Test the connection by making a simple query to a table that should exist
+    // Use a basic query that doesn't require special permissions
+    const { data, error } = await supabase
+      .from('events')
+      .select('id')
+      .limit(1)
+
+    if (error) {
+      console.error('Database connection error:', error)
+      return NextResponse.json({
+        status: 'error',
+        message: 'Failed to connect to database',
+        error: error.message,
+        config: {
+          hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+          hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
         }
-      }
+      }, { status: 500 })
     }
-    
-    return NextResponse.json({ 
-      status: 'disconnected',
-      error: errorMessage,
-      code: errorCode,
-      timestamp: new Date().toISOString()
-    }, { status: 503 })
+
+    return NextResponse.json({
+      status: 'ok',
+      message: 'Database connection successful',
+      config: {
+        hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+        hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      }
+    })
+
+  } catch (error) {
+    console.error('Database status check error:', error)
+    return NextResponse.json({
+      status: 'error',
+      message: 'Database connection check failed',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      config: {
+        hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+        hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      }
+    }, { status: 500 })
   }
 } 

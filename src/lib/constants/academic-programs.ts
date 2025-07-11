@@ -72,4 +72,30 @@ export const isValidCollege = (college: string): college is College => {
 // Helper function to validate if a course exists
 export const isValidCourse = (course: string): boolean => {
   return getAllCourses().includes(course);
+};
+
+// Event scope constants
+export const EVENT_SCOPE_TYPES = [
+  "UNIVERSITY_WIDE",
+  "COLLEGE_WIDE", 
+  "COURSE_SPECIFIC"
+] as const;
+
+export type EventScopeType = typeof EVENT_SCOPE_TYPES[number];
+
+export const EVENT_SCOPE_LABELS: Record<EventScopeType, string> = {
+  "UNIVERSITY_WIDE": "University-wide",
+  "COLLEGE_WIDE": "College-wide",
+  "COURSE_SPECIFIC": "Course-specific"
+};
+
+export const EVENT_SCOPE_DESCRIPTIONS: Record<EventScopeType, string> = {
+  "UNIVERSITY_WIDE": "All students across all colleges can attend and will be included in attendance and report generation",
+  "COLLEGE_WIDE": "Only students within a specific college can attend and be included in reports",
+  "COURSE_SPECIFIC": "Only students from a specific course can attend and be tracked"
+};
+
+// Helper function to validate if an event scope type exists
+export const isValidEventScope = (scope: string): scope is EventScopeType => {
+  return EVENT_SCOPE_TYPES.includes(scope as EventScopeType);
 }; 

@@ -1,208 +1,201 @@
+import { NextResponse } from "next/server"
+import { supabase } from "@/lib/supabase"
 import { auth } from "@/lib/auth"
-import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+import { z } from "zod"
+
+const updateStudentSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().optional(),
+  college: z.string().min(1),
+  year_level: z.number().min(1),
+  course: z.string().min(1)
+})
 
 export async function GET(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await auth()
-    
-    if (!session || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const { id } = params
 
-    const student = await prisma.student.findUnique({
-      where: { id: params.id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            role: true,
-          }
-        }
+    const { data: student, error } = await supabase
+      .from('students')
+      .select(`
+        *,
+        user:users(
+          id,
+          email,
+          name,
+          role
+        )
+      `)
+      .eq('id', id)
+      .single()
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Student not found' }, { status: 404 })
       }
-    })
-
-    if (!student) {
-      return NextResponse.json({ error: "Student not found" }, { status: 404 })
+      console.error('Error fetching student:', error)
+      return NextResponse.json({ error: 'Failed to fetch student' }, { status: 500 })
     }
 
     return NextResponse.json(student)
+
   } catch (error) {
-    console.error("Error fetching student:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error('Error in GET /api/students/[id]:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function PUT(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await auth()
-    
-    if (!session || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
+    const { id } = params
     const body = await request.json()
-    const {
-      name,
-      email,
-      studentId,
-      yearLevel,
-      course,
-      college,
-      firstName,
-      lastName,
-      middleName
-    } = body
+    const data = updateStudentSchema.parse(body)
 
-    // Validate student ID is numeric
-    if (!/^\d+$/.test(studentId)) {
-      return NextResponse.json({ error: "Student ID must contain only numbers" }, { status: 400 })
+    // Check if student exists
+    const { data: existingStudent, error: fetchError } = await supabase
+      .from('students')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (fetchError) {
+      if (fetchError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+      }
+      console.error('Error fetching student:', fetchError)
+      return NextResponse.json({ error: 'Failed to fetch student' }, { status: 500 })
     }
 
-    // Find the existing student
-    const existingStudent = await prisma.student.findUnique({
-      where: { id: params.id },
-      include: { user: true }
-    })
+    // Check if email is already taken by another student
+    if (data.email !== existingStudent.email) {
+      const { data: emailCheck } = await supabase
+        .from('students')
+        .select('id')
+        .eq('email', data.email)
+        .neq('id', id)
+        .single()
 
-    if (!existingStudent) {
-      return NextResponse.json({ error: "Student not found" }, { status: 404 })
+      if (emailCheck) {
+        return NextResponse.json({ error: 'Email already taken' }, { status: 400 })
+      }
     }
 
-    // Check if email is being changed and if new email already exists
-    if (email !== existingStudent.email) {
-      const emailExists = await prisma.user.findFirst({
-        where: { 
-          email
-        }
+    // Update student record
+    const { data: updatedStudent, error: updateError } = await supabase
+      .from('students')
+      .update({
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        college: data.college,
+        year_level: data.year_level,
+        course: data.course,
+        updated_at: new Date().toISOString()
       })
+      .eq('id', id)
+      .select(`
+        *,
+        user:users(
+          id,
+          email,
+          name,
+          role
+        )
+      `)
+      .single()
 
-      if (emailExists && emailExists.id !== existingStudent.userId) {
-        return NextResponse.json({ error: "Email already exists" }, { status: 400 })
-      }
+    if (updateError) {
+      console.error('Error updating student:', updateError)
+      return NextResponse.json({ error: 'Failed to update student' }, { status: 500 })
     }
 
-    // Check if student ID is being changed and if new student ID already exists
-    if (studentId !== existingStudent.studentId) {
-      const studentIdExists = await prisma.student.findFirst({
-        where: { 
-          studentId
-        }
+    // Update associated user record
+    const { error: userUpdateError } = await supabase
+      .from('users')
+      .update({
+        email: data.email,
+        name: data.name
       })
+      .eq('id', existingStudent.user_id)
 
-      if (studentIdExists && studentIdExists.id !== params.id) {
-        return NextResponse.json({ error: "Student ID already exists" }, { status: 400 })
-      }
+    if (userUpdateError) {
+      console.error('Error updating user:', userUpdateError)
+      // Rollback student update
+      await supabase
+        .from('students')
+        .update(existingStudent)
+        .eq('id', id)
+
+      return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
     }
-
-    // Construct full name from parts or use provided name
-    const fullName = name || `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`.trim()
-
-    // Update user (no password update for OAuth users)
-    const updatedUser = await prisma.user.update({
-      where: { id: existingStudent.userId },
-      data: {
-        email,
-        name: fullName,
-        // Password is not updated for OAuth-only users
-      }
-    })
-
-    // Update student record (without phone number, address, and section)
-    const updatedStudent = await prisma.student.update({
-      where: { id: params.id },
-      data: {
-        studentId,
-        name: fullName,
-        email,
-        yearLevel,
-        course,
-        college,
-      } as any,
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            role: true,
-          }
-        }
-      }
-    })
 
     return NextResponse.json(updatedStudent)
+
   } catch (error) {
-    console.error("Error updating student:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.errors }, { status: 400 })
+    }
+
+    console.error('Error in PUT /api/students/[id]:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function DELETE(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await auth()
-    
-    if (!session || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const { id } = params
+
+    // Check if student exists
+    const { data: student, error: fetchError } = await supabase
+      .from('students')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (fetchError) {
+      if (fetchError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+      }
+      console.error('Error fetching student:', fetchError)
+      return NextResponse.json({ error: 'Failed to fetch student' }, { status: 500 })
     }
 
-    // Find the student to get the user ID
-    const student = await prisma.student.findUnique({
-      where: { id: params.id },
-      include: { user: true }
-    })
+    // Delete student record
+    const { error: deleteError } = await supabase
+      .from('students')
+      .delete()
+      .eq('id', id)
 
-    if (!student) {
-      return NextResponse.json({ error: "Student not found" }, { status: 404 })
+    if (deleteError) {
+      console.error('Error deleting student:', deleteError)
+      return NextResponse.json({ error: 'Failed to delete student' }, { status: 500 })
     }
 
-    // Delete all associated records in a transaction
-    await prisma.$transaction(async (tx) => {
-      // Delete attendance records (including soft-deleted ones)
-      await tx.attendance.deleteMany({
-        where: { 
-          studentId: params.id,
-          OR: [
-            { deletedAt: null },
-            { deletedAt: { not: null } }
-          ]
-        }
-      })
+    // Delete associated user record
+    const { error: userDeleteError } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', student.user_id)
 
-      // Delete payment records (including soft-deleted ones)
-      await tx.payment.deleteMany({
-        where: { 
-          studentId: params.id,
-          OR: [
-            { deletedAt: null },
-            { deletedAt: { not: null } }
-          ]
-        }
-      })
+    if (userDeleteError) {
+      console.error('Error deleting user:', userDeleteError)
+      return NextResponse.json({ error: 'Failed to delete user' }, { status: 500 })
+    }
 
-      // Delete student record (force delete even if soft-deleted)
-      await tx.student.delete({
-        where: { id: params.id }
-      })
+    return new NextResponse(null, { status: 204 })
 
-      // Finally delete the user record (force delete even if soft-deleted)
-      await tx.user.delete({
-        where: { id: student.userId }
-      })
-    })
-
-    return NextResponse.json({ message: "Student and all associated records permanently deleted" })
   } catch (error) {
-    console.error("Error deleting student:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error('Error in DELETE /api/students/[id]:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 } 

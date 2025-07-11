@@ -14,7 +14,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Save, Loader2, Calendar, Clock, MapPin, Users } from "lucide-react"
+import { Save, Loader2, Calendar, Clock, MapPin, AlertTriangle } from "lucide-react"
+import { COLLEGES, COURSES_BY_COLLEGE, EVENT_SCOPE_TYPES, EVENT_SCOPE_LABELS, EVENT_SCOPE_DESCRIPTIONS } from "@/lib/constants/academic-programs"
 
 interface EventFormProps {
   eventId?: string
@@ -29,12 +30,17 @@ interface EventFormProps {
     eventType: string
     capacity: number
     status: string
+    scope_type: string
+    scope_college: string
+    scope_course: string
   }
 }
 
 export function EventForm({ eventId, initialData }: EventFormProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [migrationRequired, setMigrationRequired] = useState(false)
+  const [studentCount, setStudentCount] = useState<number | null>(null)
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -42,9 +48,11 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
     startTime: "",
     endTime: "",
     location: "",
-    eventType: "",
-    capacity: "",
-    status: "upcoming",
+    type: "ACADEMIC",
+    max_capacity: 100,
+    scope_type: "UNIVERSITY_WIDE",
+    scope_college: "",
+    scope_course: "",
   })
 
   const isEditing = !!eventId
@@ -52,18 +60,90 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
   useEffect(() => {
     if (initialData) {
       setFormData({
-        title: initialData.title,
-        description: initialData.description,
-        eventDate: initialData.eventDate,
-        startTime: initialData.startTime,
-        endTime: initialData.endTime,
-        location: initialData.location,
-        eventType: initialData.eventType,
-        capacity: initialData.capacity.toString(),
-        status: initialData.status,
+        title: initialData.title || "",
+        description: initialData.description || "",
+        eventDate: initialData.eventDate || "",
+        startTime: initialData.startTime || "09:00",
+        endTime: initialData.endTime || "17:00",
+        location: initialData.location || "",
+        type: initialData.eventType || "ACADEMIC",
+        max_capacity: initialData.capacity || 100,
+        scope_type: initialData.scope_type || "UNIVERSITY_WIDE",
+        scope_college: initialData.scope_college || "",
+        scope_course: initialData.scope_course || "",
       })
     }
   }, [initialData])
+
+  useEffect(() => {
+    // Load event data if editing
+    const loadEventData = async () => {
+      if (eventId) {
+        try {
+          const response = await fetch(`/api/events/${eventId}`)
+          if (response.ok) {
+            const data = await response.json()
+            setFormData({
+              title: data.title || "",
+              description: data.description || "",
+              eventDate: data.eventDate || "",
+              startTime: data.startTime || "09:00",
+              endTime: data.endTime || "17:00",
+              location: data.location || "",
+              type: data.eventType || "ACADEMIC",
+              max_capacity: data.capacity || 100,
+              scope_type: data.scope_type || "UNIVERSITY_WIDE",
+              scope_college: data.scope_college || "",
+              scope_course: data.scope_course || "",
+            })
+          } else {
+            console.error('Failed to load event data')
+          }
+        } catch (error) {
+          console.error('Error loading event:', error)
+        }
+      }
+    }
+
+    loadEventData()
+  }, [eventId])
+
+  const fetchStudentCount = async (
+    scope: string,
+    collegeId?: string,
+    courseId?: string
+  ) => {
+    try {
+      const params = new URLSearchParams({
+        scope: scope,
+        ...(collegeId && { collegeId }),
+        ...(courseId && { courseId })
+      })
+
+      const response = await fetch(`/api/students/count?${params}`)
+      if (response.ok) {
+        const data = await response.json()
+        setStudentCount(data.count)
+        // Update max capacity based on student count
+        handleInputChange("max_capacity", data.count)
+      } else {
+        console.error('Failed to fetch student count')
+      }
+    } catch (error) {
+      console.error('Error fetching student count:', error)
+    }
+  }
+
+  // Update student count when scope changes
+  useEffect(() => {
+    if (formData.scope_type === "UNIVERSITY_WIDE") {
+      fetchStudentCount("UNIVERSITY_WIDE")
+    } else if (formData.scope_type === "COLLEGE_WIDE" && formData.scope_college) {
+      fetchStudentCount("COLLEGE_WIDE", formData.scope_college)
+    } else if (formData.scope_type === "COURSE_SPECIFIC" && formData.scope_course) {
+      fetchStudentCount("COURSE_SPECIFIC", undefined, formData.scope_course)
+    }
+  }, [formData.scope_type, formData.scope_college, formData.scope_course])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -75,21 +155,6 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
         : "/api/events"
       
       const method = isEditing ? "PUT" : "POST"
-      
-      // Map frontend eventType values to backend enum values
-      const mapEventType = (frontendType: string): string => {
-        const typeMap: { [key: string]: string } = {
-          'academic': 'ACADEMIC',
-          'sports': 'EXTRACURRICULAR',
-          'cultural': 'EXTRACURRICULAR', 
-          'social': 'EXTRACURRICULAR',
-          'workshop': 'WORKSHOP',
-          'seminar': 'SEMINAR',
-          'conference': 'MEETING',
-          'competition': 'EXTRACURRICULAR'
-        }
-        return typeMap[frontendType] || 'OTHER'
-      }
 
       // Validation - make sure required fields are not empty
       if (!formData.title.trim()) {
@@ -103,52 +168,42 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
         setLoading(false)
         return
       }
-      
-      if (!formData.eventType) {
-        alert("Event type is required")
+
+      // Scope validation
+      if (formData.scope_type === "COLLEGE_WIDE" && !formData.scope_college) {
+        alert("College must be selected for college-wide events")
         setLoading(false)
         return
       }
-      
-      if (!formData.startTime) {
-        alert("Start time is required")
-        setLoading(false)
-        return
-      }
-      
-      if (!formData.location.trim()) {
-        alert("Location is required")
+
+      if (formData.scope_type === "COURSE_SPECIFIC" && (!formData.scope_college || !formData.scope_course)) {
+        alert("Both college and course must be selected for course-specific events")
         setLoading(false)
         return
       }
 
       const payload = {
         title: formData.title.trim(),
-        ...(formData.description.trim() && { description: formData.description.trim() }),
-        type: mapEventType(formData.eventType),
+        description: formData.description.trim(),
         date: formData.eventDate,
-        startTime: formData.startTime,
-        ...(formData.endTime && { endTime: formData.endTime }),
-        location: formData.location.trim(),
-        ...(parseInt(formData.capacity) && { maxCapacity: parseInt(formData.capacity) }),
-        // Add semester and schoolYear as optional fields - can be set later if needed
-        semester: undefined, // Will be filtered out by the spread operator above
-        schoolYear: undefined, // Will be filtered out by the spread operator above
+        startTime: formData.startTime || "09:00",
+        endTime: formData.endTime || "17:00",
+        location: formData.location.trim(), // Will be ignored by API if column doesn't exist
+        type: formData.type,
+        max_capacity: formData.max_capacity,
+        scope_type: formData.scope_type,
+        scope_college: formData.scope_type !== "UNIVERSITY_WIDE" ? formData.scope_college : null,
+        scope_course: formData.scope_type === "COURSE_SPECIFIC" ? formData.scope_course : null,
       }
 
-      // Remove undefined values from payload
-      const cleanPayload = Object.fromEntries(
-        Object.entries(payload).filter(([_, value]) => value !== undefined)
-      )
-
-      console.log("Form data being sent:", cleanPayload)
+      console.log("Form data being sent:", payload)
 
       const response = await fetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(cleanPayload),
+        body: JSON.stringify(payload),
       })
 
       if (response.ok) {
@@ -157,7 +212,16 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
       } else {
         const error = await response.json()
         console.error("API Error:", error)
-        alert(error.error || "An error occurred")
+        
+        if (error.missingColumn) {
+          setMigrationRequired(true)
+          alert(`Database column missing: ${error.missingColumn}. Event created but some fields may not be stored.`)
+          // Still redirect since the basic event was likely created
+          router.push("/dashboard/events")
+          router.refresh()
+        } else {
+          alert(error.error || "An error occurred")
+        }
       }
     } catch (error) {
       console.error("Error submitting form:", error)
@@ -167,11 +231,47 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
     }
   }
 
-  const handleInputChange = (name: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }))
+  const handleInputChange = (name: string, value: string | number) => {
+    setFormData(prev => {
+      const newData = { ...prev, [name]: value }
+      
+      // Reset dependent fields when scope type changes
+      if (name === "scope_type") {
+        newData.scope_college = ""
+        newData.scope_course = ""
+        // Reset max capacity when scope changes
+        newData.max_capacity = 0
+      }
+      
+      // Reset course when college changes
+      if (name === "scope_college") {
+        newData.scope_course = ""
+      }
+      
+      return newData
+    })
+  }
+
+  const getAvailableCourses = () => {
+    if (!formData.scope_college) return []
+    return COURSES_BY_COLLEGE[formData.scope_college as keyof typeof COURSES_BY_COLLEGE] || []
+  }
+
+  const getAttendanceImpact = () => {
+    switch (formData.scope_type) {
+      case "UNIVERSITY_WIDE":
+        return "All students (≈7,300) across all colleges"
+      case "COLLEGE_WIDE":
+        return formData.scope_college 
+          ? `Students from ${formData.scope_college} only`
+          : "Students from selected college only"
+      case "COURSE_SPECIFIC":
+        return formData.scope_course 
+          ? `Students from ${formData.scope_course} only`
+          : "Students from selected course only"
+      default:
+        return ""
+    }
   }
 
   return (
@@ -183,6 +283,19 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {migrationRequired && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-600" />
+              <h4 className="font-medium text-yellow-900">Database Schema Incomplete</h4>
+            </div>
+            <p className="text-sm text-yellow-800 mt-2">
+              Some database columns are missing. Event was created with available fields.
+              Apply <code className="bg-yellow-100 px-1 rounded">migration_complete_events_schema.sql</code> to enable all features.
+            </p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Basic Information Section */}
           <div className="space-y-4">
@@ -200,12 +313,11 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description">Description *</Label>
+                <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
                   onChange={(e) => handleInputChange("description", e.target.value)}
-                  required
                   placeholder="Describe the event details, objectives, and what participants can expect..."
                   rows={4}
                   className="resize-none"
@@ -218,6 +330,49 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Event Details</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="type">Event Type</Label>
+                <Select
+                  value={formData.type}
+                  onValueChange={(value) => handleInputChange("type", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select event type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ACADEMIC">Academic</SelectItem>
+                    <SelectItem value="EXTRACURRICULAR">Extracurricular</SelectItem>
+                    <SelectItem value="MEETING">Meeting</SelectItem>
+                    <SelectItem value="SEMINAR">Seminar</SelectItem>
+                    <SelectItem value="WORKSHOP">Workshop</SelectItem>
+                    <SelectItem value="OTHER">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="max_capacity">Maximum Capacity</Label>
+                <div className="flex items-center space-x-2">
+                  <Input
+                    id="max_capacity"
+                    type="number"
+                    value={formData.max_capacity}
+                    disabled
+                    className="bg-gray-50"
+                  />
+                  <div className="text-sm text-gray-500">
+                    {studentCount !== null ? (
+                      <span>Based on {studentCount} eligible students</span>
+                    ) : (
+                      <span>Calculating...</span>
+                    )}
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Capacity is automatically set based on the number of eligible students for this event's scope.
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="eventDate" className="flex items-center space-x-1">
                   <Calendar className="h-4 w-4" />
@@ -235,102 +390,137 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
               <div className="space-y-2">
                 <Label htmlFor="startTime" className="flex items-center space-x-1">
                   <Clock className="h-4 w-4" />
-                  <span>Start Time *</span>
+                  <span>Start Time</span>
                 </Label>
                 <Input
                   id="startTime"
                   type="time"
                   value={formData.startTime}
                   onChange={(e) => handleInputChange("startTime", e.target.value)}
-                  required
+                  placeholder="09:00"
                 />
+                <p className="text-xs text-gray-500">Defaults to 09:00 if not specified</p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="endTime" className="flex items-center space-x-1">
                   <Clock className="h-4 w-4" />
-                  <span>End Time *</span>
+                  <span>End Time</span>
                 </Label>
                 <Input
                   id="endTime"
                   type="time"
                   value={formData.endTime}
                   onChange={(e) => handleInputChange("endTime", e.target.value)}
-                  required
+                  placeholder="17:00"
                 />
+                <p className="text-xs text-gray-500">Defaults to 17:00 if not specified</p>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 lg:col-span-3">
                 <Label htmlFor="location" className="flex items-center space-x-1">
                   <MapPin className="h-4 w-4" />
-                  <span>Location *</span>
+                  <span>Location</span>
                 </Label>
                 <Input
                   id="location"
                   value={formData.location}
                   onChange={(e) => handleInputChange("location", e.target.value)}
-                  required
-                  placeholder="e.g., Main Auditorium, Gym, Library"
+                  placeholder="e.g., Main Auditorium, Gym, Online"
                 />
               </div>
+            </div>
+          </div>
 
+          {/* Event Scope Section */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Event Scope</h3>
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="eventType">Event Type *</Label>
+                <Label htmlFor="scope_type">Who can attend this event? *</Label>
                 <Select
-                  value={formData.eventType}
-                  onValueChange={(value) => handleInputChange("eventType", value)}
+                  value={formData.scope_type}
+                  onValueChange={(value) => handleInputChange("scope_type", value)}
                   required
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select event type" />
+                    <SelectValue placeholder="Select event scope" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="academic">Academic</SelectItem>
-                    <SelectItem value="sports">Sports</SelectItem>
-                    <SelectItem value="cultural">Cultural</SelectItem>
-                    <SelectItem value="social">Social</SelectItem>
-                    <SelectItem value="workshop">Workshop</SelectItem>
-                    <SelectItem value="seminar">Seminar</SelectItem>
-                    <SelectItem value="conference">Conference</SelectItem>
-                    <SelectItem value="competition">Competition</SelectItem>
+                    {EVENT_SCOPE_TYPES.map((scope) => (
+                      <SelectItem key={scope} value={scope}>
+                        {EVENT_SCOPE_LABELS[scope]}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                <p className="text-sm text-gray-600">
+                  {EVENT_SCOPE_DESCRIPTIONS[formData.scope_type as keyof typeof EVENT_SCOPE_DESCRIPTIONS]}
+                </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="capacity" className="flex items-center space-x-1">
-                  <Users className="h-4 w-4" />
-                  <span>Capacity *</span>
-                </Label>
-                <Input
-                  id="capacity"
-                  type="number"
-                  value={formData.capacity}
-                  onChange={(e) => handleInputChange("capacity", e.target.value)}
-                  required
-                  min="1"
-                  placeholder="e.g., 100"
-                />
-              </div>
+              {formData.scope_type !== "UNIVERSITY_WIDE" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="scope_college">College *</Label>
+                    <Select
+                      value={formData.scope_college}
+                      onValueChange={(value) => handleInputChange("scope_college", value)}
+                      required={formData.scope_type !== "UNIVERSITY_WIDE"}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select college" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COLLEGES.map((college) => (
+                          <SelectItem key={college} value={college}>
+                            {college}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="status">Status *</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(value) => handleInputChange("status", value)}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="upcoming">Upcoming</SelectItem>
-                    <SelectItem value="ongoing">Ongoing</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  {formData.scope_type === "COURSE_SPECIFIC" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="scope_course">Course *</Label>
+                      <Select
+                        value={formData.scope_course}
+                        onValueChange={(value) => handleInputChange("scope_course", value)}
+                        required={formData.scope_type === "COURSE_SPECIFIC"}
+                        disabled={!formData.scope_college}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select course" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getAvailableCourses().map((course) => (
+                            <SelectItem key={course} value={course}>
+                              {course}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Attendance Impact */}
+              {studentCount !== null && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-medium text-blue-900 mb-2">📊 Expected Attendance</h4>
+                  <p className="text-sm text-blue-800">
+                    <strong>Eligible attendees:</strong> {studentCount} students
+                    {formData.scope_type === "UNIVERSITY_WIDE" && " across all colleges"}
+                    {formData.scope_type === "COLLEGE_WIDE" && ` from ${formData.scope_college}`}
+                    {formData.scope_type === "COURSE_SPECIFIC" && ` enrolled in ${formData.scope_course}`}
+                  </p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    Reports and attendance tracking will include only these {studentCount} eligible students.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

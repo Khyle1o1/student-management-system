@@ -20,7 +20,7 @@ export default async function StudentAttendancePage() {
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight">My Attendance</h1>
           <p className="text-muted-foreground">
-            View your attendance records for events and activities
+            View your attendance records and statistics across all events
           </p>
         </div>
         

@@ -78,7 +78,8 @@ export default function LoginPage() {
       await signIn("google", {
         callbackUrl: "/dashboard",
         redirect: true,
-        prompt: "select_account",
+        prompt: "consent select_account",
+        hd: "student.buksu.edu.ph"
       })
     } catch (error) {
       setError("Google sign-in failed. Please try again.")

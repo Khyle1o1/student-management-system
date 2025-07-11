@@ -22,6 +22,24 @@ export const eventSchema = z.object({
   maxCapacity: z.number().positive().optional(),
   semester: z.string().optional(),
   schoolYear: z.string().optional(),
+  scope_type: z.enum(["UNIVERSITY_WIDE", "COLLEGE_WIDE", "COURSE_SPECIFIC"], {
+    required_error: "Event scope is required",
+  }),
+  scope_college: z.string().optional(),
+  scope_course: z.string().optional(),
+}).refine((data) => {
+  // If scope is college-wide, scope_college must be provided
+  if (data.scope_type === "COLLEGE_WIDE" && !data.scope_college) {
+    return false;
+  }
+  // If scope is course-specific, both scope_college and scope_course must be provided
+  if (data.scope_type === "COURSE_SPECIFIC" && (!data.scope_college || !data.scope_course)) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Invalid scope configuration",
+  path: ["scope_type"],
 })
 
 export type EventFormData = z.infer<typeof eventSchema>
@@ -72,6 +90,24 @@ export const feeSchema = z.object({
   dueDate: z.string().optional(),
   semester: z.string().optional(),
   schoolYear: z.string().min(1, "School year is required"),
+  scope_type: z.enum(["UNIVERSITY_WIDE", "COLLEGE_WIDE", "COURSE_SPECIFIC"], {
+    required_error: "Fee scope is required",
+  }),
+  scope_college: z.string().optional(),
+  scope_course: z.string().optional(),
+}).refine((data) => {
+  // If scope is college-wide, scope_college must be provided
+  if (data.scope_type === "COLLEGE_WIDE" && !data.scope_college) {
+    return false;
+  }
+  // If scope is course-specific, both scope_college and scope_course must be provided
+  if (data.scope_type === "COURSE_SPECIFIC" && (!data.scope_college || !data.scope_course)) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Invalid scope configuration",
+  path: ["scope_type"],
 })
 
 export type FeeFormData = z.infer<typeof feeSchema>

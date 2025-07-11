@@ -68,10 +68,32 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([])
   const [feeStatus, setFeeStatus] = useState<FeeStatus[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    console.log('StudentDashboard: studentId received:', studentId)
     if (studentId) {
       fetchDashboardData()
+    } else {
+      console.error('StudentDashboard: No studentId provided')
+      
+      // Try to refresh session if studentId is missing but we're a student
+      const refreshSession = async () => {
+        const { getSession } = await import('next-auth/react')
+        console.log('StudentDashboard: Attempting to refresh session...')
+        await getSession()
+        window.location.reload() // Force page reload to get fresh session
+      }
+      
+      // Only try refresh once, then show error
+      const hasTriedRefresh = sessionStorage.getItem('session-refresh-attempted')
+      if (!hasTriedRefresh) {
+        sessionStorage.setItem('session-refresh-attempted', 'true')
+        refreshSession()
+      } else {
+        setError('No student ID available')
+        setLoading(false)
+      }
     }
   }, [studentId])
 
@@ -80,6 +102,8 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
     
     try {
       setLoading(true)
+      setError(null)
+      console.log('Fetching dashboard data for studentId:', studentId)
       
       // Fetch student stats, attendance, fees in parallel
       const [statsRes, attendanceRes, feesRes] = await Promise.all([
@@ -88,54 +112,107 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
         fetch(`/api/students/fees/${studentId}`)
       ])
 
+      console.log('API Response statuses:', {
+        dashboard: statsRes.status,
+        attendance: attendanceRes.status,
+        fees: feesRes.status
+      })
+
       if (statsRes.ok) {
         const statsData = await statsRes.json()
-        setStats(statsData.stats)
+        console.log('Dashboard API response:', statsData)
+        
+        // Create stats object from the response data
+        const calculatedStats = {
+          attendanceRate: statsData.attendance?.stats?.rate || 0,
+          totalEvents: statsData.attendance?.stats?.total || 0,
+          attendedEvents: statsData.attendance?.stats?.present || 0,
+          totalFees: statsData.payments?.stats?.total || 0,
+          paidFees: statsData.payments?.stats?.paid || 0,
+          pendingFees: statsData.payments?.stats?.pending || 0,
+          paymentProgress: statsData.payments?.stats?.total > 0 
+            ? Math.round((statsData.payments?.stats?.paid / statsData.payments?.stats?.total) * 100) 
+            : 0
+        }
+        
+        console.log('Calculated stats:', calculatedStats)
+        setStats(calculatedStats)
         setUpcomingEvents(statsData.upcomingEvents || [])
+        
+        // Set recent attendance from the dashboard data
+        if (statsData.attendance?.records) {
+          const recent = statsData.attendance.records.slice(0, 5).map((record: any) => ({
+            id: record.id,
+            status: record.status,
+            event: {
+              title: record.event?.title || 'Unknown Event',
+              date: record.event?.date || record.created_at,
+              type: record.event?.type || 'Event'
+            }
+          }))
+          setRecentAttendance(recent)
+        }
+      } else {
+        const errorData = await statsRes.json()
+        console.error('Dashboard API error:', errorData)
+        setError(`Failed to load dashboard: ${errorData.error || 'Unknown error'}`)
       }
 
       if (attendanceRes.ok) {
         const attendanceData = await attendanceRes.json()
-        // Get the last 5 attendance records
-        const recent = attendanceData.records.slice(0, 5).map((record: any) => ({
-          id: record.id,
-          status: record.status,
-          event: {
-            title: record.event.title,
-            date: record.event.date,
-            type: record.event.type
-          }
-        }))
-        setRecentAttendance(recent)
+        console.log('Attendance API response:', attendanceData)
+        // Only update if we didn't get attendance from the dashboard API
+        if (!statsRes.ok && attendanceData.records) {
+          const recent = attendanceData.records.slice(0, 5).map((record: any) => ({
+            id: record.id,
+            status: record.status,
+            event: {
+              title: record.event?.title || 'Unknown Event',
+              date: record.event?.date || record.created_at,
+              type: record.event?.type || 'Event'
+            }
+          }))
+          setRecentAttendance(recent)
+        }
+      } else {
+        const errorData = await attendanceRes.json().catch(() => ({ error: 'Network error' }))
+        console.error('Attendance API error:', errorData)
       }
 
       if (feesRes.ok) {
         const feesData = await feesRes.json()
+        console.log('Fees API response:', feesData)
         // Convert fees to fee status format
-        const feeStatusItems = feesData.fees.map((fee: any) => {
-          const paymentsForFee = feesData.payments.filter((payment: any) => payment.fee.id === fee.id)
-          const paidAmount = paymentsForFee
-            .filter((payment: any) => payment.status === 'PAID')
-            .reduce((sum: number, payment: any) => sum + payment.amount, 0)
-          const hasPartialPayment = paymentsForFee.some((payment: any) => payment.status === 'PARTIAL')
-          
-          let status = "UNPAID"
-          if (paidAmount >= fee.amount) status = "PAID"
-          else if (paidAmount > 0 || hasPartialPayment) status = "PARTIAL"
+        if (feesData.fees) {
+          const feeStatusItems = feesData.fees.map((fee: any) => {
+            const paymentsForFee = feesData.payments?.filter((payment: any) => payment.fee?.id === fee.id) || []
+            const paidAmount = paymentsForFee
+              .filter((payment: any) => payment.status === 'PAID')
+              .reduce((sum: number, payment: any) => sum + payment.amount, 0)
+            const hasPartialPayment = paymentsForFee.some((payment: any) => payment.status === 'PARTIAL')
+            
+            let status = "UNPAID"
+            if (paidAmount >= fee.amount) status = "PAID"
+            else if (paidAmount > 0 || hasPartialPayment) status = "PARTIAL"
 
-          return {
-            id: fee.id,
-            name: fee.name,
-            amount: fee.amount,
-            status,
-            dueDate: fee.dueDate,
-            category: fee.type.toLowerCase().replace('_fee', '')
-          }
-        })
-        setFeeStatus(feeStatusItems)
+            return {
+              id: fee.id,
+              name: fee.name,
+              amount: fee.amount,
+              status,
+              dueDate: fee.due_date || fee.dueDate,
+              category: fee.type?.toLowerCase().replace('_fee', '') || 'general'
+            }
+          })
+          setFeeStatus(feeStatusItems)
+        }
+      } else {
+        const errorData = await feesRes.json().catch(() => ({ error: 'Network error' }))
+        console.error('Fees API error:', errorData)
       }
     } catch (error) {
       console.error("Error fetching dashboard data:", error)
+      setError(`Network error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
@@ -147,6 +224,29 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
         <div className="flex items-center justify-center py-8">
           <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
           <span className="ml-2 text-gray-600">Loading dashboard...</span>
+        </div>
+        {error && (
+          <div className="text-center">
+            <div className="inline-flex items-center px-4 py-2 bg-red-50 border border-red-200 rounded-lg">
+              <AlertTriangle className="h-4 w-4 text-red-600 mr-2" />
+              <span className="text-red-700 text-sm">{error}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (error && !stats) {
+    return (
+      <div className="space-y-8">
+        <div className="text-center py-8">
+          <AlertTriangle className="h-8 w-8 text-red-400 mx-auto mb-2" />
+          <p className="text-gray-600 mb-2">Unable to load dashboard data</p>
+          <p className="text-red-600 text-sm mb-4">{error}</p>
+          <Button variant="outline" onClick={fetchDashboardData} className="mt-4">
+            Try Again
+          </Button>
         </div>
       </div>
     )
@@ -189,13 +289,20 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
       </div>
 
       {/* Enhanced Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="Attendance Rate"
           value={`${stats.attendanceRate}%`}
-          icon={Calendar}
+          icon={CheckCircle}
           progress={stats.attendanceRate}
           description={`${stats.attendedEvents} of ${stats.totalEvents} events attended`}
+          color="green"
+        />
+        <StatCard
+          title="Total Events"
+          value={stats.totalEvents.toString()}
+          icon={Calendar}
+          description="Events you participated in"
           color="blue"
         />
         <StatCard
@@ -203,55 +310,52 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
           value={`${stats.paymentProgress}%`}
           icon={DollarSign}
           progress={stats.paymentProgress}
-          description={`₱${stats.paidFees.toLocaleString()} paid of ₱${stats.totalFees.toLocaleString()}`}
-          color="green"
-        />
-        <StatCard
-          title="Total Events"
-          value={stats.totalEvents.toString()}
-          icon={Award}
-          description={`${stats.attendedEvents} attended • ${stats.totalEvents - stats.attendedEvents} missed`}
+          description={`₱${stats.paidFees.toLocaleString()} of ₱${stats.totalFees.toLocaleString()} paid`}
           color="purple"
         />
         <StatCard
           title="Pending Fees"
           value={`₱${stats.pendingFees.toLocaleString()}`}
-          icon={Target}
-          description={`${feeStatus.filter(f => f.status !== "PAID").length} fee(s) remaining`}
+          icon={AlertTriangle}
+          description="Outstanding balance"
           color="orange"
         />
       </div>
 
+      {/* Recent Events Section */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Recent Attendance */}
+        {/* Recent Events */}
         <Card className="xl:col-span-2 border-slate-200">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Calendar className="h-5 w-5 text-blue-600" />
-                <span>Recent Attendance</span>
+                <span>Recent Events</span>
               </div>
-              <Badge variant="outline" className="text-xs">
-                Last {recentAttendance.length} records
-              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {recentAttendance.length === 0 ? (
               <div className="text-center py-4 text-gray-500">
                 <Calendar className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                <p>No attendance records yet</p>
+                <p>No upcoming events</p>
               </div>
             ) : (
-              recentAttendance.map((record) => (
-                <AttendanceItem key={record.id} record={record} />
+              recentAttendance.map((event) => (
+                <div key={event.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <Calendar className="h-4 w-4 text-gray-500" />
+                    <div>
+                      <p className="font-medium">{event.event.title}</p>
+                      <p className="text-sm text-gray-500">{new Date(event.event.date).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {event.event.type}
+                  </div>
+                </div>
               ))
             )}
-            <Link href="/dashboard/attendance/student">
-              <Button variant="ghost" className="w-full text-sm text-gray-600 hover:text-gray-900">
-                View full attendance history
-              </Button>
-            </Link>
           </CardContent>
         </Card>
 
@@ -278,14 +382,14 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
                       variant={event.priority === "high" ? "destructive" : "secondary"}
                       className="text-xs"
                     >
-                      {event.priority}
+                      {event.priority || "normal"}
                     </Badge>
                   </div>
                   <div className="flex items-center space-x-2 text-xs text-gray-600">
                     <Calendar className="h-3 w-3" />
                     <span>{new Date(event.date).toLocaleDateString()}</span>
                     <span>•</span>
-                    <span className="capitalize">{event.type}</span>
+                    <span className="capitalize">{event.type || "event"}</span>
                   </div>
                 </div>
               ))
@@ -337,15 +441,6 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
                   <User className="h-4 w-4" />
                   <span className="font-medium">Update Profile</span>
                   <span className="text-xs text-gray-500">Manage your information</span>
-                </div>
-              </Button>
-            </Link>
-            <Link href="/dashboard/attendance/student">
-              <Button variant="outline" className="w-full justify-start h-auto p-4">
-                <div className="flex flex-col items-start space-y-1">
-                  <Calendar className="h-4 w-4" />
-                  <span className="font-medium">View Attendance</span>
-                  <span className="text-xs text-gray-500">Check your records</span>
                 </div>
               </Button>
             </Link>

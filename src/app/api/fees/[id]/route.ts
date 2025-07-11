@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { supabase } from "@/lib/supabase"
 import { feeSchema } from "@/lib/validations"
+import { z } from "zod"
 
 export async function GET(
   request: NextRequest,
@@ -18,29 +19,36 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const fee = await prisma.feeStructure.findUnique({
-      where: {
-        id: params.id,
-        deletedAt: null,
-        isActive: true,
-      },
-    })
+    const { data: fee, error } = await supabase
+      .from('fee_structures')
+      .select('*')
+      .eq('id', params.id)
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .single()
 
-    if (!fee) {
-      return NextResponse.json({ error: "Fee not found" }, { status: 404 })
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: "Fee not found" }, { status: 404 })
+      }
+      console.error("Error fetching fee:", error)
+      return NextResponse.json({ error: "Failed to fetch fee" }, { status: 500 })
     }
 
     // Transform the data to match frontend expectations
     const transformedFee = {
       id: fee.id,
       name: fee.name,
-      type: fee.type.toLowerCase().replace('_', ' '),
+      type: fee.type?.toLowerCase().replace('_', ' ') || 'other',
       amount: fee.amount,
       description: fee.description || "",
-      dueDate: fee.dueDate ? fee.dueDate.toISOString().split('T')[0] : "",
+      dueDate: fee.due_date ? new Date(fee.due_date).toISOString().split('T')[0] : "",
       semester: fee.semester || "",
-      schoolYear: fee.schoolYear,
-      createdAt: fee.createdAt,
+      schoolYear: fee.school_year || "",
+      scope_type: fee.scope_type || "UNIVERSITY_WIDE",
+      scope_college: fee.scope_college || "",
+      scope_course: fee.scope_course || "",
+      createdAt: fee.created_at,
     }
 
     return NextResponse.json(transformedFee)
@@ -71,24 +79,40 @@ export async function PUT(
     const body = await request.json()
     const validatedData = feeSchema.parse(body)
 
-    const updatedFee = await prisma.feeStructure.update({
-      where: {
-        id: params.id,
-        deletedAt: null,
-      },
-      data: {
+    const { data: updatedFee, error } = await supabase
+      .from('fee_structures')
+      .update({
         name: validatedData.name,
         type: validatedData.type,
         amount: validatedData.amount,
-        description: validatedData.description,
-        dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : null,
-        semester: validatedData.semester,
-        schoolYear: validatedData.schoolYear,
-      },
-    })
+        description: validatedData.description || null,
+        due_date: validatedData.dueDate ? validatedData.dueDate : null,
+        semester: validatedData.semester || null,
+        school_year: validatedData.schoolYear,
+        scope_type: validatedData.scope_type,
+        scope_college: validatedData.scope_college || null,
+        scope_course: validatedData.scope_course || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', params.id)
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error updating fee:", error)
+      return NextResponse.json(
+        { error: "Failed to update fee" },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(updatedFee)
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.errors }, { status: 400 })
+    }
     console.error("Error updating fee:", error)
     return NextResponse.json(
       { error: "Internal server error" },
@@ -112,16 +136,22 @@ export async function DELETE(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    // Soft delete by setting deletedAt timestamp
-    await prisma.feeStructure.update({
-      where: {
-        id: params.id,
-      },
-      data: {
-        deletedAt: new Date(),
-        isActive: false,
-      },
-    })
+    // Soft delete by setting deleted_at timestamp and is_active to false
+    const { error } = await supabase
+      .from('fee_structures')
+      .update({
+        deleted_at: new Date().toISOString(),
+        is_active: false,
+      })
+      .eq('id', params.id)
+
+    if (error) {
+      console.error("Error deleting fee:", error)
+      return NextResponse.json(
+        { error: "Failed to delete fee" },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({ message: "Fee deleted successfully" })
   } catch (error) {

@@ -23,10 +23,19 @@ import {
   ChevronRight,
   DatabaseIcon,
   AlertTriangle,
-  XCircle
+  XCircle,
+  UserCheck,
+  ChevronDown
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { completeLogout } from "@/lib/google-oauth-utils"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface DashboardShellProps {
   children: ReactNode
@@ -111,7 +120,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
       icon: Calendar, 
       badge: stats?.totalEvents?.toString() || "0"
     },
-    { href: "/dashboard/attendance", label: "Attendance", icon: FileText },
+    { href: "/dashboard/attendance/manage", label: "Manage Attendance", icon: UserCheck },
     { 
       href: "/dashboard/fees", 
       label: "Fees", 
@@ -227,15 +236,38 @@ export function DashboardShell({ children }: DashboardShellProps) {
                 </div>
               </div>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => signOut({ callbackUrl: "/auth/login" })}
-                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
-              >
-                <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">Sign out</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span className="hidden sm:inline">Sign out</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem
+                    onClick={() => signOut({ 
+                      callbackUrl: "/auth/login",
+                      redirect: true 
+                    })}
+                    className="cursor-pointer"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Regular Sign Out
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => completeLogout()}
+                    className="cursor-pointer"
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Clear All Sessions
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 

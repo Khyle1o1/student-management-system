@@ -135,6 +135,19 @@ export function StudentsTable() {
     setCurrentPage(page)
   }
 
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString)
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+    } catch (error) {
+      return 'Invalid Date'
+    }
+  }
+
   const getYearLevelBadgeColor = (yearLevel: string) => {
     switch (yearLevel) {
       case "YEAR_1": return "bg-green-100 text-green-800"
@@ -151,7 +164,7 @@ export function StudentsTable() {
       case "YEAR_2": return "2nd Year"
       case "YEAR_3": return "3rd Year"
       case "YEAR_4": return "4th Year"
-      default: return yearLevel
+      default: return "Unknown"
     }
   }
 
@@ -298,7 +311,7 @@ export function StudentsTable() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-gray-600">
-                        {new Date(student.enrolledAt).toLocaleDateString()}
+                        {formatDate(student.enrolledAt)}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>

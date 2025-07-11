@@ -1,101 +1,61 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
+import { supabase } from "@/lib/supabase"
 import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 
 export async function GET(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { studentId: string } }
 ) {
   try {
     const session = await auth()
-    
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Students can only access their own attendance records
-    if (session.user.role === "STUDENT" && session.user.studentId !== params.studentId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    const { studentId } = params
+
+    // Check if student exists
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('*')
+      .eq('student_id', studentId)
+      .single()
+
+    if (studentError) {
+      if (studentError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+      }
+      console.error('Error fetching student:', studentError)
+      return NextResponse.json({ error: 'Failed to fetch student' }, { status: 500 })
     }
 
-    // Find the student
-    const student = await prisma.student.findUnique({
-      where: { 
-        studentId: params.studentId,
-        deletedAt: null,
-      }
-    })
+    // Get attendance records with event details
+    const { data: attendanceRecords, error: attendanceError } = await supabase
+      .from('attendance')
+      .select(`
+        *,
+        event:events(
+          id,
+          title,
+          description,
+          date
+        )
+      `)
+      .eq('student_id', student.id)
+      .order('created_at', { ascending: false })
 
-    if (!student) {
-      return NextResponse.json({ error: "Student not found" }, { status: 404 })
+    if (attendanceError) {
+      console.error('Error fetching attendance records:', attendanceError)
+      return NextResponse.json({ error: 'Failed to fetch attendance records' }, { status: 500 })
     }
-
-    // Fetch attendance records with event details
-    const attendanceRecords = await prisma.attendance.findMany({
-      where: {
-        studentId: student.id,
-      },
-      include: {
-        event: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            type: true,
-            date: true,
-            startTime: true,
-            endTime: true,
-            location: true,
-          }
-        }
-      },
-      orderBy: {
-        event: {
-          date: 'desc'
-        }
-      }
-    })
-
-    // Calculate statistics
-    const totalEvents = attendanceRecords.length
-    const presentCount = attendanceRecords.filter(record => record.status === 'PRESENT').length
-    const absentCount = attendanceRecords.filter(record => record.status === 'ABSENT').length
-    const lateCount = attendanceRecords.filter(record => record.status === 'LATE').length
-    const attendanceRate = totalEvents > 0 ? Math.round((presentCount / totalEvents) * 100) : 0
-
-    const stats = {
-      totalEvents,
-      presentCount,
-      absentCount,
-      lateCount,
-      attendanceRate
-    }
-
-    // Format the records for the frontend
-    const formattedRecords = attendanceRecords.map(record => ({
-      id: record.id,
-      status: record.status,
-      timestamp: record.timestamp,
-      notes: record.notes,
-      scannedAt: record.scannedAt,
-      event: {
-        id: record.event.id,
-        title: record.event.title,
-        description: record.event.description,
-        type: record.event.type,
-        date: record.event.date,
-        startTime: record.event.startTime,
-        endTime: record.event.endTime,
-        location: record.event.location,
-      }
-    }))
 
     return NextResponse.json({
-      records: formattedRecords,
-      stats
+      student,
+      attendance: attendanceRecords || []
     })
+
   } catch (error) {
-    console.error("Error fetching student attendance:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error('Error in GET /api/students/attendance/[studentId]:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 } 

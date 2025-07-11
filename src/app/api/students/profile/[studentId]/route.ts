@@ -1,117 +1,138 @@
-import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { NextResponse } from "next/server"
+import { supabase } from "@/lib/supabase"
+import { z } from "zod"
+
+const updateProfileSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().optional(),
+  college: z.string().min(1),
+  year_level: z.number().min(1),
+  course: z.string().min(1)
+})
 
 export async function GET(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { studentId: string } }
 ) {
   try {
-    const session = await auth()
-    
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const { studentId } = params
 
-    // Students can only access their own profile
-    if (session.user.role === "STUDENT" && session.user.studentId !== params.studentId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
+    const { data: student, error } = await supabase
+      .from('students')
+      .select(`
+        *,
+        user:users(
+          id,
+          email,
+          name,
+          role
+        )
+      `)
+      .eq('student_id', studentId)
+      .single()
 
-    const student = await prisma.student.findUnique({
-      where: { 
-        studentId: params.studentId,
-        deletedAt: null,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            role: true,
-          }
-        }
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Student not found' }, { status: 404 })
       }
-    })
-
-    if (!student) {
-      return NextResponse.json({ error: "Student not found" }, { status: 404 })
+      console.error('Error fetching student:', error)
+      return NextResponse.json({ error: 'Failed to fetch student' }, { status: 500 })
     }
 
-    return NextResponse.json(student)
+    // Map database field names to component expected field names
+    const mappedStudent = {
+      id: student.id,
+      studentId: student.student_id,
+      name: student.name,
+      email: student.email,
+      yearLevel: student.year_level,
+      course: student.course,
+      enrolledAt: student.created_at,
+      user: student.user
+    }
+
+    return NextResponse.json(mappedStudent)
+
   } catch (error) {
-    console.error("Error fetching student profile:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error('Error in GET /api/students/profile/[studentId]:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function PUT(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { studentId: string } }
 ) {
   try {
-    const session = await auth()
-    
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    // Students can only update their own profile
-    if (session.user.role === "STUDENT" && session.user.studentId !== params.studentId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
-
+    const { studentId } = params
     const body = await request.json()
-    const { name, email, course } = body
+    const data = updateProfileSchema.parse(body)
 
-    // Find the student first
-    const existingStudent = await prisma.student.findUnique({
-      where: { 
-        studentId: params.studentId,
-        deletedAt: null,
-      },
-      include: {
-        user: true
+    // Get existing student to check if email changed
+    const { data: existingStudent, error: fetchError } = await supabase
+      .from('students')
+      .select('*')
+      .eq('student_id', studentId)
+      .single()
+
+    if (fetchError) {
+      if (fetchError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Student not found' }, { status: 404 })
       }
-    })
-
-    if (!existingStudent) {
-      return NextResponse.json({ error: "Student not found" }, { status: 404 })
+      console.error('Error fetching student:', fetchError)
+      return NextResponse.json({ error: 'Failed to fetch student' }, { status: 500 })
     }
 
     // Update student record
-    const updatedStudent = await prisma.student.update({
-      where: { id: existingStudent.id },
-      data: {
-        name,
-        email,
-        course,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            role: true,
-          }
-        }
-      }
-    })
-
-    // Also update the user record if email changed
-    if (email !== existingStudent.user.email) {
-      await prisma.user.update({
-        where: { id: existingStudent.userId },
-        data: {
+    const { data: updatedStudent, error: updateError } = await supabase
+      .from('students')
+      .update({
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        college: data.college,
+        year_level: data.year_level,
+        course: data.course,
+        updated_at: new Date().toISOString()
+      })
+      .eq('student_id', studentId)
+      .select(`
+        *,
+        user:users(
+          id,
           email,
           name,
-        }
-      })
+          role
+        )
+      `)
+      .single()
+
+    if (updateError) {
+      console.error('Error updating student:', updateError)
+      return NextResponse.json({ error: 'Failed to update student' }, { status: 500 })
     }
 
-    return NextResponse.json(updatedStudent)
+    // Map database field names to component expected field names
+    const mappedUpdatedStudent = {
+      id: updatedStudent.id,
+      studentId: updatedStudent.student_id,
+      name: updatedStudent.name,
+      email: updatedStudent.email,
+      yearLevel: updatedStudent.year_level,
+      course: updatedStudent.course,
+      enrolledAt: updatedStudent.created_at,
+      user: updatedStudent.user
+    }
+
+    return NextResponse.json(mappedUpdatedStudent)
+
   } catch (error) {
-    console.error("Error updating student profile:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.errors }, { status: 400 })
+    }
+
+    console.error('Error in PUT /api/students/profile/[studentId]:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 } 

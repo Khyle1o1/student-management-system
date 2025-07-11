@@ -27,12 +27,14 @@ import {
   Edit, 
   Trash2, 
   Calendar,
+  RefreshCw,
+  Clock,
   MapPin,
   Users,
-  RefreshCw,
-  Clock
+  Target
 } from "lucide-react"
 import Link from "next/link"
+import { EVENT_SCOPE_LABELS } from "@/lib/constants/academic-programs"
 
 interface Event {
   id: string
@@ -46,6 +48,9 @@ interface Event {
   capacity: number
   registeredCount: number
   status: string
+  scope_type: string
+  scope_college: string | null
+  scope_course: string | null
   createdAt: string
   updatedAt: string
 }
@@ -62,11 +67,14 @@ export function EventsTable() {
       const response = await fetch("/api/events")
       if (response.ok) {
         const data = await response.json()
-        setEvents(data)
-        setFilteredEvents(data)
+        setEvents(data.events || [])
+        setFilteredEvents(data.events || [])
       }
     } catch (error) {
       console.error("Error fetching events:", error)
+      // Set empty arrays in case of error to prevent map errors
+      setEvents([])
+      setFilteredEvents([])
     } finally {
       setLoading(false)
     }
@@ -83,7 +91,9 @@ export function EventsTable() {
       return event.title.toLowerCase().includes(searchLower) ||
         event.description.toLowerCase().includes(searchLower) ||
         event.location.toLowerCase().includes(searchLower) ||
-        event.eventType.toLowerCase().includes(searchLower)
+        event.eventType.toLowerCase().includes(searchLower) ||
+        (event.scope_college && event.scope_college.toLowerCase().includes(searchLower)) ||
+        (event.scope_course && event.scope_course.toLowerCase().includes(searchLower))
     })
     setFilteredEvents(filtered)
   }, [searchTerm, events])
@@ -130,6 +140,15 @@ export function EventsTable() {
     }
   }
 
+  const getScopeBadgeColor = (scopeType: string) => {
+    switch (scopeType) {
+      case "UNIVERSITY_WIDE": return "bg-green-100 text-green-800"
+      case "COLLEGE_WIDE": return "bg-blue-100 text-blue-800"
+      case "COURSE_SPECIFIC": return "bg-purple-100 text-purple-800"
+      default: return "bg-gray-100 text-gray-800"
+    }
+  }
+
   const formatEventDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -144,6 +163,19 @@ export function EventsTable() {
       minute: '2-digit',
       hour12: true
     })
+  }
+
+  const formatScopeDetails = (event: Event) => {
+    switch (event.scope_type) {
+      case "UNIVERSITY_WIDE":
+        return "All students"
+      case "COLLEGE_WIDE":
+        return event.scope_college || "College-wide"
+      case "COURSE_SPECIFIC":
+        return event.scope_course || "Course-specific"
+      default:
+        return "Unknown scope"
+    }
   }
 
   if (loading) {
@@ -184,13 +216,13 @@ export function EventsTable() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Event Title</TableHead>
+                <TableHead>Event Details</TableHead>
                 <TableHead>Date & Time</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead>Type</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Scope</TableHead>
                 <TableHead>Capacity</TableHead>
-                <TableHead>Registered</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -241,29 +273,28 @@ export function EventsTable() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStatusBadgeColor(event.status)}>
-                        {event.status}
-                      </Badge>
+                      <div className="flex flex-col space-y-1">
+                        <Badge className={getScopeBadgeColor(event.scope_type)}>
+                          <Target className="h-3 w-3 mr-1" />
+                          {EVENT_SCOPE_LABELS[event.scope_type as keyof typeof EVENT_SCOPE_LABELS]}
+                        </Badge>
+                        <div className="text-xs text-gray-600 truncate max-w-32">
+                          {formatScopeDetails(event)}
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-1">
                         <Users className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-sm">{event.capacity}</span>
+                        <div className="text-sm">
+                          <div>{event.registeredCount}/{event.capacity || "∞"}</div>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm">
-                        <span className="font-medium">{event.registeredCount}</span>
-                        <span className="text-gray-600">/{event.capacity}</span>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-                          <div 
-                            className="bg-blue-600 h-1.5 rounded-full" 
-                            style={{ 
-                              width: `${Math.min((event.registeredCount / event.capacity) * 100, 100)}%` 
-                            }}
-                          ></div>
-                        </div>
-                      </div>
+                      <Badge className={getStatusBadgeColor(event.status)}>
+                        {event.status}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>

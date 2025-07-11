@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -12,23 +14,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { 
   Search, 
-  MoreHorizontal, 
   Edit, 
   Trash2, 
-  DollarSign,
+  Settings,
+  GraduationCap,
+  Building,
+  Globe,
   Calendar,
-  RefreshCw,
-  GraduationCap
+  DollarSign
 } from "lucide-react"
 import Link from "next/link"
 
@@ -41,10 +36,14 @@ interface Fee {
   dueDate: string
   semester: string
   schoolYear: string
+  scope_type: string
+  scope_college: string
+  scope_course: string
   createdAt: string
 }
 
 export function FeesTable() {
+  const router = useRouter()
   const [fees, setFees] = useState<Fee[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -56,8 +55,8 @@ export function FeesTable() {
       const response = await fetch("/api/fees")
       if (response.ok) {
         const data = await response.json()
-        setFees(data)
-        setFilteredFees(data)
+        setFees(data.fees || [])
+        setFilteredFees(data.fees || [])
       }
     } catch (error) {
       console.error("Error fetching fees:", error)
@@ -78,7 +77,10 @@ export function FeesTable() {
         fee.type.toLowerCase().includes(searchLower) ||
         fee.description.toLowerCase().includes(searchLower) ||
         fee.semester.toLowerCase().includes(searchLower) ||
-        fee.schoolYear.toLowerCase().includes(searchLower)
+        fee.schoolYear.toLowerCase().includes(searchLower) ||
+        fee.scope_type.toLowerCase().includes(searchLower) ||
+        fee.scope_college?.toLowerCase().includes(searchLower) ||
+        fee.scope_course?.toLowerCase().includes(searchLower)
     })
     setFilteredFees(filtered)
   }, [searchTerm, fees])
@@ -104,22 +106,57 @@ export function FeesTable() {
     }
   }
 
-  const getFeeTypeBadgeColor = (feeType: string) => {
-    switch (feeType.toLowerCase().replace(' ', '_')) {
-      case "organization_fee": return "bg-blue-100 text-blue-800"
-      case "activity_fee": return "bg-green-100 text-green-800"
-      case "registration_fee": return "bg-purple-100 text-purple-800"
-      case "laboratory_fee": return "bg-orange-100 text-orange-800"
-      case "library_fee": return "bg-indigo-100 text-indigo-800"
-      default: return "bg-gray-100 text-gray-800"
+  const getScopeBadge = (scope_type: string, scope_college?: string, scope_course?: string) => {
+    switch (scope_type) {
+      case "UNIVERSITY_WIDE":
+        return (
+          <Badge className="bg-blue-100 text-blue-800">
+            <Globe className="h-3 w-3 mr-1" />
+            University-wide
+          </Badge>
+        )
+      case "COLLEGE_WIDE":
+        return (
+          <Badge className="bg-green-100 text-green-800">
+            <Building className="h-3 w-3 mr-1" />
+            {scope_college ? scope_college.split(' ').slice(-1)[0] : 'College-wide'}
+          </Badge>
+        )
+      case "COURSE_SPECIFIC":
+        return (
+          <Badge className="bg-purple-100 text-purple-800">
+            <GraduationCap className="h-3 w-3 mr-1" />
+            Course-specific
+          </Badge>
+        )
+      default:
+        return (
+          <Badge className="bg-gray-100 text-gray-800">
+            {scope_type}
+          </Badge>
+        )
     }
   }
 
+  const getFeeTypeBadge = (type: string) => {
+    const typeColors = {
+      "organization fee": "bg-purple-100 text-purple-800",
+      "activity fee": "bg-orange-100 text-orange-800",
+      "registration fee": "bg-blue-100 text-blue-800",
+      "laboratory fee": "bg-indigo-100 text-indigo-800",
+      "library fee": "bg-pink-100 text-pink-800",
+      "other": "bg-gray-100 text-gray-800",
+    }
+
+    return (
+      <Badge className={typeColors[type as keyof typeof typeColors] || typeColors.other}>
+        {type.replace(/\b\w/g, l => l.toUpperCase())}
+      </Badge>
+    )
+  }
+
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-PH', {
-      style: 'currency',
-      currency: 'PHP'
-    }).format(amount)
+    return `₱${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
   }
 
   const formatDate = (dateString: string) => {
@@ -131,46 +168,44 @@ export function FeesTable() {
     })
   }
 
-  const isDueSoon = (dueDateString: string) => {
-    if (!dueDateString) return false
-    const dueDate = new Date(dueDateString)
-    const today = new Date()
-    const thirtyDaysFromNow = new Date(today.getTime() + (30 * 24 * 60 * 60 * 1000))
-    return dueDate <= thirtyDaysFromNow && dueDate >= today
-  }
-
-  const isOverdue = (dueDateString: string) => {
-    if (!dueDateString) return false
-    const dueDate = new Date(dueDateString)
-    const today = new Date()
-    return dueDate < today
-  }
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center space-x-2 py-8">
-        <RefreshCw className="h-4 w-4 animate-spin" />
-        <span>Loading fees...</span>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Search fees..."
+              className="pl-10 w-64"
+              disabled
+            />
+          </div>
+        </div>
+        <div className="rounded-md border">
+          <div className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+            <p className="mt-2 text-gray-600">Loading fees...</p>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center space-x-2">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+      <div className="flex items-center justify-between">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
             placeholder="Search fees..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-8"
+            className="pl-10 w-64"
           />
         </div>
-        <Button variant="outline" onClick={fetchFees}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="text-sm text-gray-600">
+          {filteredFees.length} of {fees.length} fees
+        </div>
       </div>
 
       <div className="rounded-md border">
@@ -179,106 +214,98 @@ export function FeesTable() {
             <TableRow>
               <TableHead>Fee Name</TableHead>
               <TableHead>Type</TableHead>
+              <TableHead>Scope</TableHead>
               <TableHead>Amount</TableHead>
               <TableHead>Due Date</TableHead>
-              <TableHead>Semester</TableHead>
               <TableHead>School Year</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredFees.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
-                  <div className="flex flex-col items-center space-y-3">
-                    <DollarSign className="h-8 w-8 text-muted-foreground" />
-                    <div className="text-sm text-muted-foreground">
-                      {searchTerm ? "No fees found matching your search." : "No fee structures found."}
-                    </div>
+            {filteredFees.map((fee) => (
+              <TableRow key={fee.id}>
+                <TableCell>
+                  <div>
+                    <p className="font-medium">{fee.name}</p>
+                    {fee.description && (
+                      <p className="text-sm text-gray-600 truncate max-w-xs">
+                        {fee.description}
+                      </p>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {getFeeTypeBadge(fee.type)}
+                </TableCell>
+                <TableCell>
+                  <div className="space-y-1">
+                    {getScopeBadge(fee.scope_type, fee.scope_college, fee.scope_course)}
+                    {fee.scope_type === "COLLEGE_WIDE" && fee.scope_college && (
+                      <p className="text-xs text-gray-600">{fee.scope_college}</p>
+                    )}
+                    {fee.scope_type === "COURSE_SPECIFIC" && fee.scope_course && (
+                      <p className="text-xs text-gray-600">{fee.scope_course}</p>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="font-medium">
+                  {formatCurrency(fee.amount)}
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center space-x-2">
+                    <Calendar className="h-4 w-4 text-gray-400" />
+                    <span className="text-sm">{formatDate(fee.dueDate)}</span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">
+                    {fee.schoolYear}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center space-x-2">
+                    <Link href={`/dashboard/fees/${fee.id}/manage`}>
+                      <Button variant="outline" size="sm">
+                        <Settings className="h-3 w-3 mr-1" />
+                        Manage
+                      </Button>
+                    </Link>
+                    <Link href={`/dashboard/fees/${fee.id}`}>
+                      <Button variant="outline" size="sm">
+                        <Edit className="h-3 w-3 mr-1" />
+                        Edit
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteFee(fee.id)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      Delete
+                    </Button>
                   </div>
                 </TableCell>
               </TableRow>
-            ) : (
-              filteredFees.map((fee) => (
-                <TableRow key={fee.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex flex-col">
-                      <span className="font-semibold">{fee.name}</span>
-                      {fee.description && (
-                        <span className="text-sm text-muted-foreground">
-                          {fee.description}
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant="secondary" 
-                      className={getFeeTypeBadgeColor(fee.type)}
-                    >
-                      {fee.type}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center">
-                      <DollarSign className="h-4 w-4 mr-1 text-green-600" />
-                      <span className="font-semibold text-green-600">
-                        {formatCurrency(fee.amount)}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      <span className={`
-                        ${isOverdue(fee.dueDate) ? 'text-red-600 font-semibold' : ''}
-                        ${isDueSoon(fee.dueDate) ? 'text-orange-600 font-semibold' : ''}
-                      `}>
-                        {formatDate(fee.dueDate)}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center">
-                      <GraduationCap className="h-4 w-4 mr-1" />
-                      {fee.semester || "N/A"}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-medium">{fee.schoolYear}</span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem asChild>
-                          <Link href={`/dashboard/fees/${fee.id}`}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleDeleteFee(fee.id)}
-                          className="text-red-600"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
+            ))}
           </TableBody>
         </Table>
       </div>
+
+      {filteredFees.length === 0 && !loading && (
+        <div className="text-center py-8">
+          <DollarSign className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+          <p className="text-gray-600">
+            {searchTerm ? "No fees match your search." : "No fees found."}
+          </p>
+          {!searchTerm && (
+            <Link href="/dashboard/fees/new">
+              <Button className="mt-4">Create Your First Fee</Button>
+            </Link>
+          )}
+        </div>
+      )}
     </div>
   )
 } 
