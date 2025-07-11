@@ -1,21 +1,14 @@
-import { Suspense } from "react"
-import { auth } from "../lib/auth"
-import { redirect } from "next/navigation"
+"use client"
+
+import { Suspense, useState } from "react"
 import { Calendar, Users, FileText, Phone, Mail, AlertCircle, Bell, BookOpen, GraduationCap, Building, CheckCircle, ArrowRight, Star, Trophy, Clock, Target, Award, TrendingUp, BarChart, Sparkles, Shield, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
-import Link from "next/link"
-
-async function AuthCheck() {
-  const session = await auth()
-  if (session) {
-    redirect("/dashboard")
-  }
-  return null
-}
+import { LoginModal } from "@/components/ui/login-modal"
+import { SessionProvider } from "next-auth/react"
 
 const reasons = [
   {
@@ -106,12 +99,13 @@ const additionalFeatures = [
 ]
 
 export default function HomePage() {
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
+
+  const openLoginModal = () => setIsLoginModalOpen(true)
+  const closeLoginModal = () => setIsLoginModalOpen(false)
+
   return (
-    <>
-      <Suspense fallback={null}>
-        <AuthCheck />
-      </Suspense>
-      
+    <SessionProvider>
       <div className="min-h-screen bg-white">
         {/* Enhanced Header */}
         <header className="bg-white/95 backdrop-blur-md shadow-lg border-b border-[#191970]/10 sticky top-0 z-50">
@@ -151,19 +145,20 @@ export default function HomePage() {
                 </nav>
               </div>
               <div className="flex items-center space-x-6">
-                <Link href="/auth/login">
-                  <Button className="bg-gradient-to-r from-[#191970] to-[#191970]/80 hover:from-[#191970]/90 hover:to-[#191970]/70 text-white font-semibold px-8 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5">
-                    Student Login
-                    <ArrowRight className="ml-2 w-4 h-4" />
-                  </Button>
-                </Link>
+                <Button 
+                  onClick={openLoginModal}
+                  className="bg-gradient-to-r from-[#191970] to-[#191970]/80 hover:from-[#191970]/90 hover:to-[#191970]/70 text-white font-semibold px-8 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
+                >
+                  Student Login
+                  <ArrowRight className="ml-2 w-4 h-4" />
+                </Button>
               </div>
             </div>
           </div>
         </header>
 
         {/* Enhanced Hero Section */}
-        <section className="relative bg-gradient-to-br from-[#191970]/10 via-white to-[#191970]/5 py-24 overflow-hidden">
+        <section className="relative bg-gradient-to-br from-[#191970]/10 via-white to-[#191970]/5 py-16 overflow-hidden">
           {/* Background Elements */}
           <div className="absolute inset-0">
             <div className="absolute top-20 left-10 w-64 h-64 bg-[#191970]/10 rounded-full blur-3xl"></div>
@@ -172,32 +167,34 @@ export default function HomePage() {
           </div>
 
           <div className="container mx-auto px-4 relative">
-            <div className="grid lg:grid-cols-2 gap-16 items-center">
-              <div className="space-y-10">
-                <div className="space-y-8">
+            <div className="grid lg:grid-cols-2 gap-12 items-center">
+              <div className="space-y-8">
+                <div className="space-y-6">
                   <Badge className="bg-gradient-to-r from-[#191970] to-[#191970]/80 text-white font-semibold px-6 py-3 rounded-full text-sm shadow-lg">
                     ✨ Next-Generation University Platform
                   </Badge>
-                  <h1 className="text-6xl lg:text-7xl font-bold text-[#191970] leading-tight">
+                  <h1 className="text-5xl lg:text-6xl font-bold text-[#191970] leading-tight">
                     Explore Your
                     <span className="block text-transparent bg-clip-text bg-gradient-to-r from-[#191970] to-[#191970]/70">
                       Knowledge
                     </span>
-                    <span className="block text-5xl lg:text-6xl">Start Your Journey</span>
+                    <span className="block text-4xl lg:text-5xl">Start Your Journey</span>
                   </h1>
-                  <p className="text-xl text-slate-600 leading-relaxed max-w-xl">
+                  <p className="text-lg text-slate-600 leading-relaxed max-w-xl">
                     Embark on your academic excellence journey with our state-of-the-art student management platform. 
                     Track progress, manage courses, and unlock your full potential with AI-powered insights.
                   </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-6">
-                  <Link href="/auth/login">
-                    <Button size="lg" className="bg-gradient-to-r from-[#191970] to-[#191970]/80 hover:from-[#191970]/90 hover:to-[#191970]/70 text-white px-10 py-5 text-lg font-bold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 group">
-                      Access Portal Now
-                      <ArrowRight className="ml-3 w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
-                    </Button>
-                  </Link>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Button 
+                    onClick={openLoginModal}
+                    size="lg" 
+                    className="bg-gradient-to-r from-[#191970] to-[#191970]/80 hover:from-[#191970]/90 hover:to-[#191970]/70 text-white px-10 py-5 text-lg font-bold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 group"
+                  >
+                    Access Portal Now
+                    <ArrowRight className="ml-3 w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
+                  </Button>
                   <Button variant="outline" size="lg" className="border-2 border-[#191970] text-[#191970] hover:bg-[#191970]/5 px-10 py-5 text-lg font-bold rounded-xl transition-all duration-300 hover:border-[#191970]/80 hover:text-[#191970]/80">
                     Watch Demo
                     <span className="ml-2">🎥</span>
@@ -208,7 +205,7 @@ export default function HomePage() {
               {/* Enhanced Hero Illustration */}
               <div className="relative">
                 <div className="relative z-10">
-                  <div className="relative w-full h-[500px] lg:h-[600px]">
+                  <div className="relative w-full h-[450px] lg:h-[500px]">
                     {/* Main background circle */}
                     <div className="absolute top-8 right-8 w-80 h-80 lg:w-96 lg:h-96 bg-gradient-to-br from-[#191970] to-[#191970]/60 rounded-full opacity-20 animate-pulse"></div>
                     
@@ -263,22 +260,22 @@ export default function HomePage() {
         </section>
 
         {/* Why Choose Us Section */}
-        <section className="py-24 bg-gradient-to-b from-white to-[#191970]/10">
+        <section className="py-16 bg-gradient-to-b from-white to-[#191970]/10">
           <div className="container mx-auto px-4">
-            <div className="text-center mb-20">
+            <div className="text-center mb-16">
               <Badge className="bg-[#191970] text-white px-6 py-3 rounded-full font-semibold mb-6">
                 Why Choose BukSU Portal
               </Badge>
-              <h2 className="text-5xl font-bold text-[#191970] mb-6 leading-tight">
+              <h2 className="text-4xl font-bold text-[#191970] mb-6 leading-tight">
                 Reasons To Choose Our Platform
               </h2>
-              <p className="text-xl text-slate-600 max-w-4xl mx-auto leading-relaxed">
+              <p className="text-lg text-slate-600 max-w-4xl mx-auto leading-relaxed">
                 Our comprehensive student management system provides everything you need for academic success 
                 and a seamless university experience powered by cutting-edge technology.
               </p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-10 max-w-7xl mx-auto mb-16">
+            <div className="grid md:grid-cols-3 gap-8 max-w-7xl mx-auto mb-12">
               {reasons.map((reason, index) => (
                 <Card key={index} className={`text-center p-10 hover:shadow-2xl transition-all duration-500 border-0 bg-white shadow-lg group ${reason.hoverColor} transform hover:-translate-y-2`}>
                   <CardContent className="space-y-8">
@@ -312,25 +309,25 @@ export default function HomePage() {
         </section>
 
         {/* Enhanced Features Section */}
-        <section className="py-24 bg-white">
+        <section className="py-16 bg-white">
           <div className="container mx-auto px-4">
-            <div className="grid lg:grid-cols-2 gap-20 items-center">
-              <div className="space-y-10">
+            <div className="grid lg:grid-cols-2 gap-16 items-center">
+              <div className="space-y-8">
                 <div className="space-y-6">
                   <Badge className="bg-gradient-to-r from-[#191970] to-[#191970]/80 text-white px-6 py-3 rounded-full font-semibold">
                     🚀 Comprehensive System
                   </Badge>
-                  <h2 className="text-5xl font-bold text-[#191970] leading-tight">
+                  <h2 className="text-4xl font-bold text-[#191970] leading-tight">
                     Find Your Preferred Services
                     <span className="block text-[#fbbf24]">& Improve Your Skills</span>
                   </h2>
-                  <p className="text-xl text-slate-600 leading-relaxed">
+                  <p className="text-lg text-slate-600 leading-relaxed">
                     Our integrated platform streamlines every aspect of your university experience, 
                     from enrollment to graduation, ensuring you stay focused on what matters most - your academic excellence.
                   </p>
                 </div>
 
-                <div className="space-y-8">
+                <div className="space-y-6">
                   {systemFeatures.map((feature, index) => (
                     <div key={index} className="flex items-start space-x-6 p-6 rounded-2xl hover:bg-[#191970]/5 transition-all duration-300 group">
                       <div className="flex-shrink-0">
@@ -346,18 +343,20 @@ export default function HomePage() {
                   ))}
                 </div>
 
-                <Link href="/auth/login">
-                  <Button size="lg" className="bg-gradient-to-r from-[#191970] to-[#191970]/80 hover:from-[#191970]/90 hover:to-[#191970]/70 text-white px-10 py-4 font-bold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 group">
-                    Explore All Features
-                    <ArrowRight className="ml-3 w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
-                  </Button>
-                </Link>
+                <Button 
+                  onClick={openLoginModal}
+                  size="lg" 
+                  className="bg-gradient-to-r from-[#191970] to-[#191970]/80 hover:from-[#191970]/90 hover:to-[#191970]/70 text-white px-10 py-4 font-bold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 group"
+                >
+                  Explore All Features
+                  <ArrowRight className="ml-3 w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
+                </Button>
               </div>
 
               {/* Enhanced Features Illustration */}
               <div className="relative">
                 <div className="relative z-10">
-                  <div className="w-full h-[500px] bg-gradient-to-br from-[#191970]/20 via-[#191970]/10 to-[#191970]/5 rounded-3xl flex items-center justify-center shadow-2xl border border-[#191970]/10">
+                  <div className="w-full h-[450px] bg-gradient-to-br from-[#191970]/20 via-[#191970]/10 to-[#191970]/5 rounded-3xl flex items-center justify-center shadow-2xl border border-[#191970]/10">
                     <div className="text-center space-y-8">
                       <div className="w-32 h-32 bg-gradient-to-br from-[#191970] to-[#191970]/80 rounded-3xl mx-auto flex items-center justify-center shadow-xl">
                         <Users className="w-16 h-16 text-white" />
@@ -392,26 +391,26 @@ export default function HomePage() {
         </section>
 
         {/* Statistics Section */}
-        <section className="py-24 bg-gradient-to-br from-[#191970]/10 to-white">
+        <section className="py-16 bg-gradient-to-br from-[#191970]/10 to-white">
           <div className="container mx-auto px-4">
-            <div className="grid lg:grid-cols-2 gap-20 items-center">
+            <div className="grid lg:grid-cols-2 gap-16 items-center">
               {/* Enhanced Stats Illustration */}
               <div className="relative">
-                <div className="bg-gradient-to-br from-white via-[#191970]/5 to-[#191970]/10 rounded-3xl p-10 shadow-2xl border border-[#191970]/10">
-                  <div className="text-center space-y-8">
-                    <div className="w-24 h-24 bg-gradient-to-r from-[#191970] to-[#191970]/80 rounded-3xl mx-auto flex items-center justify-center shadow-xl">
-                      <BarChart className="w-12 h-12 text-white" />
+                <div className="bg-gradient-to-br from-white via-[#191970]/5 to-[#191970]/10 rounded-3xl p-8 shadow-2xl border border-[#191970]/10">
+                  <div className="text-center space-y-6">
+                    <div className="w-20 h-20 bg-gradient-to-r from-[#191970] to-[#191970]/80 rounded-3xl mx-auto flex items-center justify-center shadow-xl">
+                      <BarChart className="w-10 h-10 text-white" />
                     </div>
-                    <h3 className="text-3xl font-bold text-[#191970]">University Statistics</h3>
+                    <h3 className="text-2xl font-bold text-[#191970]">University Statistics</h3>
                     
                     {/* Enhanced chart representation */}
                     <div className="space-y-4">
-                      <div className="flex items-end justify-center space-x-3 h-32">
-                        <div className="w-8 bg-gradient-to-t from-[#191970] to-[#191970]/60 h-20 rounded-t-lg"></div>
-                        <div className="w-8 bg-gradient-to-t from-[#191970] to-[#191970]/60 h-28 rounded-t-lg"></div>
-                        <div className="w-8 bg-gradient-to-t from-[#191970] to-[#191970]/60 h-24 rounded-t-lg"></div>
-                        <div className="w-8 bg-gradient-to-t from-[#191970] to-[#fbbf24] h-32 rounded-t-lg"></div>
-                        <div className="w-8 bg-gradient-to-t from-[#191970] to-[#dc2626] h-16 rounded-t-lg"></div>
+                      <div className="flex items-end justify-center space-x-3 h-28">
+                        <div className="w-6 bg-gradient-to-t from-[#191970] to-[#191970]/60 h-16 rounded-t-lg"></div>
+                        <div className="w-6 bg-gradient-to-t from-[#191970] to-[#191970]/60 h-24 rounded-t-lg"></div>
+                        <div className="w-6 bg-gradient-to-t from-[#191970] to-[#191970]/60 h-20 rounded-t-lg"></div>
+                        <div className="w-6 bg-gradient-to-t from-[#191970] to-[#fbbf24] h-28 rounded-t-lg"></div>
+                        <div className="w-6 bg-gradient-to-t from-[#191970] to-[#dc2626] h-12 rounded-t-lg"></div>
                       </div>
                       <p className="text-slate-600 text-sm">Live performance metrics</p>
                     </div>
@@ -423,23 +422,23 @@ export default function HomePage() {
                 <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-[#191970]/15 rounded-full blur-xl"></div>
               </div>
 
-              <div className="space-y-10">
+              <div className="space-y-8">
                 <div className="space-y-6">
                   <Badge className="bg-gradient-to-r from-[#191970] to-[#191970]/80 text-white px-6 py-3 rounded-full font-semibold">
                     📊 Our Impact
                   </Badge>
-                  <h2 className="text-5xl font-bold text-[#191970] leading-tight">
+                  <h2 className="text-4xl font-bold text-[#191970] leading-tight">
                     What Kind Of Services Our
                     <span className="block text-[#fbbf24]">Learning Platform Offers</span>
                   </h2>
-                  <p className="text-xl text-slate-600 leading-relaxed">
+                  <p className="text-lg text-slate-600 leading-relaxed">
                     BukSU&apos;s student management system serves thousands of students across multiple programs, 
                     providing comprehensive digital services that enhance the educational experience.
                   </p>
                 </div>
 
                 {/* Enhanced Statistics Grid */}
-                <div className="grid grid-cols-2 gap-8">
+                <div className="grid grid-cols-2 gap-6">
                   {stats.map((stat, index) => (
                     <div key={index} className={`text-center space-y-4 p-6 ${stat.bgColor} rounded-2xl hover:scale-105 transition-transform duration-300`}>
                       <div className={`text-4xl font-bold ${stat.color}`}>
@@ -464,7 +463,7 @@ export default function HomePage() {
         </section>
 
         {/* Enhanced CTA Section */}
-        <section className="py-24 bg-gradient-to-r from-[#191970] via-[#191970]/90 to-[#191970] relative overflow-hidden">
+        <section className="py-16 bg-gradient-to-r from-[#191970] via-[#191970]/90 to-[#191970] relative overflow-hidden">
           {/* Background pattern */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute top-10 left-10 w-32 h-32 border border-white rounded-full"></div>
@@ -473,44 +472,46 @@ export default function HomePage() {
           </div>
 
           <div className="container mx-auto px-4 text-center relative">
-            <div className="max-w-4xl mx-auto space-y-12">
+            <div className="max-w-4xl mx-auto space-y-10">
               <div className="space-y-6">
                 <Badge className="bg-[#fbbf24] text-white px-6 py-3 rounded-full font-semibold">
                   🎓 What We Offer
                 </Badge>
-                <h2 className="text-5xl font-bold text-white leading-tight">
+                <h2 className="text-4xl font-bold text-white leading-tight">
                   Experience The Future Of
                   <span className="block text-[#fbbf24]">University Education</span>
                 </h2>
-                <p className="text-xl text-blue-100 leading-relaxed">
+                <p className="text-lg text-blue-100 leading-relaxed">
                   Join thousands of students who have transformed their academic journey with our comprehensive 
                   digital platform designed to support excellence from enrollment to graduation.
                 </p>
               </div>
                
-              <div className="grid md:grid-cols-2 gap-8 mt-16">
+              <div className="grid md:grid-cols-2 gap-6 mt-12">
                 {offerings.map((offering, index) => (
                   <div key={index} className="flex items-center space-x-4 text-left p-4 rounded-xl hover:bg-white/10 transition-all duration-300 group">
-                    <CheckCircle className="w-8 h-8 text-[#fbbf24] flex-shrink-0 group-hover:scale-110 transition-transform duration-300" />
-                    <p className="text-white font-medium text-lg group-hover:text-[#fbbf24] transition-colors duration-300">{offering}</p>
+                    <CheckCircle className="w-6 h-6 text-[#fbbf24] flex-shrink-0 group-hover:scale-110 transition-transform duration-300" />
+                    <p className="text-white font-medium group-hover:text-[#fbbf24] transition-colors duration-300">{offering}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="pt-12">
-                <Link href="/auth/login">
-                  <Button size="lg" className="bg-white text-[#191970] hover:bg-[#fbbf24] hover:text-white px-16 py-6 text-xl font-bold rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:-translate-y-2 group">
-                    Start Your Journey Today
-                    <ArrowRight className="ml-4 w-6 h-6 group-hover:translate-x-2 transition-transform duration-300" />
-                  </Button>
-                </Link>
+              <div className="pt-8">
+                <Button 
+                  onClick={openLoginModal}
+                  size="lg" 
+                  className="bg-white text-[#191970] hover:bg-[#fbbf24] hover:text-white px-16 py-6 text-xl font-bold rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:-translate-y-2 group"
+                >
+                  Start Your Journey Today
+                  <ArrowRight className="ml-4 w-6 h-6 group-hover:translate-x-2 transition-transform duration-300" />
+                </Button>
               </div>
             </div>
           </div>
         </section>
 
         {/* Enhanced Footer */}
-        <footer className="py-16 bg-[#191970] text-white relative">
+        <footer className="py-12 bg-[#191970] text-white relative">
           <div className="container mx-auto px-4">
             <div className="grid md:grid-cols-4 gap-12">
               <div className="space-y-6">
@@ -563,7 +564,7 @@ export default function HomePage() {
             <div className="border-t border-white/20 pt-8 mt-12">
               <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
                 <p className="text-blue-200 text-sm">
-                  © 2024 Bukidnon State University. All rights reserved.
+                  © 2025 AOG Tech. All rights reserved.
                 </p>
                 <div className="flex items-center space-x-6 text-blue-200 text-sm">
                   <a href="#" className="hover:text-[#fbbf24] transition-colors duration-300">Privacy Policy</a>
@@ -574,7 +575,10 @@ export default function HomePage() {
             </div>
           </div>
         </footer>
+
+        {/* Login Modal */}
+        <LoginModal isOpen={isLoginModalOpen} onClose={closeLoginModal} />
       </div>
-    </>
+    </SessionProvider>
   )
 }
