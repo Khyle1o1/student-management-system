@@ -24,7 +24,6 @@ import {
   DatabaseIcon,
   AlertTriangle,
   XCircle,
-  UserCheck,
   ChevronDown
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -42,9 +41,22 @@ interface DashboardShellProps {
 }
 
 interface DashboardStats {
-  totalStudents: number
-  totalEvents: number
-  pendingPayments: number
+  students: {
+    total: number
+    new: number
+    growthPercent: number
+  }
+  events: {
+    total: number
+    upcoming: number
+    thisMonth: number
+    growthPercent: number
+  }
+  payments: {
+    total: number
+    pending: number
+    unpaidPercent: number
+  }
 }
 
 interface NavigationItem {
@@ -71,6 +83,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
           const data = await response.json()
           setStats(data)
           setDbConnectionError(null)
+          setShowDbError(false)
         } else {
           const errorData = await response.json()
           // Check if it's a database connection error
@@ -97,14 +110,18 @@ export function DashboardShell({ children }: DashboardShellProps) {
       }
     }
 
-    if (isAdmin) {
+    // Only fetch stats for admin users
+    if (isAdmin && session?.user?.id) {
       fetchStats()
       
-      // Poll for database connection status every 30 seconds
-      const interval = setInterval(fetchStats, 30000)
-      return () => clearInterval(interval)
+      // Set up polling interval (5 minutes instead of 30 seconds to reduce load)
+      const interval = setInterval(fetchStats, 300000) // 5 minutes
+      
+      return () => {
+        clearInterval(interval)
+      }
     }
-  }, [isAdmin])
+  }, [isAdmin, session?.user?.id]) // More specific dependencies
 
   const adminNavItems: NavigationItem[] = [
     { href: "/dashboard", label: "Overview", icon: BarChart3 },
@@ -112,20 +129,19 @@ export function DashboardShell({ children }: DashboardShellProps) {
       href: "/dashboard/students", 
       label: "Students", 
       icon: Users, 
-      badge: stats?.totalStudents?.toString() || "0"
+      badge: stats?.students?.total?.toString() || "0"
     },
     { 
       href: "/dashboard/events", 
       label: "Events", 
       icon: Calendar, 
-      badge: stats?.totalEvents?.toString() || "0"
+      badge: stats?.events?.total?.toString() || "0"
     },
-    { href: "/dashboard/attendance/manage", label: "Manage Attendance", icon: UserCheck },
     { 
       href: "/dashboard/fees", 
       label: "Fees", 
       icon: DollarSign, 
-      badge: stats?.pendingPayments?.toString() || "0"
+      badge: stats?.payments?.pending?.toString() || "0"
     },
     { href: "/dashboard/reports", label: "Reports", icon: FileText },
     { href: "/dashboard/settings", label: "Settings", icon: Settings },
@@ -297,109 +313,108 @@ export function DashboardShell({ children }: DashboardShellProps) {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Mobile Sidebar Backdrop */}
-          {isMobileMenuOpen && (
-            <div 
-              className="fixed inset-0 bg-gray-600 bg-opacity-50 transition-opacity lg:hidden z-40"
-              onClick={() => setIsMobileMenuOpen(false)}
-            />
-          )}
+      <div className="flex">
+        {/* Mobile Sidebar Backdrop */}
+        {isMobileMenuOpen && (
+          <div 
+            className="fixed inset-0 bg-gray-600 bg-opacity-50 transition-opacity lg:hidden z-40"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
 
-          {/* Enhanced Sidebar */}
-          <aside className={cn(
-            "fixed inset-y-0 left-0 z-50 w-64 bg-white transform transition-transform duration-300 ease-in-out lg:relative lg:transform-none",
-            isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-          )}>
-            <div className="h-full flex flex-col">
-              <div className="flex items-center justify-between p-4 lg:hidden">
-                <h2 className="text-lg font-semibold text-gray-900">Menu</h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  <XCircle className="h-5 w-5" />
-                </Button>
-              </div>
+        {/* Enhanced Sidebar */}
+        <aside className={cn(
+          "fixed left-0 z-50 w-64 bg-white transform transition-transform duration-300 ease-in-out shadow-lg",
+          showDbError && dbConnectionError ? "top-[6.5rem] bottom-0" : "top-16 bottom-0",
+          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        )}>
+          <div className="h-full flex flex-col">
+            <div className="flex items-center justify-between p-4 lg:hidden">
+              <h2 className="text-lg font-semibold text-gray-900">Menu</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <XCircle className="h-5 w-5" />
+              </Button>
+            </div>
 
-              <div className="flex-1 overflow-y-auto">
-                <Card className="m-2 shadow-sm border-slate-200">
-                  <nav className="space-y-1 p-2">
-                    {navItems.map((item) => {
-                      const Icon = item.icon
-                      const isActive = pathname === item.href || 
-                        (pathname.startsWith(item.href) && item.href !== '/dashboard')
-                      
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className={cn(
-                            "flex items-center justify-between p-3 rounded-lg transition-all duration-200 group",
-                            isActive
-                              ? "bg-gradient-to-r from-blue-50 to-purple-50 text-blue-700 border border-blue-200"
-                              : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                          )}
-                          onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                          <div className="flex items-center space-x-3">
-                            <Icon className={cn(
-                              "h-5 w-5 transition-colors",
-                              isActive ? "text-blue-600" : "text-gray-500 group-hover:text-gray-700"
-                            )} />
-                            <span className="text-sm font-medium">{item.label}</span>
-                          </div>
-                          {item.badge && (
-                            <Badge 
-                              variant={isActive ? "default" : "secondary"}
-                              className="text-xs h-5 px-2"
-                            >
-                              {item.badge}
-                            </Badge>
-                          )}
-                        </Link>
-                      )
-                    })}
-                  </nav>
+            <div className="flex-1 overflow-y-auto">
+              <Card className="m-2 shadow-sm border-slate-200">
+                <nav className="space-y-1 p-2">
+                  {navItems.map((item) => {
+                    const Icon = item.icon
+                    const isActive = pathname === item.href || 
+                      (pathname.startsWith(item.href) && item.href !== '/dashboard')
+                    
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cn(
+                          "flex items-center justify-between p-3 rounded-lg transition-all duration-200 group",
+                          isActive
+                            ? "bg-gradient-to-r from-blue-50 to-purple-50 text-blue-700 border border-blue-200"
+                            : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                        )}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <Icon className={cn(
+                            "h-5 w-5 transition-colors",
+                            isActive ? "text-blue-600" : "text-gray-500 group-hover:text-gray-700"
+                          )} />
+                          <span className="text-sm font-medium">{item.label}</span>
+                        </div>
+                        {item.badge && (
+                          <Badge 
+                            variant={isActive ? "default" : "secondary"}
+                            className="text-xs h-5 px-2"
+                          >
+                            {item.badge}
+                          </Badge>
+                        )}
+                      </Link>
+                    )
+                  })}
+                </nav>
 
-                  {/* Quick Stats in Sidebar */}
-                  {isAdmin && stats && (
-                    <div className="mt-6 mx-2 pt-4 border-t border-gray-200">
-                      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                        Quick Stats
-                      </h4>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Active Students</span>
-                          <span className="font-medium text-green-600">{stats.totalStudents}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Total Events</span>
-                          <span className="font-medium text-blue-600">{stats.totalEvents}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Pending Payments</span>
-                          <span className="font-medium text-orange-600">{stats.pendingPayments}</span>
-                        </div>
+                {/* Quick Stats in Sidebar */}
+                {isAdmin && stats && (
+                  <div className="mt-6 mx-2 pt-4 border-t border-gray-200">
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                      Quick Stats
+                    </h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Active Students</span>
+                        <span className="font-medium text-green-600">{stats.students.total}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Total Events</span>
+                        <span className="font-medium text-blue-600">{stats.events.total}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Pending Payments</span>
+                        <span className="font-medium text-orange-600">{stats.payments.pending}</span>
                       </div>
                     </div>
-                  )}
-                </Card>
-              </div>
+                  </div>
+                )}
+              </Card>
             </div>
-          </aside>
+          </div>
+        </aside>
 
-          {/* Enhanced Main Content */}
-          <main className="flex-1 min-w-0">
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="p-6">
-                {children}
-              </div>
+        {/* Enhanced Main Content */}
+        <main className="flex-1 min-w-0 lg:ml-64 p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-6">
+              {children}
             </div>
-          </main>
-        </div>
+          </div>
+        </main>
       </div>
     </div>
   )

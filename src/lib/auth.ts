@@ -83,8 +83,16 @@ declare module "next-auth/jwt" {
   }
 }
 
+// Simple in-memory cache for user lookups (valid for 5 minutes)
+const userCache = new Map<string, { user: DBUser | null, timestamp: number }>()
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+
 export async function getUserByEmail(email: string): Promise<DBUser | null> {
-  console.log('getUserByEmail - Searching for email:', email)
+  // Check cache first
+  const cached = userCache.get(email)
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.user
+  }
   
   const { data: user, error } = await supabase
     .from('users')
@@ -97,13 +105,16 @@ export async function getUserByEmail(email: string): Promise<DBUser | null> {
   
   if (error) {
     console.error('getUserByEmail - Error fetching user:', error)
+    userCache.set(email, { user: null, timestamp: Date.now() })
     return null
   }
 
-  console.log('getUserByEmail - Raw query result:', user)
-  console.log('getUserByEmail - Student data:', user?.student)
-
-  return user as DBUser
+  const dbUser = user as DBUser
+  
+  // Cache the result
+  userCache.set(email, { user: dbUser, timestamp: Date.now() })
+  
+  return dbUser
 }
 
 export async function verifyPassword(password: string, hashedPassword: string) {
@@ -245,93 +256,39 @@ export const authOptions: NextAuthOptions = {
       
       return false
     },
-    async jwt({ token, user, account, trigger }) {
+    async jwt({ token, user, account }) {
+      // Only set initial values when user first logs in
       if (user) {
         token.role = user.role
         token.student_id = user.student_id
         token.studentId = user.studentId
+        return token
       }
       
-      // For Google OAuth, we need to fetch user data from database
-      if (account?.provider === 'google' && token.email) {
-        console.log('JWT Callback - Fetching user for email:', token.email)
+      // For Google OAuth, we need to fetch user data from database (only once)
+      if (account?.provider === 'google' && token.email && !token.role) {
         const dbUser = await getUserByEmail(token.email)
         
-        console.log('JWT Callback - Database user found:', !!dbUser)
         if (dbUser) {
-          console.log('JWT Callback - User ID:', dbUser.id)
-          console.log('JWT Callback - User role:', dbUser.role)
-          console.log('JWT Callback - User student object:', dbUser.student)
-          
           // Fix: Handle student as array - get first element
           const studentData = Array.isArray(dbUser.student) ? dbUser.student[0] : dbUser.student
-          console.log('JWT Callback - Student data (first element):', studentData)
-          console.log('JWT Callback - Student ID from student object:', studentData?.student_id)
           
           token.role = dbUser.role
           token.student_id = studentData?.student_id || null
           token.studentId = studentData?.student_id || null
           token.name = dbUser.name
-          
-          console.log('JWT Callback - Final token values:')
-          console.log('  - role:', token.role)
-          console.log('  - student_id:', token.student_id)
-          console.log('  - studentId:', token.studentId)
-        } else {
-          console.log('JWT Callback - No user found in database for email:', token.email)
-        }
-      }
-      
-      // Also check if we need to refresh student data for existing tokens
-      if (token.role === 'STUDENT' && 
-          !token.studentId && 
-          token.email && 
-          isStudentEmail(token.email) && 
-          !account) {
-        console.log('JWT Callback - Refreshing missing student data for existing token')
-        const dbUser = await getUserByEmail(token.email)
-        
-        if (dbUser?.student) {
-          const studentData = Array.isArray(dbUser.student) ? dbUser.student[0] : dbUser.student
-          token.student_id = studentData?.student_id || null
-          token.studentId = studentData?.student_id || null
-          console.log('JWT Callback - Refreshed studentId:', token.studentId)
         }
       }
       
       return token
     },
     async session({ session, token }) {
-      console.log('Session Callback - Input token:', {
-        sub: token.sub,
-        role: token.role,
-        student_id: token.student_id,
-        studentId: token.studentId,
-        email: token.email
-      })
-      
       if (token.sub && token.role) {
         session.user.id = token.sub
         session.user.role = token.role
         session.user.student_id = token.student_id
         session.user.studentId = token.studentId
-        
-        // Force refresh if student should have studentId but doesn't
-        if (token.role === 'STUDENT' && 
-            !token.studentId && 
-            token.email && 
-            isStudentEmail(token.email)) {
-          console.log('Session Callback - Detected missing studentId for student, will force refresh on next request')
-          // This will be handled by the JWT callback trigger mechanism
-        }
       }
-      
-      console.log('Session Callback - Final session.user:', {
-        id: session.user.id,
-        role: session.user.role,
-        student_id: session.user.student_id,
-        studentId: session.user.studentId
-      })
       
       return session
     }
@@ -343,7 +300,7 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 days
-    updateAge: 24 * 60 * 60, // 24 hours
+    updateAge: 4 * 60 * 60, // 4 hours (reduced from 24 hours)
   },
   cookies: {
     sessionToken: {

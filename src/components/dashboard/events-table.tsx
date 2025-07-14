@@ -6,14 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -31,7 +23,9 @@ import {
   Clock,
   MapPin,
   Users,
-  Target
+  Target,
+  Eye,
+  UserCheck
 } from "lucide-react"
 import Link from "next/link"
 import { EVENT_SCOPE_LABELS } from "@/lib/constants/academic-programs"
@@ -121,31 +115,31 @@ export function EventsTable() {
 
   const getStatusBadgeColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case "upcoming": return "bg-blue-100 text-blue-800"
-      case "ongoing": return "bg-green-100 text-green-800"
-      case "completed": return "bg-gray-100 text-gray-800"
-      case "cancelled": return "bg-red-100 text-red-800"
-      default: return "bg-gray-100 text-gray-800"
+      case "upcoming": return "bg-blue-100 text-blue-800 border-blue-200"
+      case "ongoing": return "bg-green-100 text-green-800 border-green-200"
+      case "completed": return "bg-gray-100 text-gray-800 border-gray-200"
+      case "cancelled": return "bg-red-100 text-red-800 border-red-200"
+      default: return "bg-gray-100 text-gray-800 border-gray-200"
     }
   }
 
   const getEventTypeBadgeColor = (eventType: string) => {
     switch (eventType.toLowerCase()) {
-      case "academic": return "bg-purple-100 text-purple-800"
-      case "sports": return "bg-orange-100 text-orange-800"
-      case "cultural": return "bg-pink-100 text-pink-800"
-      case "social": return "bg-yellow-100 text-yellow-800"
-      case "workshop": return "bg-indigo-100 text-indigo-800"
-      default: return "bg-gray-100 text-gray-800"
+      case "academic": return "bg-purple-100 text-purple-800 border-purple-200"
+      case "sports": return "bg-orange-100 text-orange-800 border-orange-200"
+      case "cultural": return "bg-pink-100 text-pink-800 border-pink-200"
+      case "social": return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      case "workshop": return "bg-indigo-100 text-indigo-800 border-indigo-200"
+      default: return "bg-gray-100 text-gray-800 border-gray-200"
     }
   }
 
   const getScopeBadgeColor = (scopeType: string) => {
     switch (scopeType) {
-      case "UNIVERSITY_WIDE": return "bg-green-100 text-green-800"
-      case "COLLEGE_WIDE": return "bg-blue-100 text-blue-800"
-      case "COURSE_SPECIFIC": return "bg-purple-100 text-purple-800"
-      default: return "bg-gray-100 text-gray-800"
+      case "UNIVERSITY_WIDE": return "bg-green-100 text-green-800 border-green-200"
+      case "COLLEGE_WIDE": return "bg-blue-100 text-blue-800 border-blue-200"
+      case "COURSE_SPECIFIC": return "bg-purple-100 text-purple-800 border-purple-200"
+      default: return "bg-gray-100 text-gray-800 border-gray-200"
     }
   }
 
@@ -212,129 +206,143 @@ export function EventsTable() {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Event Details</TableHead>
-                <TableHead>Date & Time</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Scope</TableHead>
-                <TableHead>Capacity</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredEvents.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8">
-                    <div className="flex flex-col items-center space-y-2">
-                      <Calendar className="h-8 w-8 text-muted-foreground" />
-                      <span className="text-muted-foreground">
-                        {searchTerm ? "No events found matching your search." : "No events found."}
-                      </span>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredEvents.map((event) => (
-                  <TableRow key={event.id}>
-                    <TableCell className="font-medium">
-                      <div>
-                        <div className="font-semibold">{event.title}</div>
-                        <div className="text-sm text-gray-600 truncate max-w-xs">
-                          {event.description}
+        {filteredEvents.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {searchTerm ? "No events found" : "No events yet"}
+            </h3>
+            <p className="text-muted-foreground max-w-sm">
+              {searchTerm 
+                ? "Try adjusting your search terms to find what you're looking for." 
+                : "Create your first event to get started with event management."
+              }
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredEvents.map((event) => (
+                <Link key={event.id} href={`/dashboard/attendance/${event.id}`}>
+                  <Card className="hover:shadow-md transition-shadow duration-200 cursor-pointer group">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="text-lg font-semibold leading-tight truncate group-hover:text-blue-600 transition-colors">
+                            {event.title}
+                          </CardTitle>
+                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                            {event.description || "No description provided"}
+                          </p>
                         </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
+                            <Button variant="ghost" className="h-8 w-8 p-0 ml-2">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/attendance/${event.id}`}>
+                                <UserCheck className="mr-2 h-4 w-4" />
+                                Manage Attendance
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/events/${event.id}`}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Event
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/events/${event.id}`}>
+                                <Eye className="mr-2 h-4 w-4" />
+                                View Details
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleDeleteEvent(event.id);
+                              }}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-1">
-                        <Calendar className="h-3 w-3 text-muted-foreground" />
-                        <div className="text-sm">
-                          <div>{formatEventDate(event.eventDate)}</div>
-                          <div className="text-gray-600 flex items-center space-x-1">
+                    </CardHeader>
+                    
+                    <CardContent className="space-y-4">
+                      {/* Date and Time */}
+                      <div className="flex items-center space-x-2 text-sm">
+                        <Calendar className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                        <div>
+                          <div className="font-medium">{formatEventDate(event.eventDate)}</div>
+                          <div className="text-muted-foreground flex items-center space-x-1">
                             <Clock className="h-3 w-3" />
                             <span>{formatTime(event.startTime)} - {formatTime(event.endTime)}</span>
                           </div>
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-1">
-                        <MapPin className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-sm">{event.location}</span>
+
+                      {/* Location */}
+                      <div className="flex items-center space-x-2 text-sm">
+                        <MapPin className="h-4 w-4 text-red-500 flex-shrink-0" />
+                        <span className="truncate">{event.location}</span>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getEventTypeBadgeColor(event.eventType)}>
-                        {event.eventType}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col space-y-1">
-                        <Badge className={getScopeBadgeColor(event.scope_type)}>
-                          <Target className="h-3 w-3 mr-1" />
-                          {EVENT_SCOPE_LABELS[event.scope_type as keyof typeof EVENT_SCOPE_LABELS]}
+
+                      {/* Badges Row */}
+                      <div className="flex flex-wrap gap-2">
+                        <Badge className={getEventTypeBadgeColor(event.eventType)}>
+                          {event.eventType}
                         </Badge>
-                        <div className="text-xs text-gray-600 truncate max-w-32">
-                          {formatScopeDetails(event)}
+                        <Badge className={getStatusBadgeColor(event.status)}>
+                          {event.status}
+                        </Badge>
+                      </div>
+
+                      {/* Scope */}
+                      <div className="flex items-start space-x-2 text-sm">
+                        <Target className="h-4 w-4 text-purple-500 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <Badge className={getScopeBadgeColor(event.scope_type)} variant="outline">
+                            {EVENT_SCOPE_LABELS[event.scope_type as keyof typeof EVENT_SCOPE_LABELS]}
+                          </Badge>
+                          <div className="text-xs text-muted-foreground mt-1 truncate">
+                            {formatScopeDetails(event)}
+                          </div>
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-1">
-                        <Users className="h-3 w-3 text-muted-foreground" />
-                        <div className="text-sm">
-                          <div>{event.registeredCount}/{event.capacity || "∞"}</div>
+
+                      {/* Capacity */}
+                      <div className="flex items-center justify-between text-sm pt-2 border-t">
+                        <div className="flex items-center space-x-2">
+                          <Users className="h-4 w-4 text-green-500" />
+                          <span className="text-muted-foreground">Capacity</span>
+                        </div>
+                        <div className="font-medium">
+                          {event.registeredCount}/{event.capacity || "∞"}
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusBadgeColor(event.status)}>
-                        {event.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem asChild>
-                            <Link href={`/dashboard/events/${event.id}`}>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDeleteEvent(event.id)}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        
-        <div className="flex items-center justify-between space-x-2 py-4">
-          <div className="text-sm text-muted-foreground">
-            Showing {filteredEvents.length} of {events.length} event(s)
-          </div>
-        </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+            
+            <div className="flex items-center justify-between space-x-2 py-4 mt-6 border-t">
+              <div className="text-sm text-muted-foreground">
+                Showing {filteredEvents.length} of {events.length} event(s)
+              </div>
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   )

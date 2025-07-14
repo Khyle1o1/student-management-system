@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import { LoginModal } from "@/components/ui/login-modal"
-import { SessionProvider } from "next-auth/react"
 
 const reasons = [
   {
@@ -105,10 +104,9 @@ export default function HomePage() {
   const closeLoginModal = () => setIsLoginModalOpen(false)
 
   return (
-    <SessionProvider>
-      <div className="min-h-screen bg-white">
-        {/* Enhanced Header */}
-        <header className="bg-white/95 backdrop-blur-md shadow-lg border-b border-[#191970]/10 sticky top-0 z-50">
+    <div className="min-h-screen bg-white">
+      {/* Enhanced Header */}
+      <header className="bg-white/95 backdrop-blur-md shadow-lg border-b border-[#191970]/10 sticky top-0 z-50">
           <div className="container mx-auto px-4 py-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-8">
@@ -579,6 +577,5 @@ export default function HomePage() {
         {/* Login Modal */}
         <LoginModal isOpen={isLoginModalOpen} onClose={closeLoginModal} />
       </div>
-    </SessionProvider>
-  )
-}
+    )
+  }

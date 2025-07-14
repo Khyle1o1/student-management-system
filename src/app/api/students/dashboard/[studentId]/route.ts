@@ -18,7 +18,7 @@ export async function GET(
     const { data: student, error: studentError } = await supabase
       .from('students')
       .select('*')
-      .eq('student_id', studentId)
+      .eq('id', studentId)
       .single()
 
     if (studentError) {

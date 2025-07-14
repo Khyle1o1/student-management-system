@@ -41,15 +41,22 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch attendance statistics' }, { status: 500 })
     }
 
-    // Calculate statistics
-    const totalSignedIn = attendanceRecords?.filter(record => record.mode === 'SIGN_IN').length || 0
-    const totalSignedOut = attendanceRecords?.filter(record => record.time_out !== null).length || 0
-    const currentlyPresent = totalSignedIn - totalSignedOut
+    // Calculate statistics based on new attendance policy
+    // Students are only considered "present" when they have both signed in AND signed out
+    const totalPresent = attendanceRecords?.filter(record => 
+      record.time_in !== null && record.time_out !== null
+    ).length || 0
+    
+    const signedInOnly = attendanceRecords?.filter(record => 
+      record.time_in !== null && record.time_out === null
+    ).length || 0
+    
+    const totalSignedIn = attendanceRecords?.filter(record => record.time_in !== null).length || 0
 
     return NextResponse.json({
-      totalSignedIn,
-      totalSignedOut,
-      currentlyPresent,
+      totalPresent,        // Students who completed full attendance (signed in + out)
+      signedInOnly,       // Students who signed in but haven't signed out yet
+      totalSignedIn,      // Total students who have signed in
       totalRecords: attendanceRecords?.length || 0
     })
 
