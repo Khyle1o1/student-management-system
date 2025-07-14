@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
 import { auth } from "@/lib/auth"
+import { buildFeesScopeFilter } from "@/lib/fee-scope-utils"
 
 export async function GET(
   request: Request,
@@ -49,10 +50,14 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch attendance' }, { status: 500 })
     }
 
-    // Get all fees
+    // Get fees that apply to this student based on scope
+    const scopeFilter = buildFeesScopeFilter(student)
     const { data: fees, error: feesError } = await supabase
       .from('fee_structures')
       .select('*')
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .or(scopeFilter)
       .order('due_date', { ascending: false })
 
     if (feesError) {

@@ -1,7 +1,8 @@
-import { NextResponse, NextRequest } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
 import { z } from "zod"
+import { filterFeesForStudent } from "@/lib/fee-scope-utils"
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic'
@@ -36,10 +37,10 @@ export async function GET(request: NextRequest) {
     
     const offset = (page - 1) * limit
 
-    // Get all active fees
-    const { data: fees, error: feesError } = await supabase
+    // Get all active fees (we'll filter these per student later)
+    const { data: allFees, error: feesError } = await supabase
       .from('fee_structures')
-      .select('id, name, type, amount, school_year, semester')
+      .select('id, name, type, amount, school_year, semester, scope_type, scope_college, scope_course')
       .eq('is_active', true)
       .is('deleted_at', null)
       .order('name')
@@ -104,7 +105,10 @@ export async function GET(request: NextRequest) {
 
     // Build the student payment data structure
     const studentsWithPayments = students?.map((student: any) => {
-      const studentPayments = fees?.map((fee: any) => {
+      // Filter fees to only include those that apply to this student
+      const applicableFees = filterFeesForStudent(allFees || [], student)
+      
+      const studentPayments = applicableFees.map((fee: any) => {
         const key = `${student.id}-${fee.id}`
         const studentFeePayments = paymentMap.get(key) || []
         
@@ -135,9 +139,9 @@ export async function GET(request: NextRequest) {
           reference: latestPayment?.reference || null,
           notes: latestPayment?.notes || null,
         }
-      }) || []
+      })
 
-      const totalFees = fees?.reduce((sum: number, fee: any) => sum + fee.amount, 0) || 0
+      const totalFees = applicableFees.reduce((sum: number, fee: any) => sum + fee.amount, 0)
       const totalPaid = studentPayments.reduce((sum: number, payment: any) => sum + payment.amount, 0)
 
       return {
@@ -148,6 +152,7 @@ export async function GET(request: NextRequest) {
           email: student.email,
           yearLevel: student.year_level,
           course: student.course,
+          college: student.college,
         },
         payments: studentPayments,
         totalFees,
@@ -157,16 +162,25 @@ export async function GET(request: NextRequest) {
 
     const totalPages = Math.ceil((count || 0) / limit)
 
+    // Get unique fees from all applicable fees for the return data
+    const uniqueFees = new Map()
+    students?.forEach((student: any) => {
+      const applicableFees = filterFeesForStudent(allFees || [], student)
+      applicableFees.forEach((fee: any) => {
+        uniqueFees.set(fee.id, fee)
+      })
+    })
+
     return NextResponse.json({
       students: studentsWithPayments,
-      fees: fees?.map((fee: any) => ({
+      fees: Array.from(uniqueFees.values()).map((fee: any) => ({
         id: fee.id,
         name: fee.name,
         type: fee.type,
         amount: fee.amount,
         schoolYear: fee.school_year,
         semester: fee.semester,
-      })) || [],
+      })),
       pagination: {
         page,
         limit,

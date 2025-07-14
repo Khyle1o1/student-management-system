@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
+import { buildFeesScopeFilter } from "@/lib/fee-scope-utils"
 
 export async function GET(
   request: NextRequest,
@@ -36,8 +37,8 @@ export async function GET(
     // Fetch fee structures that apply to this student based on scope
     const currentYear = new Date().getFullYear()
     
-    // Build the scope filter correctly
-    const scopeFilter = `scope_type.eq.UNIVERSITY_WIDE,and(scope_type.eq.COLLEGE_WIDE,scope_college.eq."${student.college}"),and(scope_type.eq.COURSE_SPECIFIC,scope_course.eq."${student.course}")`
+    // Build the scope filter correctly using the utility function
+    const scopeFilter = buildFeesScopeFilter(student)
     
     const { data: fees, error: feesError } = await supabase
       .from('fee_structures')

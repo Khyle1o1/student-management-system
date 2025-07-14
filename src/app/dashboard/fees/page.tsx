@@ -20,7 +20,7 @@ export default async function FeesPage() {
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight">Fees Management</h1>
           <p className="text-muted-foreground">
-            Manage fee structures and track student payments
+            Manage fee structures for the school
           </p>
         </div>
         
