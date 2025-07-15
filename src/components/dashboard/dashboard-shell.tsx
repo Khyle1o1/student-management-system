@@ -24,7 +24,8 @@ import {
   DatabaseIcon,
   AlertTriangle,
   XCircle,
-  ChevronDown
+  ChevronDown,
+  X
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -317,100 +318,137 @@ export function DashboardShell({ children }: DashboardShellProps) {
         {/* Mobile Sidebar Backdrop */}
         {isMobileMenuOpen && (
           <div 
-            className="fixed inset-0 bg-gray-600 bg-opacity-50 transition-opacity lg:hidden z-40"
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm transition-opacity lg:hidden z-40"
             onClick={() => setIsMobileMenuOpen(false)}
           />
         )}
 
         {/* Enhanced Sidebar */}
         <aside className={cn(
-          "fixed left-0 z-50 w-64 bg-white transform transition-transform duration-300 ease-in-out shadow-lg",
+          "fixed left-0 z-50 w-64 bg-white/95 backdrop-blur-md transform transition-all duration-300 ease-in-out border-r border-gray-200/60",
           showDbError && dbConnectionError ? "top-[6.5rem] bottom-0" : "top-16 bottom-0",
-          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          isMobileMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full lg:translate-x-0 lg:shadow-none"
         )}>
           <div className="h-full flex flex-col">
-            <div className="flex items-center justify-between p-4 lg:hidden">
-              <h2 className="text-lg font-semibold text-gray-900">Menu</h2>
+            {/* Mobile Header */}
+            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200/60 lg:hidden">
+              <h2 className="text-lg font-semibold text-gray-900">Navigation</h2>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsMobileMenuOpen(false)}
+                className="h-8 w-8 p-0"
               >
-                <XCircle className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </Button>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
-              <Card className="m-2 shadow-sm border-slate-200">
-                <nav className="space-y-1 p-2">
-                  {navItems.map((item) => {
-                    const Icon = item.icon
-                    const isActive = pathname === item.href || 
-                      (pathname.startsWith(item.href) && item.href !== '/dashboard')
-                    
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                          "flex items-center justify-between p-3 rounded-lg transition-all duration-200 group",
-                          isActive
-                            ? "bg-gradient-to-r from-blue-50 to-purple-50 text-blue-700 border border-blue-200"
-                            : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                        )}
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <Icon className={cn(
-                            "h-5 w-5 transition-colors",
-                            isActive ? "text-blue-600" : "text-gray-500 group-hover:text-gray-700"
-                          )} />
-                          <span className="text-sm font-medium">{item.label}</span>
+            {/* Navigation Menu */}
+            <div className="flex-1 overflow-y-auto py-4">
+              <nav className="px-3 space-y-1">
+                {navItems.map((item) => {
+                  const Icon = item.icon
+                  const isActive = pathname === item.href || 
+                    (pathname.startsWith(item.href) && item.href !== '/dashboard')
+                  
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        "group flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ease-in-out",
+                        isActive
+                          ? "bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 shadow-sm border border-blue-100/50"
+                          : "text-gray-700 hover:bg-gray-50/80 hover:text-gray-900"
+                      )}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className={cn(
+                          "flex items-center justify-center w-8 h-8 rounded-lg transition-colors",
+                          isActive 
+                            ? "bg-blue-100 text-blue-600" 
+                            : "bg-gray-100 text-gray-500 group-hover:bg-gray-200 group-hover:text-gray-700"
+                        )}>
+                          <Icon className="h-4 w-4" />
                         </div>
-                        {item.badge && (
-                          <Badge 
-                            variant={isActive ? "default" : "secondary"}
-                            className="text-xs h-5 px-2"
-                          >
-                            {item.badge}
-                          </Badge>
-                        )}
-                      </Link>
-                    )
-                  })}
-                </nav>
+                        <span className="font-medium">{item.label}</span>
+                      </div>
+                      {item.badge && (
+                        <Badge 
+                          variant={isActive ? "default" : "secondary"}
+                          className={cn(
+                            "text-xs h-5 px-2 font-semibold",
+                            isActive 
+                              ? "bg-blue-600 text-white shadow-sm" 
+                              : "bg-gray-200 text-gray-700 group-hover:bg-gray-300"
+                          )}
+                        >
+                          {item.badge}
+                        </Badge>
+                      )}
+                    </Link>
+                  )
+                })}
+              </nav>
 
-                {/* Quick Stats in Sidebar */}
-                {isAdmin && stats && (
-                  <div className="mt-6 mx-2 pt-4 border-t border-gray-200">
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              {/* Quick Stats Section */}
+              {isAdmin && stats && (
+                <div className="mt-6 mx-3">
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100/80 rounded-lg p-3 border border-gray-200/50">
+                    <h4 className="text-xs font-bold text-gray-900 mb-3 flex items-center uppercase tracking-wide">
+                      <BarChart3 className="h-3 w-3 mr-2 text-gray-600" />
                       Quick Stats
                     </h4>
                     <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Active Students</span>
-                        <span className="font-medium text-green-600">{stats.students.total}</span>
+                      <div className="flex items-center justify-between py-1.5">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                          <span className="text-xs text-gray-700 font-medium">Active Students</span>
+                        </div>
+                        <span className="text-xs font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded">
+                          {stats.students.total}
+                        </span>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Total Events</span>
-                        <span className="font-medium text-blue-600">{stats.events.total}</span>
+                      <div className="flex items-center justify-between py-1.5">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                          <span className="text-xs text-gray-700 font-medium">Total Events</span>
+                        </div>
+                        <span className="text-xs font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                          {stats.events.total}
+                        </span>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Pending Payments</span>
-                        <span className="font-medium text-orange-600">{stats.payments.pending}</span>
+                      <div className="flex items-center justify-between py-1.5">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                          <span className="text-xs text-gray-700 font-medium">Pending Payments</span>
+                        </div>
+                        <span className="text-xs font-bold text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded">
+                          {stats.payments.pending}
+                        </span>
                       </div>
                     </div>
                   </div>
-                )}
-              </Card>
+                </div>
+              )}
+            </div>
+
+            {/* Sidebar Footer */}
+            <div className="border-t border-gray-200/60 p-3">
+              <div className="text-center">
+                <p className="text-xs text-gray-500">
+                  © 2024 EduManage Pro
+                </p>
+              </div>
             </div>
           </div>
         </aside>
 
         {/* Enhanced Main Content */}
-        <main className="flex-1 min-w-0 lg:ml-64 p-6">
+        <main className="flex-1 min-w-0 lg:ml-64 p-4 lg:p-6">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="p-6">
+            <div className="p-4 lg:p-6">
               {children}
             </div>
           </div>
