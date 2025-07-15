@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
-import { format } from "date-fns"
 
 export async function GET(
   request: Request,
@@ -29,18 +28,20 @@ export async function GET(
     }
 
     // Transform the data to match the frontend format
-    const eventDate = new Date(event.date)
     const transformedEvent = {
       id: event.id,
       title: event.title,
       description: event.description || '',
-      eventDate: format(eventDate, 'yyyy-MM-dd'),
-      startTime: format(eventDate, 'HH:mm'),
-      endTime: format(new Date(eventDate.getTime() + 3 * 60 * 60 * 1000), 'HH:mm'), // Add 3 hours by default
+      eventDate: event.date.split('T')[0], // Extract just the date part
+      startTime: event.start_time || '09:00', // Use the start_time field
+      endTime: event.end_time || '17:00', // Use the end_time field
       location: event.location || '',
+      eventType: event.type || 'ACADEMIC',
+      capacity: event.max_capacity || 100,
       scope_type: event.scope_type || 'UNIVERSITY_WIDE',
       scope_college: event.scope_college || null,
-      scope_course: event.scope_course || null
+      scope_course: event.scope_course || null,
+      require_evaluation: event.require_evaluation || false
     }
 
     return NextResponse.json(transformedEvent)
@@ -69,11 +70,16 @@ export async function PUT(
     const updateData = {
       title: body.title,
       description: body.description || null,
-      date: body.eventDate,
+      date: body.eventDate, // Just the date
+      start_time: body.startTime || '09:00', // Just the time
+      end_time: body.endTime || '17:00', // Just the time
       location: body.location || null,
+      type: body.type || 'ACADEMIC',
+      max_capacity: body.max_capacity || 100,
       scope_type: body.scope_type || 'UNIVERSITY_WIDE',
       scope_college: body.scope_college || null,
       scope_course: body.scope_course || null,
+      require_evaluation: body.require_evaluation || false,
       updated_at: new Date().toISOString()
     }
 

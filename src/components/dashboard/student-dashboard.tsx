@@ -449,6 +449,15 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
                 </div>
               </Button>
             </Link>
+            <Link href="/dashboard/certificates">
+              <Button variant="outline" className="w-full justify-start h-auto p-4">
+                <div className="flex flex-col items-start space-y-1">
+                  <Award className="h-4 w-4" />
+                  <span className="font-medium">My Certificates</span>
+                  <span className="text-xs text-gray-500">View and download</span>
+                </div>
+              </Button>
+            </Link>
             <Button variant="outline" className="w-full justify-start h-auto p-4" disabled>
               <div className="flex flex-col items-start space-y-1">
                 <BookOpen className="h-4 w-4" />

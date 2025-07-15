@@ -265,8 +265,9 @@ export const authOptions: NextAuthOptions = {
         return token
       }
       
-      // For Google OAuth, we need to fetch user data from database (only once)
-      if (account?.provider === 'google' && token.email && !token.role) {
+      // If token doesn't have role but has email, fetch user data from database
+      // This handles both initial Google OAuth and subsequent token refreshes
+      if (token.email && !token.role) {
         const dbUser = await getUserByEmail(token.email)
         
         if (dbUser) {
@@ -277,6 +278,9 @@ export const authOptions: NextAuthOptions = {
           token.student_id = studentData?.student_id || null
           token.studentId = studentData?.student_id || null
           token.name = dbUser.name
+          
+        } else {
+          console.log('JWT callback - No dbUser found for email:', token.email)
         }
       }
       

@@ -11,13 +11,6 @@ export default async function DashboardPage() {
     redirect("/auth/login")
   }
 
-  // Debug the session object
-  console.log('Dashboard Page - Full session object:', JSON.stringify(session, null, 2))
-  console.log('Dashboard Page - session.user:', session.user)
-  console.log('Dashboard Page - session.user.studentId:', session.user.studentId)
-  console.log('Dashboard Page - session.user.student_id:', session.user.student_id)
-  console.log('Dashboard Page - session.user.role:', session.user.role)
-
   return (
     <DashboardShell>
       {session.user.role === "ADMIN" ? (

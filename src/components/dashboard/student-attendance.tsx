@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
@@ -13,7 +14,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { format } from "date-fns"
-import { Calendar, CheckCircle, XCircle, Clock, AlertTriangle, RefreshCw } from "lucide-react"
+import { Calendar, CheckCircle, XCircle, Clock, AlertTriangle, RefreshCw, Star, Award } from "lucide-react"
+import Link from "next/link"
 
 interface AttendanceRecord {
   id: string
@@ -28,7 +30,9 @@ interface AttendanceRecord {
     title: string
     description: string
     date: string
+    require_evaluation?: boolean
   }
+  evaluation_completed?: boolean
 }
 
 interface AttendanceStats {
@@ -46,6 +50,7 @@ interface StudentAttendanceProps {
 export function StudentAttendance({ studentId }: StudentAttendanceProps) {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [stats, setStats] = useState<AttendanceStats | null>(null)
+  const [evaluationStatuses, setEvaluationStatuses] = useState<Record<string, boolean>>({})
   const [activeTab, setActiveTab] = useState("all")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -63,10 +68,10 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
         throw new Error(data.error || 'Failed to fetch attendance data')
       }
 
-      setAttendanceRecords(data.attendance || [])
+      const records = data.attendance || []
+      setAttendanceRecords(records)
       
       // Calculate stats
-      const records = data.attendance || []
       const total = records.length
       const present = records.filter((r: AttendanceRecord) => r.status === 'PRESENT').length
       const absent = records.filter((r: AttendanceRecord) => r.status === 'ABSENT').length
@@ -74,6 +79,33 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
       const rate = total > 0 ? Math.round((present / total) * 100) : 0
 
       setStats({ total, present, absent, late, rate })
+
+      // Fetch evaluation statuses for attended events that require evaluation
+      const attendedEvents = records.filter((r: AttendanceRecord) => 
+        r.status === 'PRESENT' && r.event.require_evaluation
+      )
+
+      if (attendedEvents.length > 0) {
+        const statuses: Record<string, boolean> = {}
+        
+        // Check evaluation completion for each event
+        for (const record of attendedEvents) {
+          try {
+            const evalResponse = await fetch(`/api/evaluations/responses?event_id=${record.event.id}`)
+            if (evalResponse.ok) {
+              const evalData = await evalResponse.json()
+              statuses[record.event.id] = evalData.responses && evalData.responses.length > 0
+            } else {
+              statuses[record.event.id] = false
+            }
+          } catch (error) {
+            console.error(`Error checking evaluation for event ${record.event.id}:`, error)
+            statuses[record.event.id] = false
+          }
+        }
+        
+        setEvaluationStatuses(statuses)
+      }
     } catch (error: any) {
       console.error("Error fetching attendance data:", error)
       setError(error.message)
@@ -104,6 +136,54 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
       case "LATE": return "bg-yellow-100 text-yellow-800"
       default: return "bg-gray-100 text-gray-800"
     }
+  }
+
+  const renderActionButton = (record: AttendanceRecord) => {
+    // Only show actions for attended events (PRESENT status)
+    if (record.status !== 'PRESENT') {
+      return <span className="text-muted-foreground text-sm">-</span>
+    }
+
+    // Check if event requires evaluation
+    if (record.event.require_evaluation) {
+      const hasCompleted = evaluationStatuses[record.event.id]
+      
+      if (hasCompleted) {
+        return (
+          <div className="flex items-center gap-2">
+            <Badge variant="default" className="bg-green-100 text-green-800">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Completed
+            </Badge>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/dashboard/certificates">
+                <Award className="h-3 w-3 mr-1" />
+                Certificate
+              </Link>
+            </Button>
+          </div>
+        )
+      } else {
+        return (
+          <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700">
+            <Link href={`/dashboard/events/${record.event.id}/evaluation`}>
+              <Star className="h-3 w-3 mr-1" />
+              Evaluate
+            </Link>
+          </Button>
+        )
+      }
+    }
+
+    // For events that don't require evaluation, show certificate link
+    return (
+      <Button asChild variant="outline" size="sm">
+        <Link href="/dashboard/certificates">
+          <Award className="h-3 w-3 mr-1" />
+          Certificate
+        </Link>
+      </Button>
+    )
   }
 
   const filteredRecords = attendanceRecords.filter((record) => {
@@ -254,6 +334,7 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
                         <TableHead>Time In</TableHead>
                         <TableHead>Time Out</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -289,6 +370,9 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
                                 {record.status}
                               </Badge>
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            {renderActionButton(record)}
                           </TableCell>
                         </TableRow>
                       ))}

@@ -1,10 +1,7 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
 import { z } from "zod"
-
-// Force dynamic rendering to prevent static generation issues
-export const dynamic = 'force-dynamic'
 
 // Temporary schema that works with current database (before complete migration)
 const tempEventSchema = z.object({
@@ -14,6 +11,8 @@ const tempEventSchema = z.object({
   scope_type: z.enum(["UNIVERSITY_WIDE", "COLLEGE_WIDE", "COURSE_SPECIFIC"]).optional(),
   scope_college: z.string().optional(),
   scope_course: z.string().optional(),
+  require_evaluation: z.boolean().optional(),
+  evaluation_id: z.string().optional(), // ID of the evaluation to link
 })
 
 export async function GET(request: Request) {
@@ -31,7 +30,7 @@ export async function GET(request: Request) {
       .select('*', { count: 'exact', head: true })
       .ilike('title', `%${search}%`)
 
-    // Get paginated events
+    // Get paginated events with evaluation info
     const { data: events, error } = await supabase
       .from('events')
       .select(`
@@ -47,8 +46,18 @@ export async function GET(request: Request) {
         scope_type,
         scope_college,
         scope_course,
+        require_evaluation,
         created_at,
-        updated_at
+        updated_at,
+        event_evaluation:event_evaluations(
+          id,
+          is_required,
+          evaluation:evaluations(
+            id,
+            title,
+            description
+          )
+        )
       `)
       .ilike('title', `%${search}%`)
       .range(offset, offset + limit - 1)
@@ -77,6 +86,8 @@ export async function GET(request: Request) {
       scope_type: event.scope_type || "UNIVERSITY_WIDE",
       scope_college: event.scope_college || "",
       scope_course: event.scope_course || "",
+      require_evaluation: event.require_evaluation || false,
+      evaluation: event.event_evaluation?.[0]?.evaluation || null,
       createdAt: event.created_at,
       updatedAt: event.updated_at
     })) || []
@@ -109,32 +120,35 @@ export async function POST(request: Request) {
     const body = await request.json()
     console.log("Received event data:", body)
 
-    // Create date-time string from the form data
-    const eventDateTime = `${body.date}T${body.startTime || '09:00'}:00.000Z`
+    // Don't combine date and time - store them separately to avoid timezone issues
+    const eventDate = body.date // Keep just the date part (e.g., "2024-07-15")
 
-    // Use temporary schema that works with current database (no location field)
+    // Use updated schema that includes evaluation support
     const data = tempEventSchema.parse({
       title: body.title,
       description: body.description,
-      date: eventDateTime,
+      date: eventDate, // Store just the date without time
       scope_type: body.scope_type || "UNIVERSITY_WIDE",
       scope_college: body.scope_type !== "UNIVERSITY_WIDE" ? body.scope_college : undefined,
       scope_course: body.scope_type === "COURSE_SPECIFIC" ? body.scope_course : undefined,
+      require_evaluation: body.require_evaluation || false,
+      evaluation_id: body.evaluation_id || undefined,
     })
 
     // Insert all fields that should exist in database
     const insertData = {
       title: data.title,
       description: data.description || null,
-      date: data.date,
-      start_time: body.startTime || '09:00',
-      end_time: body.endTime || '17:00',
+      date: data.date, // Just the date
+      start_time: body.startTime || '09:00', // Just the time
+      end_time: body.endTime || '17:00', // Just the time
       location: body.location || 'TBD',
       type: body.type || 'ACADEMIC',
       max_capacity: body.max_capacity || 100,
       scope_type: data.scope_type || 'UNIVERSITY_WIDE',
       scope_college: data.scope_college || null,
-      scope_course: data.scope_course || null
+      scope_course: data.scope_course || null,
+      require_evaluation: data.require_evaluation || false
     }
 
     console.log("Inserting event data:", insertData)
@@ -152,12 +166,29 @@ export async function POST(request: Request) {
       if (error.message.includes("Could not find") && error.message.includes("column")) {
         return NextResponse.json({ 
           error: 'Database schema incomplete. Some columns are missing from the events table.',
-          details: 'Please apply the complete migration or add missing columns.',
+          details: 'Please apply the certificate_evaluation_migration.sql migration.',
           missingColumn: error.message.match(/'(\w+)'/)?.[1] || 'unknown'
         }, { status: 500 })
       }
       
       return NextResponse.json({ error: 'Failed to create event' }, { status: 500 })
+    }
+
+    // If evaluation is required and evaluation_id is provided, link them
+    if (data.require_evaluation && data.evaluation_id) {
+      const { error: linkError } = await supabase
+        .from('event_evaluations')
+        .insert([{
+          event_id: event.id,
+          evaluation_id: data.evaluation_id,
+          is_required: true
+        }])
+
+      if (linkError) {
+        console.error('Error linking evaluation to event:', linkError)
+        // Don't fail the event creation, just log the error
+        console.warn('Event created but evaluation link failed. You can link them manually.')
+      }
     }
 
     return NextResponse.json(event, { status: 201 })

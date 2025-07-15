@@ -25,7 +25,8 @@ import {
   AlertTriangle,
   XCircle,
   ChevronDown,
-  X
+  X,
+  ClipboardCheck
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -138,6 +139,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
       icon: Calendar, 
       badge: stats?.events?.total?.toString() || "0"
     },
+    { href: "/dashboard/evaluations", label: "Evaluations", icon: ClipboardCheck },
     { 
       href: "/dashboard/fees", 
       label: "Fees", 
@@ -153,6 +155,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
     { href: "/dashboard/profile", label: "My Profile", icon: User },
     { href: "/dashboard/attendance/student", label: "My Attendance", icon: Calendar },
     { href: "/dashboard/fees/student", label: "My Fees", icon: DollarSign },
+    { href: "/dashboard/certificates", label: "My Certificates", icon: FileText },
   ]
 
   const navItems = isAdmin ? adminNavItems : studentNavItems

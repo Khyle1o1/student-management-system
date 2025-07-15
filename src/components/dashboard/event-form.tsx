@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Save, Loader2, Calendar, Clock, MapPin, AlertTriangle } from "lucide-react"
+import { Save, Loader2, Calendar, Clock, MapPin, AlertTriangle, CheckSquare } from "lucide-react"
 import { COLLEGES, COURSES_BY_COLLEGE, EVENT_SCOPE_TYPES, EVENT_SCOPE_LABELS, EVENT_SCOPE_DESCRIPTIONS } from "@/lib/constants/academic-programs"
 
 interface EventFormProps {
@@ -33,7 +33,16 @@ interface EventFormProps {
     scope_type: string
     scope_college: string
     scope_course: string
+    require_evaluation?: boolean
+    evaluation?: any
   }
+}
+
+interface Evaluation {
+  id: string
+  title: string
+  description: string | null
+  questions: any[]
 }
 
 export function EventForm({ eventId, initialData }: EventFormProps) {
@@ -41,6 +50,8 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
   const [loading, setLoading] = useState(false)
   const [migrationRequired, setMigrationRequired] = useState(false)
   const [studentCount, setStudentCount] = useState<number | null>(null)
+  const [evaluations, setEvaluations] = useState<Evaluation[]>([])
+  const [loadingEvaluations, setLoadingEvaluations] = useState(false)
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -53,6 +64,8 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
     scope_type: "UNIVERSITY_WIDE",
     scope_college: "",
     scope_course: "",
+    require_evaluation: false,
+    evaluation_id: "",
   })
 
   const isEditing = !!eventId
@@ -71,6 +84,8 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
         scope_type: initialData.scope_type || "UNIVERSITY_WIDE",
         scope_college: initialData.scope_college || "",
         scope_course: initialData.scope_course || "",
+        require_evaluation: initialData.require_evaluation || false,
+        evaluation_id: initialData.evaluation?.id || "",
       })
     }
   }, [initialData])
@@ -95,6 +110,8 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
               scope_type: data.scope_type || "UNIVERSITY_WIDE",
               scope_college: data.scope_college || "",
               scope_course: data.scope_course || "",
+              require_evaluation: data.require_evaluation || false,
+              evaluation_id: data.evaluation?.id || "",
             })
           } else {
             console.error('Failed to load event data')
@@ -107,6 +124,61 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
 
     loadEventData()
   }, [eventId])
+
+  // Load evaluation templates
+  useEffect(() => {
+    const fetchEvaluations = async () => {
+      setLoadingEvaluations(true)
+      try {
+        const response = await fetch('/api/evaluations?templates_only=true&limit=100')
+        if (response.ok) {
+          const data = await response.json()
+          setEvaluations(data.evaluations)
+        }
+      } catch (error) {
+        console.error('Error fetching evaluations:', error)
+      } finally {
+        setLoadingEvaluations(false)
+      }
+    }
+
+    fetchEvaluations()
+  }, [])
+
+  const handleInputChange = (field: string, value: any) => {
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value }
+      
+      // If require_evaluation is disabled, clear evaluation_id
+      if (field === 'require_evaluation' && !value) {
+        newData.evaluation_id = ""
+      }
+      
+      // Reset college and course when scope changes
+      if (field === "scope_type") {
+        if (value === "UNIVERSITY_WIDE") {
+          newData.scope_college = ""
+          newData.scope_course = ""
+        } else if (value === "COLLEGE_WIDE") {
+          newData.scope_course = ""
+        }
+      }
+      
+      // Reset course when college changes
+      if (field === "scope_college") {
+        newData.scope_course = ""
+      }
+      
+      return newData
+    })
+  }
+
+  const getAvailableCourses = () => {
+    if (!formData.scope_college || !COURSES_BY_COLLEGE[formData.scope_college as keyof typeof COURSES_BY_COLLEGE]) {
+      return []
+    }
+    return COURSES_BY_COLLEGE[formData.scope_college as keyof typeof COURSES_BY_COLLEGE]
+  }
 
   const fetchStudentCount = useCallback(async (
     scope: string,
@@ -185,21 +257,30 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
         return
       }
 
+      // Evaluation validation
+      if (formData.require_evaluation && !formData.evaluation_id) {
+        alert("Please select an evaluation template when requiring evaluation")
+        setLoading(false)
+        return
+      }
+
       const payload = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         date: formData.eventDate,
         startTime: formData.startTime || "09:00",
         endTime: formData.endTime || "17:00",
-        location: formData.location.trim(), // Will be ignored by API if column doesn't exist
+        location: formData.location.trim(),
         type: formData.type,
         max_capacity: formData.max_capacity,
         scope_type: formData.scope_type,
         scope_college: formData.scope_type !== "UNIVERSITY_WIDE" ? formData.scope_college : null,
         scope_course: formData.scope_type === "COURSE_SPECIFIC" ? formData.scope_course : null,
+        require_evaluation: formData.require_evaluation,
+        evaluation_id: formData.require_evaluation ? formData.evaluation_id : null,
       }
 
-      console.log("Form data being sent:", payload)
+      console.log('Submitting event payload:', payload)
 
       const response = await fetch(url, {
         method,
@@ -209,92 +290,47 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
         body: JSON.stringify(payload),
       })
 
+      const data = await response.json()
+      
       if (response.ok) {
+        console.log("Event created/updated successfully")
         router.push("/dashboard/events")
-        router.refresh()
       } else {
-        const error = await response.json()
-        console.error("API Error:", error)
+        console.error("Failed to create/update event:", data)
         
-        if (error.missingColumn) {
+        if (data.missingColumn) {
           setMigrationRequired(true)
-          alert(`Database column missing: ${error.missingColumn}. Event created but some fields may not be stored.`)
-          // Still redirect since the basic event was likely created
-          router.push("/dashboard/events")
-          router.refresh()
+          alert(`Migration required: The '${data.missingColumn}' column is missing from the events table. Please apply the database migration.`)
+        } else if (data.error) {
+          alert(`Error: ${data.error}`)
         } else {
-          alert(error.error || "An error occurred")
+          alert("Failed to create event. Please try again.")
         }
       }
     } catch (error) {
       console.error("Error submitting form:", error)
-      alert("An error occurred while saving the event")
+      alert("An error occurred. Please try again.")
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleInputChange = (name: string, value: string | number) => {
-    setFormData(prev => {
-      const newData = { ...prev, [name]: value }
-      
-      // Reset dependent fields when scope type changes
-      if (name === "scope_type") {
-        newData.scope_college = ""
-        newData.scope_course = ""
-        // Reset max capacity when scope changes
-        newData.max_capacity = 0
-      }
-      
-      // Reset course when college changes
-      if (name === "scope_college") {
-        newData.scope_course = ""
-      }
-      
-      return newData
-    })
-  }
-
-  const getAvailableCourses = () => {
-    if (!formData.scope_college) return []
-    return COURSES_BY_COLLEGE[formData.scope_college as keyof typeof COURSES_BY_COLLEGE] || []
-  }
-
-  const getAttendanceImpact = () => {
-    switch (formData.scope_type) {
-      case "UNIVERSITY_WIDE":
-        return "All students (≈7,300) across all colleges"
-      case "COLLEGE_WIDE":
-        return formData.scope_college 
-          ? `Students from ${formData.scope_college} only`
-          : "Students from selected college only"
-      case "COURSE_SPECIFIC":
-        return formData.scope_course 
-          ? `Students from ${formData.scope_course} only`
-          : "Students from selected course only"
-      default:
-        return ""
     }
   }
 
   return (
     <Card className="max-w-4xl mx-auto">
       <CardHeader>
-        <CardTitle className="text-2xl flex items-center space-x-2">
-          <Calendar className="h-6 w-6" />
-          <span>{isEditing ? "Edit Event" : "Create New Event"}</span>
+        <CardTitle className="text-2xl">
+          {isEditing ? "Edit Event" : "Create New Event"}
         </CardTitle>
       </CardHeader>
       <CardContent>
         {migrationRequired && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
             <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-600" />
-              <h4 className="font-medium text-yellow-900">Database Schema Incomplete</h4>
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              <h4 className="font-medium text-red-800">Database Migration Required</h4>
             </div>
-            <p className="text-sm text-yellow-800 mt-2">
-              Some database columns are missing. Event was created with available fields.
-              Apply <code className="bg-yellow-100 px-1 rounded">migration_complete_events_schema.sql</code> to enable all features.
+            <p className="text-sm text-red-700 mt-2">
+              The events table is missing required columns. Please apply the <code>certificate_evaluation_migration.sql</code> migration to enable all features.
             </p>
           </div>
         )}
@@ -435,6 +471,69 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
             </div>
           </div>
 
+          {/* Evaluation Requirements Section */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Evaluation & Certificates</h3>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="require_evaluation"
+                  checked={formData.require_evaluation}
+                  onChange={(e) => handleInputChange("require_evaluation", e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="require_evaluation" className="flex items-center space-x-2">
+                  <CheckSquare className="h-4 w-4" />
+                  <span>Require evaluation for certificate access</span>
+                </Label>
+              </div>
+              
+              <p className="text-sm text-gray-600">
+                When enabled, students must complete an evaluation before they can access their certificate of participation.
+              </p>
+
+              {formData.require_evaluation && (
+                <div className="space-y-2 pl-6 border-l-2 border-blue-200 bg-blue-50 p-4">
+                  <Label htmlFor="evaluation_id">Select Evaluation Template *</Label>
+                  <Select
+                    value={formData.evaluation_id}
+                    onValueChange={(value) => handleInputChange("evaluation_id", value)}
+                    disabled={loadingEvaluations}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingEvaluations ? "Loading evaluations..." : "Choose an evaluation template"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {evaluations.map((evaluation) => (
+                        <SelectItem key={evaluation.id} value={evaluation.id}>
+                          <div>
+                            <div className="font-medium">{evaluation.title}</div>
+                            {evaluation.description && (
+                              <div className="text-xs text-gray-500 truncate">
+                                {evaluation.description.substring(0, 50)}...
+                              </div>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  {evaluations.length === 0 && !loadingEvaluations && (
+                    <div className="text-sm text-gray-600">
+                      No evaluation templates found. <a href="/dashboard/evaluations/new" className="text-blue-600 hover:underline">Create one first</a>.
+                    </div>
+                  )}
+                  
+                  <p className="text-xs text-gray-600">
+                    Students will need to complete this evaluation to unlock their certificates.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Event Scope Section */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Event Scope</h3>
@@ -497,7 +596,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
                           <SelectValue placeholder="Select course" />
                         </SelectTrigger>
                         <SelectContent>
-                          {getAvailableCourses().map((course) => (
+                          {getAvailableCourses().map((course: string) => (
                             <SelectItem key={course} value={course}>
                               {course}
                             </SelectItem>

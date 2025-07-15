@@ -29,7 +29,7 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch student' }, { status: 500 })
     }
 
-    // Get attendance records with event details
+    // Get attendance records with event details including evaluation requirements
     const { data: attendanceRecords, error: attendanceError } = await supabase
       .from('attendance')
       .select(`
@@ -38,7 +38,8 @@ export async function GET(
           id,
           title,
           description,
-          date
+          date,
+          require_evaluation
         )
       `)
       .eq('student_id', student.id)
