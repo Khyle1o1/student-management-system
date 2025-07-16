@@ -5,7 +5,7 @@ import { buildFeesScopeFilter } from "@/lib/fee-scope-utils"
 
 export async function GET(
   request: Request,
-  { params }: { params: { studentId: string } }
+  { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
     const session = await auth()
@@ -13,7 +13,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { studentId } = params
+    const { studentId } = await params
 
     // Check if student exists
     const { data: student, error: studentError } = await supabase

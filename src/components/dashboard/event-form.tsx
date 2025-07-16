@@ -17,32 +17,23 @@ import { Textarea } from "@/components/ui/textarea"
 import { Save, Loader2, Calendar, Clock, MapPin, AlertTriangle, CheckSquare } from "lucide-react"
 import { COLLEGES, COURSES_BY_COLLEGE, EVENT_SCOPE_TYPES, EVENT_SCOPE_LABELS, EVENT_SCOPE_DESCRIPTIONS } from "@/lib/constants/academic-programs"
 
-interface EventFormProps {
-  eventId?: string
-  initialData?: {
-    id: string
-    title: string
-    description: string
-    eventDate: string
-    startTime: string
-    endTime: string
-    location: string
-    eventType: string
-    capacity: number
-    status: string
-    scope_type: string
-    scope_college: string
-    scope_course: string
-    require_evaluation?: boolean
-    evaluation?: any
-  }
-}
-
 interface Evaluation {
   id: string
   title: string
-  description: string | null
-  questions: any[]
+  description?: string
+}
+
+interface CertificateTemplate {
+  id: string
+  title: string
+  description?: string
+  is_active: boolean
+  dynamic_fields: any[]
+}
+
+interface EventFormProps {
+  eventId?: string
+  initialData?: any
 }
 
 export function EventForm({ eventId, initialData }: EventFormProps) {
@@ -51,7 +42,9 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
   const [migrationRequired, setMigrationRequired] = useState(false)
   const [studentCount, setStudentCount] = useState<number | null>(null)
   const [evaluations, setEvaluations] = useState<Evaluation[]>([])
+  const [certificateTemplates, setCertificateTemplates] = useState<CertificateTemplate[]>([])
   const [loadingEvaluations, setLoadingEvaluations] = useState(false)
+  const [loadingCertificateTemplates, setLoadingCertificateTemplates] = useState(false)
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -66,6 +59,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
     scope_course: "",
     require_evaluation: false,
     evaluation_id: "",
+    certificate_template_id: "",
   })
 
   const isEditing = !!eventId
@@ -86,6 +80,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
         scope_course: initialData.scope_course || "",
         require_evaluation: initialData.require_evaluation || false,
         evaluation_id: initialData.evaluation?.id || "",
+        certificate_template_id: initialData.certificate_template?.id || "",
       })
     }
   }, [initialData])
@@ -112,6 +107,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
               scope_course: data.scope_course || "",
               require_evaluation: data.require_evaluation || false,
               evaluation_id: data.evaluation?.id || "",
+              certificate_template_id: data.certificate_template?.id || "",
             })
           } else {
             console.error('Failed to load event data')
@@ -126,24 +122,44 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
   }, [eventId])
 
   // Load evaluation templates
-  useEffect(() => {
-    const fetchEvaluations = async () => {
-      setLoadingEvaluations(true)
-      try {
-        const response = await fetch('/api/evaluations?templates_only=true&limit=100')
-        if (response.ok) {
-          const data = await response.json()
-          setEvaluations(data.evaluations)
-        }
-      } catch (error) {
-        console.error('Error fetching evaluations:', error)
-      } finally {
-        setLoadingEvaluations(false)
+  const fetchEvaluations = useCallback(async () => {
+    setLoadingEvaluations(true)
+    try {
+      const response = await fetch('/api/evaluations?templates_only=true&limit=100')
+      if (response.ok) {
+        const data = await response.json()
+        setEvaluations(data.evaluations)
       }
+    } catch (error) {
+      console.error('Error fetching evaluations:', error)
+    } finally {
+      setLoadingEvaluations(false)
     }
-
-    fetchEvaluations()
   }, [])
+
+  const fetchCertificateTemplates = useCallback(async () => {
+    try {
+      setLoadingCertificateTemplates(true)
+      const response = await fetch('/api/certificate-templates?active_only=true')
+      const data = await response.json()
+      
+      if (response.ok) {
+        setCertificateTemplates(data.templates || [])
+      } else {
+        console.error('Failed to fetch certificate templates:', data.error)
+      }
+    } catch (error) {
+      console.error('Error fetching certificate templates:', error)
+    } finally {
+      setLoadingCertificateTemplates(false)
+    }
+  }, [])
+
+  // Fetch evaluations and certificate templates when component mounts
+  useEffect(() => {
+    fetchEvaluations()
+    fetchCertificateTemplates()
+  }, [fetchEvaluations, fetchCertificateTemplates])
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => {
@@ -278,6 +294,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
         scope_course: formData.scope_type === "COURSE_SPECIFIC" ? formData.scope_course : null,
         require_evaluation: formData.require_evaluation,
         evaluation_id: formData.require_evaluation ? formData.evaluation_id : null,
+        certificate_template_id: formData.certificate_template_id,
       }
 
       console.log('Submitting event payload:', payload)
@@ -528,6 +545,72 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
                   
                   <p className="text-xs text-gray-600">
                     Students will need to complete this evaluation to unlock their certificates.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Certificate Template Selection */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Certificate Template</h3>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="require_certificate"
+                  checked={!!formData.certificate_template_id}
+                  onChange={(e) => handleInputChange("certificate_template_id", e.target.checked ? (certificateTemplates.length > 0 ? certificateTemplates[0].id : "") : "")}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="require_certificate" className="flex items-center space-x-2">
+                  <CheckSquare className="h-4 w-4" />
+                  <span>Generate certificates for this event</span>
+                </Label>
+              </div>
+              
+              <p className="text-sm text-gray-600">
+                When enabled, students who attend this event will receive a certificate of participation using the selected template.
+              </p>
+
+              {formData.certificate_template_id && (
+                <div className="space-y-2 pl-6 border-l-2 border-green-200 bg-green-50 p-4">
+                  <Label htmlFor="certificate_template_id">Select Certificate Template *</Label>
+                  <Select
+                    value={formData.certificate_template_id}
+                    onValueChange={(value) => handleInputChange("certificate_template_id", value)}
+                    disabled={loadingCertificateTemplates}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingCertificateTemplates ? "Loading templates..." : "Choose a certificate template"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {certificateTemplates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          <div>
+                            <div className="font-medium">{template.title}</div>
+                            {template.description && (
+                              <div className="text-xs text-gray-500 truncate">
+                                {template.description.substring(0, 50)}...
+                              </div>
+                            )}
+                            <div className="text-xs text-gray-400">
+                              {template.dynamic_fields?.length || 0} fields
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  {certificateTemplates.length === 0 && (
+                    <div className="text-sm text-gray-600">
+                      No certificate templates found. <a href="/dashboard/certificates/templates/new" className="text-blue-600 hover:underline">Create one first</a>.
+                    </div>
+                  )}
+                  
+                  <p className="text-xs text-gray-600">
+                    Students will receive a certificate of participation using this template after attending the event.
                   </p>
                 </div>
               )}

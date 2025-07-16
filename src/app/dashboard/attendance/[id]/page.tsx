@@ -29,7 +29,10 @@ import {
   AlertTriangle,
   RefreshCw,
   Zap,
-  ArrowLeft
+  ArrowLeft,
+  Award,
+  FileText,
+  Download
 } from "lucide-react"
 import { format } from "date-fns"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
@@ -46,6 +49,7 @@ interface Event {
   scope_type: string
   scope_college: string | null
   scope_course: string | null
+  require_evaluation: boolean
 }
 
 interface AttendanceRecord {
@@ -62,6 +66,13 @@ interface AttendanceStats {
   signedInOnly: number       // Students who signed in but haven't signed out yet  
   totalSignedIn: number      // Total students who have signed in
   totalRecords: number
+}
+
+interface CertificateStats {
+  totalGenerated: number
+  totalAccessible: number
+  pendingEvaluation: number
+  hasTemplate: boolean
 }
 
 interface EventTimeStatus {
@@ -81,11 +92,18 @@ export default function EventAttendancePage() {
   const [activeTab, setActiveTab] = useState("all")
   const [loading, setLoading] = useState(true)
   const [scanLoading, setScanLoading] = useState(false)
+  const [certificateGenerating, setCertificateGenerating] = useState(false)
   const [stats, setStats] = useState<AttendanceStats>({
     totalPresent: 0,
     signedInOnly: 0,
     totalSignedIn: 0,
     totalRecords: 0
+  })
+  const [certificateStats, setCertificateStats] = useState<CertificateStats>({
+    totalGenerated: 0,
+    totalAccessible: 0,
+    pendingEvaluation: 0,
+    hasTemplate: false
   })
   const [eventTimeStatus, setEventTimeStatus] = useState<EventTimeStatus | null>(null)
 
@@ -103,22 +121,21 @@ export default function EventAttendancePage() {
     const eventEndTime = new Date(eventDate)
     eventEndTime.setHours(endHour, endMinute, 59, 999)
     
-    // Get current date for comparison
+    // Check if it's the right date
     const currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const eventOnlyDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
     
-    // Check if it's the right date
     if (currentDate.getTime() !== eventOnlyDate.getTime()) {
       if (currentDate < eventOnlyDate) {
         return {
           isActive: false,
-          status: 'wrong-date',
+          status: 'not-started',
           message: `Event is scheduled for ${eventDate.toLocaleDateString()}`
         }
       } else {
         return {
           isActive: false,
-          status: 'wrong-date',
+          status: 'ended',
           message: `Event was on ${eventDate.toLocaleDateString()}`
         }
       }
@@ -130,67 +147,55 @@ export default function EventAttendancePage() {
       return {
         isActive: false,
         status: 'not-started',
-        message: `Event starts in ${timeUntilStart} minutes`,
-        timeRemaining: timeUntilStart
+        message: `Event starts at ${event.startTime} (${timeUntilStart} minutes from now)`
       }
     }
     
     if (now > eventEndTime) {
-      const timeAfterEnd = Math.ceil((now.getTime() - eventEndTime.getTime()) / (1000 * 60))
       return {
         isActive: false,
         status: 'ended',
-        message: `Event ended ${timeAfterEnd} minutes ago`
+        message: `Event ended at ${event.endTime}`
       }
     }
     
-    // Event is currently active
-    const timeUntilEnd = Math.ceil((eventEndTime.getTime() - now.getTime()) / (1000 * 60))
     return {
       isActive: true,
       status: 'active',
-      message: `Event is active • ${timeUntilEnd} minutes remaining`,
-      timeRemaining: timeUntilEnd
+      message: `Event is active until ${event.endTime}`
     }
   }
 
-  const fetchEventDetails = useCallback(async () => {
+  // Fetch event details
+  const fetchEvent = useCallback(async () => {
     try {
       const response = await fetch(`/api/events/${id}`)
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error)
-      setEvent(data)
+      if (response.ok) {
+        const data = await response.json()
+        setEvent(data)
+      }
     } catch (error) {
-      console.error("Error fetching event details:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load event details",
-        variant: "destructive",
-      })
+      console.error("Error fetching event:", error)
     }
-  }, [id, toast])
+  }, [id])
 
+  // Fetch attendance records
   const fetchAttendanceRecords = useCallback(async () => {
     try {
       const response = await fetch(`/api/attendance/event/${id}/records`)
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error)
-      setAttendanceRecords(data.records)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          setAttendanceRecords(data.records)
+        }
+      }
     } catch (error) {
       console.error("Error fetching attendance records:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load attendance records",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
     }
-  }, [id, toast])
+  }, [id])
 
+  // Fetch attendance stats
   const fetchAttendanceStats = useCallback(async () => {
-    if (!event) return
-
     try {
       const response = await fetch(`/api/attendance/event/${id}/stats`)
       if (response.ok) {
@@ -200,24 +205,154 @@ export default function EventAttendancePage() {
     } catch (error) {
       console.error("Error fetching attendance stats:", error)
     }
-  }, [id, event])
+  }, [id])
 
+  // Fetch certificate stats
+  const fetchCertificateStats = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/certificates?event_id=${id}`)
+      if (response.ok) {
+        const data = await response.json()
+        const certificates = data.certificates || []
+        
+        // Calculate certificate statistics
+        const totalGenerated = certificates.length
+        const totalAccessible = certificates.filter((c: any) => c.is_accessible).length
+        const pendingEvaluation = certificates.filter((c: any) => !c.is_accessible).length
+        
+        setCertificateStats({
+          totalGenerated,
+          totalAccessible,
+          pendingEvaluation,
+          hasTemplate: totalGenerated > 0 // If certificates exist, template exists
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching certificate stats:", error)
+    }
+  }, [id])
+
+  // Generate certificates for event
+  const handleGenerateCertificates = async () => {
+    if (!event) return
+    
+    setCertificateGenerating(true)
+    
+    try {
+      const response = await fetch('/api/certificates/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          event_id: event.id
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok) {
+        const results = data.results || []
+        const successCount = results.filter((r: any) => r.success).length
+        const failureCount = results.filter((r: any) => !r.success).length
+        
+        if (successCount > 0) {
+          toast({
+            title: "✅ Certificates Generated Successfully",
+            description: `Generated ${successCount} certificates${failureCount > 0 ? ` (${failureCount} failed)` : ''}`,
+          })
+        } else {
+          toast({
+            title: "ℹ️ No New Certificates",
+            description: data.message || "No new certificates were generated",
+          })
+        }
+        
+        // Refresh certificate stats
+        fetchCertificateStats()
+      } else {
+        toast({
+          title: "❌ Generation Failed",
+          description: data.error || "Failed to generate certificates",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error generating certificates:", error)
+      toast({
+        title: "❌ Generation Failed",
+        description: "Failed to generate certificates",
+        variant: "destructive",
+      })
+    } finally {
+      setCertificateGenerating(false)
+    }
+  }
+
+  // Auto-generate certificates when students sign out
+  const autoGenerateCertificates = useCallback(async () => {
+    if (!event || !event.id) return
+    
+    try {
+      // Only auto-generate if event has ended or if there are students who completed attendance
+      if (stats.totalPresent > 0) {
+        await fetch('/api/certificates/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            event_id: event.id
+          })
+        })
+        
+        // Refresh certificate stats after auto-generation
+        fetchCertificateStats()
+      }
+    } catch (error) {
+      console.error("Error auto-generating certificates:", error)
+    }
+  }, [event, stats.totalPresent, fetchCertificateStats])
+
+  // Initial data loading
   useEffect(() => {
-    fetchEventDetails()
-    fetchAttendanceRecords()
-  }, [fetchEventDetails, fetchAttendanceRecords])
+    const loadData = async () => {
+      setLoading(true)
+      await Promise.all([
+        fetchEvent(),
+        fetchAttendanceRecords(),
+        fetchAttendanceStats(),
+        fetchCertificateStats()
+      ])
+      setLoading(false)
+    }
+    
+    if (id) {
+      loadData()
+    }
+  }, [id, fetchEvent, fetchAttendanceRecords, fetchAttendanceStats, fetchCertificateStats])
 
   // Fetch stats when event is loaded
   useEffect(() => {
     if (event) {
       fetchAttendanceStats()
+      fetchCertificateStats()
       // Check initial event time status
       const timeStatus = checkEventTimeStatus(event)
       setEventTimeStatus(timeStatus)
     } else {
       setEventTimeStatus(null)
     }
-  }, [event, fetchAttendanceStats])
+  }, [event, fetchAttendanceStats, fetchCertificateStats])
+
+  // Auto-generate certificates when students complete attendance
+  useEffect(() => {
+    if (event && stats.totalPresent > 0) {
+      // Auto-generate certificates with a small delay to avoid rapid calls
+      const timeoutId = setTimeout(autoGenerateCertificates, 2000)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [event, stats.totalPresent, autoGenerateCertificates])
 
   // Periodic update for event time status (every minute)
   useEffect(() => {
@@ -287,6 +422,7 @@ export default function EventAttendancePage() {
         // Refresh stats and records
         fetchAttendanceStats()
         fetchAttendanceRecords()
+        fetchCertificateStats()
         
         // Clear input
         setBarcodeInput("")
@@ -324,7 +460,7 @@ export default function EventAttendancePage() {
     }
   }
 
-  const filteredRecords = attendanceRecords.filter((record) => {
+  const filteredRecords = attendanceRecords.filter(record => {
     switch (activeTab) {
       case "present":
         return record.status === "PRESENT"
@@ -340,10 +476,10 @@ export default function EventAttendancePage() {
   if (loading) {
     return (
       <DashboardShell>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="flex items-center space-x-2">
-            <RefreshCw className="h-6 w-6 animate-spin text-blue-500" />
-            <span className="text-gray-600">Loading event details...</span>
+        <div className="flex items-center justify-center p-8">
+          <div className="text-center">
+            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+            <p className="text-muted-foreground">Loading event attendance...</p>
           </div>
         </div>
       </DashboardShell>
@@ -353,14 +489,12 @@ export default function EventAttendancePage() {
   if (!event) {
     return (
       <DashboardShell>
-        <div className="text-center py-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Event not found</h2>
-          <Link href="/dashboard/events">
-            <Button variant="outline">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Events
-            </Button>
-          </Link>
+        <div className="flex items-center justify-center p-8">
+          <div className="text-center">
+            <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Event Not Found</h3>
+            <p className="text-muted-foreground">The event you're looking for doesn't exist.</p>
+          </div>
         </div>
       </DashboardShell>
     )
@@ -372,31 +506,26 @@ export default function EventAttendancePage() {
     <DashboardShell>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0 sm:space-x-4">
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Link href="/dashboard/events">
               <Button variant="outline" size="sm">
-                <ArrowLeft className="mr-2 h-4 w-4" />
+                <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Events
               </Button>
             </Link>
             <div>
               <h1 className="text-3xl font-bold tracking-tight">{event.title}</h1>
-              <p className="text-muted-foreground">
-                Manage attendance for this event
-              </p>
+              <p className="text-muted-foreground">Manage attendance for this event</p>
             </div>
           </div>
           <Button 
-            onClick={() => {
-              fetchAttendanceStats()
-              fetchAttendanceRecords()
-            }} 
-            variant="outline" 
-            size="sm"
+            onClick={() => window.location.reload()} 
+            variant="outline"
+            className="flex items-center space-x-2"
           >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+            <RefreshCw className="h-4 w-4" />
+            <span>Refresh</span>
           </Button>
         </div>
 
@@ -465,7 +594,7 @@ export default function EventAttendancePage() {
         </Card>
 
         {/* Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="border-green-200 bg-gradient-to-br from-green-50 to-green-100">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -499,104 +628,173 @@ export default function EventAttendancePage() {
                   <p className="text-sm text-yellow-500 mb-1">(Not signed out yet)</p>
                   <p className="text-3xl font-bold text-yellow-700">{stats.signedInOnly}</p>
                 </div>
-                <AlertTriangle className="h-10 w-10 text-yellow-500" />
+                <Clock className="h-10 w-10 text-yellow-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-purple-600">Certificates</p>
+                  <p className="text-sm text-purple-500 mb-1">Generated/Accessible</p>
+                  <p className="text-3xl font-bold text-purple-700">{certificateStats.totalGenerated}/{certificateStats.totalAccessible}</p>
+                </div>
+                <Award className="h-10 w-10 text-purple-500" />
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Barcode Scanner */}
-        <Card className="border-2 border-purple-100 shadow-lg">
+        {/* Certificate Management */}
+        <Card className="border-purple-200">
           <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Scan className="h-6 w-6 text-purple-600" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <Award className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl text-gray-800">Certificate Management</CardTitle>
+                  <p className="text-sm text-gray-600">Generate and manage certificates for this event</p>
+                </div>
               </div>
-              <div>
-                <CardTitle className="text-xl text-gray-800">Attendance Scanner</CardTitle>
-                <p className="text-sm text-gray-600">Scan or enter student ID for attendance</p>
-              </div>
+              <Button 
+                onClick={handleGenerateCertificates}
+                disabled={certificateGenerating || stats.totalPresent === 0}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                {certificateGenerating ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Award className="h-4 w-4 mr-2" />
+                    Generate Certificates
+                  </>
+                )}
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="space-y-6">
-              {/* Mode Selection */}
-              <div>
-                <Label htmlFor="mode-tabs" className="text-lg font-semibold text-gray-700 mb-3 block">
-                  Attendance Mode
-                </Label>
-                <Tabs 
-                  value={mode} 
-                  onValueChange={(value) => setMode(value as 'SIGN_IN' | 'SIGN_OUT')}
-                  className={eventTimeStatus && !eventTimeStatus.isActive ? 'pointer-events-none' : ''}
-                >
-                  <TabsList className="grid w-full grid-cols-2 h-14 bg-gray-100 rounded-xl p-1">
-                    <TabsTrigger 
-                      value="SIGN_IN" 
-                      className="flex items-center gap-3 text-base font-semibold data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-200"
-                    >
-                      <CheckCircle className="h-5 w-5" />
-                      Sign In
-                    </TabsTrigger>
-                    <TabsTrigger 
-                      value="SIGN_OUT" 
-                      className="flex items-center gap-3 text-base font-semibold data-[state=active]:bg-red-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-200"
-                    >
-                      <XCircle className="h-5 w-5" />
-                      Sign Out
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <FileText className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Generated</p>
+                  <p className="text-2xl font-bold text-green-700">{certificateStats.totalGenerated}</p>
+                </div>
               </div>
+              
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <CheckCircle className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Accessible</p>
+                  <p className="text-2xl font-bold text-blue-700">{certificateStats.totalAccessible}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-yellow-100 rounded-lg">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Pending Evaluation</p>
+                  <p className="text-2xl font-bold text-yellow-700">{certificateStats.pendingEvaluation}</p>
+                </div>
+              </div>
+            </div>
+            
+            {event.require_evaluation && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  <strong>Note:</strong> This event requires evaluation. Certificates will only be accessible after students complete their evaluations.
+                </p>
+              </div>
+            )}
+            
+            {stats.totalPresent === 0 && (
+              <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <p className="text-sm text-gray-600">
+                  Certificates can only be generated after students have fully attended the event (signed in and out).
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-              {/* Barcode Input */}
-              <div>
-                <Label htmlFor="student-id" className="text-lg font-semibold text-gray-700 mb-2 block">
-                  Student ID
+        {/* Attendance Recording */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Scan className="h-5 w-5" />
+              <span>Attendance Recording</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  id="sign-in"
+                  name="mode"
+                  value="SIGN_IN"
+                  checked={mode === 'SIGN_IN'}
+                  onChange={(e) => setMode(e.target.value as 'SIGN_IN' | 'SIGN_OUT')}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="sign-in" className="text-sm font-medium">
+                  Sign In
                 </Label>
-                <form onSubmit={handleBarcodeSubmit} className="flex space-x-3">
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  id="sign-out"
+                  name="mode"
+                  value="SIGN_OUT"
+                  checked={mode === 'SIGN_OUT'}
+                  onChange={(e) => setMode(e.target.value as 'SIGN_IN' | 'SIGN_OUT')}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="sign-out" className="text-sm font-medium">
+                  Sign Out
+                </Label>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <form onSubmit={handleBarcodeSubmit} className="flex space-x-2">
+                <div className="flex-1">
                   <Input
-                    id="student-id"
                     type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
+                    placeholder="Scan barcode or enter Student ID"
                     value={barcodeInput}
-                    onChange={(e) => {
-                      // Allow only numbers
-                      const value = e.target.value.replace(/[^0-9]/g, '')
-                      setBarcodeInput(value)
-                    }}
-                    placeholder="Enter student ID (numbers only)"
-                    className={`flex-1 h-14 text-lg border-2 transition-all duration-200 ${
-                      eventTimeStatus && !eventTimeStatus.isActive 
-                        ? 'border-gray-200 bg-gray-50 text-gray-400' 
-                        : 'border-gray-300 focus:border-purple-400'
-                    }`}
-                    disabled={Boolean(eventTimeStatus && !eventTimeStatus.isActive)}
-                    autoComplete="off"
-                    autoFocus
+                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    className="text-lg"
+                    disabled={!eventTimeStatus?.isActive}
                   />
-                  <Button 
-                    type="submit"
-                    size="lg"
-                    className={`h-14 px-8 text-base font-semibold transition-all duration-200 ${
-                      mode === 'SIGN_IN' 
-                        ? 'bg-green-500 hover:bg-green-600' 
-                        : 'bg-red-500 hover:bg-red-600'
-                    }`}
-                    disabled={Boolean(eventTimeStatus && !eventTimeStatus.isActive) || scanLoading}
-                  >
-                    {scanLoading ? (
-                      <RefreshCw className="h-5 w-5 animate-spin mr-2" />
-                    ) : (
-                      <Scan className="h-5 w-5 mr-2" />
-                    )}
-                    {mode === 'SIGN_IN' ? 'Sign In' : 'Sign Out'}
-                  </Button>
-                </form>
-              </div>
+                </div>
+                <Button 
+                  type="submit" 
+                  disabled={scanLoading || !barcodeInput.trim() || !eventTimeStatus?.isActive}
+                  className="px-6"
+                >
+                  {scanLoading ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <span>{mode === 'SIGN_IN' ? 'Sign In' : 'Sign Out'}</span>
+                  )}
+                </Button>
+              </form>
 
-              {/* Event Status Warning */}
               {eventTimeStatus && !eventTimeStatus.isActive && (
                 <div className="flex items-center space-x-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
@@ -617,7 +815,7 @@ export default function EventAttendancePage() {
                       <li>• Scan barcode or manually enter the student ID</li>
                       <li>• Select Sign In/Sign Out mode based on student status</li>
                       <li>• System validates student eligibility automatically</li>
-                      <li>• Success/error messages will appear after each scan</li>
+                      <li>• Certificates are auto-generated when students sign out</li>
                     </ul>
                   </div>
                 </div>

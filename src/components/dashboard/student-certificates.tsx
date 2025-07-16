@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Calendar, MapPin, Download, FileText, CheckCircle, Clock, AlertCircle, Star } from "lucide-react"
+import { Calendar, MapPin, Download, FileText, CheckCircle, Clock, AlertCircle, Star, RefreshCw } from "lucide-react"
 import { format } from "date-fns"
 import Link from "next/link"
 
@@ -39,21 +39,26 @@ interface StudentCertificatesProps {
 export function StudentCertificates({ studentId }: StudentCertificatesProps) {
   const [certificates, setCertificates] = useState<Certificate[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set())
+  const [viewingIds, setViewingIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    if (!studentId) {
-      setError("Student ID not available")
-      setLoading(false)
-      return
-    }
-
     fetchCertificates()
+    
+    // Auto-refresh when window regains focus (useful when coming back from evaluation)
+    const handleFocus = () => {
+      fetchCertificates()
+    }
+    
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
   }, [studentId])
 
   const fetchCertificates = async () => {
     try {
-      setLoading(true)
+      setError(null)
       const response = await fetch('/api/certificates')
       
       if (!response.ok) {
@@ -70,26 +75,144 @@ export function StudentCertificates({ studentId }: StudentCertificatesProps) {
     }
   }
 
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await fetchCertificates()
+    setRefreshing(false)
+  }
+
   const handleDownload = async (certificateId: string) => {
+    if (downloadingIds.has(certificateId)) {
+      return // Already downloading
+    }
+    
+    setDownloadingIds(prev => new Set(prev).add(certificateId))
+    
     try {
-      const response = await fetch(`/api/certificates/${certificateId}?action=download`)
+      console.log('Starting download for certificate:', certificateId)
+      
+      // Add cache-busting timestamp
+      const timestamp = Date.now()
+      const url = `/api/certificates/${certificateId}?action=download&t=${timestamp}`
+      
+      console.log('Request URL:', url)
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      })
+      
+      console.log('Response status:', response.status)
+      console.log('Response statusText:', response.statusText)
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()))
       
       if (!response.ok) {
-        throw new Error('Failed to download certificate')
+        console.error('Response not ok:', response.status, response.statusText)
+        
+        // Try to get the error message from the response
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+          console.error('Server error:', errorData)
+        } catch (e) {
+          console.error('Could not parse error response:', e)
+        }
+        throw new Error(errorMessage)
+      }
+      
+      // Check if response has content
+      const contentLength = response.headers.get('content-length')
+      const contentType = response.headers.get('content-type')
+      
+      console.log('Content details:', {
+        contentLength,
+        contentType,
+        hasBody: response.body !== null
+      })
+      
+      // Be more lenient with content validation to handle IDM interference
+      if (response.status === 204 && response.statusText.includes('IDM')) {
+        throw new Error('Download intercepted by IDM. Please disable IDM for localhost or use a different browser.')
+      }
+      
+      if (!contentType || !contentType.includes('application/pdf')) {
+        if (response.status === 200) {
+          console.warn('Missing content-type but status is 200, proceeding anyway')
+        } else {
+          throw new Error(`Invalid response: content-length=${contentLength}, content-type=${contentType}`)
+        }
       }
       
       const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `certificate-${certificateId}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(url)
+      console.log('Blob received:', {
+        size: blob.size,
+        type: blob.type
+      })
+      
+      // Check if blob is valid
+      if (blob.size === 0) {
+        throw new Error('Certificate file is empty')
+      }
+      
+      // For any blob with content, try to download it
+      if (blob.size > 0) {
+        console.log('Proceeding with download despite potential type mismatch')
+        
+        // Create download link
+        const objectUrl = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = objectUrl
+        a.download = `certificate-${certificateId}.pdf`
+        a.style.display = 'none'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(objectUrl)
+        
+        console.log('Download completed successfully')
+      } else {
+        throw new Error('No content received')
+      }
     } catch (error) {
       console.error('Error downloading certificate:', error)
-      alert('Failed to download certificate')
+      const errorMessage = error instanceof Error ? error.message : 'Failed to download certificate'
+      alert(`Download failed: ${errorMessage}`)
+    } finally {
+      setDownloadingIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(certificateId)
+        return newSet
+      })
+    }
+  }
+
+  const handleViewCertificate = async (certificateId: string) => {
+    if (viewingIds.has(certificateId)) {
+      return // Already viewing
+    }
+    
+    setViewingIds(prev => new Set(prev).add(certificateId))
+    
+    try {
+      // Open certificate in new tab for viewing (inline)
+      window.open(`/api/certificates/${certificateId}?action=view`, '_blank')
+    } catch (error) {
+      console.error('Error viewing certificate:', error)
+      alert('Failed to open certificate')
+    } finally {
+      // Clear viewing state after a short delay
+      setTimeout(() => {
+        setViewingIds(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(certificateId)
+          return newSet
+        })
+      }, 1000)
     }
   }
 
@@ -197,6 +320,20 @@ export function StudentCertificates({ studentId }: StudentCertificatesProps) {
         </Card>
       </div>
 
+      {/* Header with Refresh Button */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Your Certificates</h2>
+        <Button 
+          onClick={handleRefresh}
+          disabled={refreshing}
+          variant="outline"
+          size="sm"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+          {refreshing ? 'Refreshing...' : 'Refresh'}
+        </Button>
+      </div>
+
       {/* Certificates List */}
       <div className="space-y-4">
         {certificates.map((cert) => {
@@ -280,9 +417,10 @@ export function StudentCertificates({ studentId }: StudentCertificatesProps) {
                       <Button 
                         onClick={() => handleDownload(cert.id)}
                         className="flex items-center gap-2"
+                        disabled={downloadingIds.has(cert.id)}
                       >
                         <Download className="h-4 w-4" />
-                        Download Certificate
+                        {downloadingIds.has(cert.id) ? 'Downloading...' : 'Download Certificate'}
                       </Button>
                     ) : (
                       cert.event.require_evaluation && !cert.evaluationStatus.completed ? (
@@ -303,10 +441,11 @@ export function StudentCertificates({ studentId }: StudentCertificatesProps) {
                     {cert.is_accessible && (
                       <Button 
                         variant="outline"
-                        onClick={() => handleDownload(cert.id)}
+                        onClick={() => handleViewCertificate(cert.id)}
+                        disabled={viewingIds.has(cert.id)}
                       >
                         <FileText className="h-4 w-4 mr-2" />
-                        View Certificate
+                        {viewingIds.has(cert.id) ? 'Viewing...' : 'View Certificate'}
                       </Button>
                     )}
                   </div>

@@ -13,6 +13,7 @@ const tempEventSchema = z.object({
   scope_course: z.string().optional(),
   require_evaluation: z.boolean().optional(),
   evaluation_id: z.string().optional(), // ID of the evaluation to link
+  certificate_template_id: z.string().optional(), // ID of the certificate template to link
 })
 
 export async function GET(request: Request) {
@@ -133,6 +134,7 @@ export async function POST(request: Request) {
       scope_course: body.scope_type === "COURSE_SPECIFIC" ? body.scope_course : undefined,
       require_evaluation: body.require_evaluation || false,
       evaluation_id: body.evaluation_id || undefined,
+      certificate_template_id: body.certificate_template_id || undefined,
     })
 
     // Insert all fields that should exist in database
@@ -188,6 +190,22 @@ export async function POST(request: Request) {
         console.error('Error linking evaluation to event:', linkError)
         // Don't fail the event creation, just log the error
         console.warn('Event created but evaluation link failed. You can link them manually.')
+      }
+    }
+
+    // If certificate template is provided and certificate_template_id is provided, link them
+    if (data.certificate_template_id) {
+      const { error: linkError } = await supabase
+        .from('event_certificate_templates')
+        .insert([{
+          event_id: event.id,
+          certificate_template_id: data.certificate_template_id,
+        }])
+
+      if (linkError) {
+        console.error('Error linking certificate template to event:', linkError)
+        // Don't fail the event creation, just log the error
+        console.warn('Event created but certificate template link failed. You can link them manually.')
       }
     }
 

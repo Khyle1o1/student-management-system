@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
+import { generateCertificatesForEvent } from "../../certificates/route"
 
 const barcodeScanSchema = z.object({
   studentId: z.string().min(1, "Student ID is required"),
@@ -188,6 +189,14 @@ export async function POST(request: Request) {
       }
 
       attendanceRecord = updatedRecord
+      
+      // Auto-generate certificates when student signs out (completes attendance)
+      try {
+        await generateCertificatesForEvent(eventId)
+      } catch (certificateError) {
+        console.error('Error auto-generating certificates:', certificateError)
+        // Don't fail the attendance recording if certificate generation fails
+      }
     }
 
     // 8. Return success response

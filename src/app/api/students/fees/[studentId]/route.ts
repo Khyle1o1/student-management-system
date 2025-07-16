@@ -5,7 +5,7 @@ import { buildFeesScopeFilter } from "@/lib/fee-scope-utils"
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { studentId: string } }
+  { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
     const session = await auth()
@@ -14,8 +14,10 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const { studentId } = await params
+
     // Students can only access their own fee information
-    if (session.user.role === "STUDENT" && session.user.studentId !== params.studentId) {
+    if (session.user.role === "STUDENT" && session.user.studentId !== studentId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -23,7 +25,7 @@ export async function GET(
     const { data: student, error: studentError } = await supabase
       .from('students')
       .select('*')
-      .eq('student_id', params.studentId)
+      .eq('student_id', studentId)
       .single()
 
     if (studentError) {

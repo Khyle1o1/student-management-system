@@ -26,7 +26,8 @@ import {
   XCircle,
   ChevronDown,
   X,
-  ClipboardCheck
+  ClipboardCheck,
+  Award
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -140,6 +141,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
       badge: stats?.events?.total?.toString() || "0"
     },
     { href: "/dashboard/evaluations", label: "Evaluations", icon: ClipboardCheck },
+    { href: "/dashboard/certificates/templates", label: "Certificates", icon: Award },
     { 
       href: "/dashboard/fees", 
       label: "Fees", 
