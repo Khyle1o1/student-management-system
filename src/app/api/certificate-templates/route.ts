@@ -30,6 +30,8 @@ const createCertificateTemplateSchema = z.object({
       font_weight: z.enum(["normal", "bold"]).default("normal"),
       color: z.string().default("#000000"),
       text_align: z.enum(["left", "center", "right"]).default("center"),
+      x_offset: z.number().optional(), // Add optional x offset
+      y_offset: z.number().optional(), // Add optional y offset
     }),
     custom_text: z.string().optional(), // For custom_text type
   })).default([]),

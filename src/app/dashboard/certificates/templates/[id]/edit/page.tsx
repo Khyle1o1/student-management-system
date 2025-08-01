@@ -13,7 +13,7 @@ interface EditCertificateTemplatePageProps {
   }
 }
 
-export default async function EditCertificateTemplatePage({ params }: EditCertificateTemplatePageProps) {
+export default async function EditCertificateTemplatePage({ params }: Readonly<EditCertificateTemplatePageProps>) {
   const session = await auth()
 
   if (!session) {
@@ -23,6 +23,9 @@ export default async function EditCertificateTemplatePage({ params }: EditCertif
   if (session.user.role !== "ADMIN") {
     redirect("/dashboard")
   }
+
+  // Await params to fix Next.js 15 compatibility
+  const { id } = await params
 
   // Fetch template data
   const { data: template, error } = await supabase
@@ -35,7 +38,7 @@ export default async function EditCertificateTemplatePage({ params }: EditCertif
         email
       )
     `)
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (error || !template) {

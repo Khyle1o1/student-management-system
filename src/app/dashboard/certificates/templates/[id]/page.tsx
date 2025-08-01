@@ -5,7 +5,7 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Edit, Palette, Type, Settings, CheckCircle, XCircle } from "lucide-react"
+import { ArrowLeft, Edit, Palette, Type, Settings, CheckCircle, XCircle, Download } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
 
@@ -26,6 +26,9 @@ export default async function CertificateTemplatePage({ params }: CertificateTem
     redirect("/dashboard")
   }
 
+  // Await params to fix Next.js 15 compatibility
+  const { id } = await params
+
   // Fetch template data
   const { data: template, error } = await supabase
     .from('certificate_templates')
@@ -37,7 +40,7 @@ export default async function CertificateTemplatePage({ params }: CertificateTem
         email
       )
     `)
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (error || !template) {
@@ -86,12 +89,20 @@ export default async function CertificateTemplatePage({ params }: CertificateTem
               </p>
             </div>
           </div>
-          <Link href={`/dashboard/certificates/templates/${template.id}/edit`}>
-            <Button>
-              <Edit className="mr-2 h-4 w-4" />
-              Edit Template
+          <div className="flex items-center gap-2">
+            <Button variant="outline" asChild>
+              <a href={`/api/certificate-templates/${template.id}/sample`} download>
+                <Download className="mr-2 h-4 w-4" />
+                Download Sample
+              </a>
             </Button>
-          </Link>
+            <Link href={`/dashboard/certificates/templates/${template.id}/edit`}>
+              <Button>
+                <Edit className="mr-2 h-4 w-4" />
+                Edit Template
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -282,15 +293,19 @@ export default async function CertificateTemplatePage({ params }: CertificateTem
                 <div
                   className="relative mx-auto border-2 shadow-lg"
                   style={{
-                    width: "1000px",
-                    height: "707px",
+                    width: "2000px",
+                    height: "1414px",
                     backgroundColor: template.background_design.design_type === "image" ? "transparent" : template.background_design.background_color,
                     borderColor: template.background_design.design_type === "image" ? "transparent" : template.background_design.border_color,
                     borderWidth: template.background_design.design_type === "image" ? "0px" : `${template.background_design.border_width}px`,
                     backgroundImage: template.background_design.certificate_background ? `url(${template.background_design.certificate_background})` : "none",
                     backgroundSize: "cover",
                     backgroundPosition: "center",
-                    backgroundRepeat: "no-repeat"
+                    backgroundRepeat: "no-repeat",
+                    transform: "scale(0.4)",
+                    transformOrigin: "top left",
+                    marginBottom: "-565px",
+                    marginRight: "-800px"
                   }}
                 >
                   {/* Logo (only for custom design) */}
@@ -306,7 +321,7 @@ export default async function CertificateTemplatePage({ params }: CertificateTem
                       <img
                         src={template.background_design.logo_url}
                         alt="Logo"
-                        className="max-w-[75px] max-h-[50px] object-contain"
+                        className="max-w-[150px] max-h-[100px] object-contain"
                       />
                     </div>
                   )}
@@ -315,12 +330,12 @@ export default async function CertificateTemplatePage({ params }: CertificateTem
                   {template.dynamic_fields.map((field: any) => (
                     <div
                       key={field.id}
-                      className="absolute text-xs"
+                      className="absolute"
                       style={{
-                        left: `${field.position.x / 2}px`,
-                        top: `${field.position.y / 2}px`,
+                        left: `${field.position.x}px`,
+                        top: `${field.position.y}px`,
                         fontFamily: field.style.font_family,
-                        fontSize: `${field.style.font_size / 2}px`,
+                        fontSize: `${field.style.font_size}px`,
                         fontWeight: field.style.font_weight,
                         color: field.style.color,
                         textAlign: field.style.text_align,

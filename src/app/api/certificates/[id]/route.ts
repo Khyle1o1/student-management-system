@@ -158,16 +158,19 @@ async function generateCertificatePDF(certificate: any, template: any): Promise<
       template.dynamic_fields.forEach((field: any, index: number) => {
         const value = getFieldValue(field)
         
-        // Correct coordinate scaling from template (2000x1414) to PDF (297x210 mm)
-        // Template coordinates are based on 2000x1414, PDF is 297x210 mm
-        const x = (field.position?.x || 1000) / 2000 * 297
-        const y = (field.position?.y || 200 + index * 40) / 1414 * 210
+        // Precise coordinate scaling calculation
+        const scaleX = 297 / 2000  // PDF width / template width
+        const scaleY = 210 / 1414  // PDF height / template height
         
-        // Apply field styling
+        const scaledX = field.position.x * scaleX
+        const scaledY = field.position.y * scaleY
+        
+        // Adjust font size scaling
         const fontSize = Math.max(8, Math.min(36, (field.style?.font_size || 16) * 0.35)) // Scale font size
+        
+        // Set font and styling
         doc.setFontSize(fontSize)
         
-        // Set font family and weight
         const fontFamily = field.style?.font_family || 'helvetica'
         const fontWeight = field.style?.font_weight || 'normal'
         
@@ -198,39 +201,26 @@ async function generateCertificatePDF(certificate: any, template: any): Promise<
           doc.setTextColor('#000000')
         }
         
-        // For image-based certificates, add text shadow/outline for better visibility
-        if (bgDesign.design_type === 'image') {
-          // Add white outline for better text visibility on image backgrounds
-          doc.setTextColor('#ffffff')
-          doc.text(value, x + 0.5, y + 0.5, { align: field.style?.text_align || 'center' })
-          doc.text(value, x - 0.5, y - 0.5, { align: field.style?.text_align || 'center' })
-          doc.text(value, x + 0.5, y - 0.5, { align: field.style?.text_align || 'center' })
-          doc.text(value, x - 0.5, y + 0.5, { align: field.style?.text_align || 'center' })
+        // Special handling for student name to match template preview
+        if (field.type === 'student_name') {
+          // Precise positioning for student name
+          const studentNameX = 148.5  // Center of A4 landscape
+          const studentNameY = 82  // Vertical position from top
           
-          // Reset to original color for main text
-          if (field.style?.color) {
-            const color = field.style.color
-            if (color.startsWith('#')) {
-              const hex = color.substring(1)
-              const r = parseInt(hex.substring(0, 2), 16)
-              const g = parseInt(hex.substring(2, 4), 16)
-              const b = parseInt(hex.substring(4, 6), 16)
-              doc.setTextColor(r, g, b)
-            } else {
-              doc.setTextColor('#000000')
-            }
-          } else {
-            doc.setTextColor('#000000')
-          }
+          // Set font to match template exactly
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(24)  // Matches the template's font size
+          doc.setTextColor(0, 0, 0)  // Black color
+          
+          // Add text with exact centering
+          doc.text(value.toUpperCase(), studentNameX, studentNameY, { 
+            align: 'center',
+            maxWidth: 200  // Limit text width to prevent overflow
+          })
+        } else {
+          // For other fields, use original positioning
+          doc.text(value, scaledX, scaledY)
         }
-        
-        // Set text alignment
-        const align = field.style?.text_align || 'center'
-        
-        // Add the main text
-        doc.text(value, x, y, { align: align })
-        
-        console.log(`Field ${index + 1}: ${field.type} = "${value}" at ${x}mm, ${y}mm, font: ${fontSize}px, color: ${field.style?.color || '#000000'}`)
       })
     } else {
       // Fallback to default layout when no dynamic fields

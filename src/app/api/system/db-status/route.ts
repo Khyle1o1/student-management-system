@@ -6,6 +6,23 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
+    // Check if environment variables are configured
+    const hasUrl = !!process.env.NEXT_PUBLIC_SUPABASE_URL
+    const hasKey = !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!hasUrl || !hasKey) {
+      return NextResponse.json({
+        status: 'error',
+        message: 'Missing Supabase environment variables',
+        config: {
+          hasUrl,
+          hasKey,
+          url: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'configured' : 'missing',
+          key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'configured' : 'missing',
+        }
+      }, { status: 500 })
+    }
+
     // Test the connection by making a simple query to a table that should exist
     // Use a basic query that doesn't require special permissions
     const { data, error } = await supabase
@@ -20,8 +37,8 @@ export async function GET() {
         message: 'Failed to connect to database',
         error: error.message,
         config: {
-          hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-          hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          hasUrl,
+          hasKey,
         }
       }, { status: 500 })
     }
@@ -30,8 +47,8 @@ export async function GET() {
       status: 'ok',
       message: 'Database connection successful',
       config: {
-        hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-        hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        hasUrl,
+        hasKey,
       }
     })
 
