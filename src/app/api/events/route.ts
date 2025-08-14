@@ -83,7 +83,7 @@ export async function GET(request: Request) {
       eventType: event.type || "ACADEMIC",
       capacity: event.max_capacity || 100,
       registeredCount: 0, // TODO: Calculate actual count
-      status: new Date(event.date) > new Date() ? "upcoming" : "completed",
+      status: new Date(event.date + 'T00:00:00+08:00') > new Date() ? "upcoming" : "completed",
       scope_type: event.scope_type || "UNIVERSITY_WIDE",
       scope_college: event.scope_college || "",
       scope_course: event.scope_course || "",

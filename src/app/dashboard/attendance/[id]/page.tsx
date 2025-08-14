@@ -110,19 +110,20 @@ export default function EventAttendancePage() {
   // Check event time status
   const checkEventTimeStatus = (event: Event): EventTimeStatus => {
     const now = new Date()
-    const eventDate = new Date(event.date)
+    const eventDate = new Date(event.date + 'T00:00:00+08:00') // Use Philippine Time (UTC+8)
     const [startHour, startMinute] = event.start_time.split(':').map(Number)
     const [endHour, endMinute] = event.end_time.split(':').map(Number)
     
-    // Create start and end datetime objects
+    // Create start and end datetime objects in Philippine Time
     const eventStartTime = new Date(eventDate)
     eventStartTime.setHours(startHour, startMinute, 0, 0)
     
     const eventEndTime = new Date(eventDate)
     eventEndTime.setHours(endHour, endMinute, 59, 999)
     
-    // Check if it's the right date
-    const currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    // Check if it's the right date (using Philippine Time)
+    const phTime = new Date(now.getTime() + (8 * 60 * 60 * 1000)) // Add 8 hours for Philippine Time
+    const currentDate = new Date(phTime.getUTCFullYear(), phTime.getUTCMonth(), phTime.getUTCDate())
     const eventOnlyDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
     
     if (currentDate.getTime() !== eventOnlyDate.getTime()) {

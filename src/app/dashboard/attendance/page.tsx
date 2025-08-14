@@ -70,7 +70,7 @@ export default function AttendancePage() {
         const now = new Date()
         const totalEvents = data.events?.length || 0
         const activeEvents = data.events?.filter((event: Event) => {
-          const eventDate = new Date(event.date)
+          const eventDate = new Date(event.date + 'T00:00:00+08:00') // Use Philippine Time (UTC+8)
           const eventStart = new Date(eventDate)
           const [startHour, startMinute] = event.start_time.split(':').map(Number)
           eventStart.setHours(startHour, startMinute, 0, 0)
@@ -83,7 +83,7 @@ export default function AttendancePage() {
         }).length || 0
         
         const completedEvents = data.events?.filter((event: Event) => {
-          const eventDate = new Date(event.date)
+          const eventDate = new Date(event.date + 'T00:00:00+08:00') // Use Philippine Time (UTC+8)
           const eventEnd = new Date(eventDate)
           const [endHour, endMinute] = event.end_time.split(':').map(Number)
           eventEnd.setHours(endHour, endMinute, 59, 999)
@@ -108,7 +108,7 @@ export default function AttendancePage() {
 
   const getEventStatus = (event: Event) => {
     const now = new Date()
-    const eventDate = new Date(event.date)
+    const eventDate = new Date(event.date + 'T00:00:00+08:00') // Use Philippine Time (UTC+8)
     const eventStart = new Date(eventDate)
     const [startHour, startMinute] = event.start_time.split(':').map(Number)
     eventStart.setHours(startHour, startMinute, 0, 0)
