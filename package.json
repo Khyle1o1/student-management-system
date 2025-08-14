@@ -35,6 +35,8 @@
     "@tanstack/react-query-devtools": "^5.80.7",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
+    "@types/papaparse": "^5.3.16",
+    "@types/pg": "^8.15.5",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.4.19",
@@ -43,6 +45,8 @@
     "clsx": "^2.1.1",
     "cmdk": "^0.2.0",
     "date-fns": "^4.1.0",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.30",
     "framer-motion": "^11.2.6",
     "jspdf": "^3.0.1",
     "lucide-react": "^0.379.0",
@@ -60,16 +64,13 @@
     "tailwind-merge": "^2.3.0",
     "tailwindcss": "^3.4.4",
     "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.20.3",
     "typescript": "^5",
     "uuid": "^10.0.0",
     "xlsx": "^0.18.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/papaparse": "^5.3.16",
-    "@types/pg": "^8.15.5",
-    "eslint": "^8",
-    "eslint-config-next": "14.2.30",
-    "tsx": "^4.20.3"
+
   }
 }
