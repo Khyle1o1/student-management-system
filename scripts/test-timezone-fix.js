@@ -47,16 +47,21 @@ function checkEventTimeWindow(event) {
     const [endHour, endMinute] = event.end_time.split(':').map(Number)
     
     // Create start and end datetime objects in Philippine Time
-    const eventStartTime = new Date(eventDate)
+    // Get the date part in Philippine timezone
+    const phNow = new Date(now.getTime() + (8 * 60 * 60 * 1000))
+    const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
+    
+    // Create event times in Philippine timezone
+    const eventStartTime = new Date(eventDateOnly)
     eventStartTime.setHours(startHour, startMinute, 0, 0)
     
-    const eventEndTime = new Date(eventDate)
-    eventEndTime.setHours(endHour, endMinute, 59, 999) // Include the last second of end time
+    const eventEndTime = new Date(eventDateOnly)
+    eventEndTime.setHours(endHour, endMinute, 59, 999)
     
-    // Get current date for comparison (using Philippine Time)
-    const phTime = new Date(now.getTime() + (8 * 60 * 60 * 1000)) // Add 8 hours for Philippine Time
-    const currentDate = new Date(phTime.getUTCFullYear(), phTime.getUTCMonth(), phTime.getUTCDate())
-    const eventOnlyDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
+    // Convert current time to Philippine time for comparison
+    const currentPhTime = new Date(phNow.getFullYear(), phNow.getMonth(), phNow.getDate(), phNow.getHours(), phNow.getMinutes(), phNow.getSeconds())
+    const currentDate = new Date(phNow.getFullYear(), phNow.getMonth(), phNow.getDate())
+    const eventOnlyDate = new Date(eventDateOnly)
     
     console.log('Current time (UTC):', now.toISOString())
     console.log('Current time (Philippine Time):', new Date(now.getTime() + (8 * 60 * 60 * 1000)).toISOString())
@@ -80,17 +85,17 @@ function checkEventTimeWindow(event) {
       }
     }
     
-    // Check if current time is within the event window
-    if (now < eventStartTime) {
-      const timeUntilStart = Math.ceil((eventStartTime.getTime() - now.getTime()) / (1000 * 60)) // minutes
+    // Check if current time is within the event window (using Philippine time)
+    if (currentPhTime < eventStartTime) {
+      const timeUntilStart = Math.ceil((eventStartTime.getTime() - currentPhTime.getTime()) / (1000 * 60)) // minutes
       return {
         isActive: false,
         message: `Attendance not yet available. Event starts at ${event.start_time} (${timeUntilStart} minutes from now).`
       }
     }
     
-    if (now > eventEndTime) {
-      const timeAfterEnd = Math.ceil((now.getTime() - eventEndTime.getTime()) / (1000 * 60)) // minutes
+    if (currentPhTime > eventEndTime) {
+      const timeAfterEnd = Math.ceil((currentPhTime.getTime() - eventEndTime.getTime()) / (1000 * 60)) // minutes
       return {
         isActive: false,
         message: `Attendance is no longer available. Event ended at ${event.end_time} (${timeAfterEnd} minutes ago).`
@@ -98,7 +103,7 @@ function checkEventTimeWindow(event) {
     }
     
     // Event is currently active
-    const timeUntilEnd = Math.ceil((eventEndTime.getTime() - now.getTime()) / (1000 * 60)) // minutes
+    const timeUntilEnd = Math.ceil((eventEndTime.getTime() - currentPhTime.getTime()) / (1000 * 60)) // minutes
     return {
       isActive: true,
       message: `Event is currently active. Time remaining: ${timeUntilEnd} minutes.`
@@ -116,15 +121,21 @@ function checkEventTimeWindow(event) {
 // Test cases
 console.log('=== Testing Philippine Time (UTC+8) Timezone Fix ===\n')
 
-// Test 1: Event happening today at 08:00-16:00
+// Get current Philippine time to create a proper test
+const nowPh = new Date(new Date().getTime() + (8 * 60 * 60 * 1000))
+const currentHour = nowPh.getHours()
+console.log('Current Philippine Time:', nowPh.toISOString())
+console.log('Current Philippine Hour:', currentHour)
+
+// Test 1: Event happening today that should be active right now
 const today = new Date().toISOString().split('T')[0]
 const testEvent1 = {
   date: today,
-  start_time: '08:00',
-  end_time: '16:00'
+  start_time: currentHour >= 2 ? '08:00' : '00:00', // Ensure event is active
+  end_time: currentHour <= 20 ? '23:59' : '08:00'   // Ensure event is active
 }
 
-console.log('Test 1: Event happening today at 08:00-16:00')
+console.log('Test 1: Event happening today that should be active now')
 console.log('Event:', testEvent1)
 const result1 = checkEventTimeWindow(testEvent1)
 console.log('Result:', result1)

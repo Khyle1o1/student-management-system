@@ -151,17 +151,19 @@ export default function EventAttendancePage() {
     const [startHour, startMinute] = event.start_time.split(':').map(Number)
     const [endHour, endMinute] = event.end_time.split(':').map(Number)
     
-    // Create start and end datetime objects in Philippine Time
-    const eventStartTime = new Date(eventDate)
+    // Create start and end datetime objects (system is already in Philippine Time)
+    const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
+    
+    // Create event times
+    const eventStartTime = new Date(eventDateOnly)
     eventStartTime.setHours(startHour, startMinute, 0, 0)
     
-    const eventEndTime = new Date(eventDate)
+    const eventEndTime = new Date(eventDateOnly)
     eventEndTime.setHours(endHour, endMinute, 59, 999)
     
-    // Check if it's the right date (using Philippine Time)
-    const phTime = new Date(now.getTime() + (8 * 60 * 60 * 1000)) // Add 8 hours for Philippine Time
-    const currentDate = new Date(phTime.getUTCFullYear(), phTime.getUTCMonth(), phTime.getUTCDate())
-    const eventOnlyDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
+    // Use current time as-is (system is already in Philippine Time)
+    const currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const eventOnlyDate = new Date(eventDateOnly)
     
     if (currentDate.getTime() !== eventOnlyDate.getTime()) {
       if (currentDate < eventOnlyDate) {
