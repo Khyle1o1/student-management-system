@@ -259,7 +259,15 @@ function parseEventDate(dateString: string): Date {
 // Helper function to check if event is currently active based on time window
 function checkEventTimeWindow(event: any): { isActive: boolean; message: string } {
   try {
+    // Get current time and detect timezone
     const now = new Date()
+    
+    // Check if server is already in Philippine timezone (GMT+8)
+    const timezoneOffset = now.getTimezoneOffset()
+    const isAlreadyPhilippineTime = timezoneOffset === -480 // -480 minutes = GMT+8
+    
+    // Get Philippine time
+    const phTime = isAlreadyPhilippineTime ? now : new Date(now.getTime() + (8 * 60 * 60 * 1000))
     
     // Parse event date and times
     const eventDate = parseEventDate(event.date)
@@ -275,18 +283,18 @@ function checkEventTimeWindow(event: any): { isActive: boolean; message: string 
     const [startHour, startMinute] = event.start_time.split(':').map(Number)
     const [endHour, endMinute] = event.end_time.split(':').map(Number)
     
-    // Create start and end datetime objects (system is already in Philippine Time)
+    // Create event date in Philippine timezone
     const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
     
-    // Create event times 
+    // Create event times in Philippine timezone
     const eventStartTime = new Date(eventDateOnly)
     eventStartTime.setHours(startHour, startMinute, 0, 0)
     
     const eventEndTime = new Date(eventDateOnly)
     eventEndTime.setHours(endHour, endMinute, 59, 999)
     
-    // Use current time as-is (system is already in Philippine Time)
-    const currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    // Use Philippine time for comparison
+    const currentDate = new Date(phTime.getFullYear(), phTime.getMonth(), phTime.getDate())
     const eventOnlyDate = new Date(eventDateOnly)
     
     // Check if it's the right date
@@ -304,17 +312,17 @@ function checkEventTimeWindow(event: any): { isActive: boolean; message: string 
       }
     }
     
-    // Check if current time is within the event window
-    if (now < eventStartTime) {
-      const timeUntilStart = Math.ceil((eventStartTime.getTime() - now.getTime()) / (1000 * 60)) // minutes
+    // Check if current time is within the event window (using Philippine time)
+    if (phTime < eventStartTime) {
+      const timeUntilStart = Math.ceil((eventStartTime.getTime() - phTime.getTime()) / (1000 * 60)) // minutes
       return {
         isActive: false,
         message: `Attendance not yet available. Event starts at ${event.start_time} (${timeUntilStart} minutes from now).`
       }
     }
     
-    if (now > eventEndTime) {
-      const timeAfterEnd = Math.ceil((now.getTime() - eventEndTime.getTime()) / (1000 * 60)) // minutes
+    if (phTime > eventEndTime) {
+      const timeAfterEnd = Math.ceil((phTime.getTime() - eventEndTime.getTime()) / (1000 * 60)) // minutes
       return {
         isActive: false,
         message: `Attendance is no longer available. Event ended at ${event.end_time} (${timeAfterEnd} minutes ago).`
@@ -322,7 +330,7 @@ function checkEventTimeWindow(event: any): { isActive: boolean; message: string 
     }
     
     // Event is currently active
-    const timeUntilEnd = Math.ceil((eventEndTime.getTime() - now.getTime()) / (1000 * 60)) // minutes
+    const timeUntilEnd = Math.ceil((eventEndTime.getTime() - phTime.getTime()) / (1000 * 60)) // minutes
     return {
       isActive: true,
       message: `Event is currently active. Time remaining: ${timeUntilEnd} minutes.`
