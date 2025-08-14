@@ -28,21 +28,23 @@ export async function GET(
       return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     }
 
-    // Transform the data to match the frontend format
+    // Return the event data with consistent field names
     const transformedEvent = {
       id: event.id,
       title: event.title,
       description: event.description || '',
-      eventDate: event.date.split('T')[0], // Extract just the date part
-      startTime: event.start_time || '09:00', // Use the start_time field
-      endTime: event.end_time || '17:00', // Use the end_time field
+      date: event.date, // Keep the original date field
+      start_time: event.start_time || '09:00', // Use the start_time field
+      end_time: event.end_time || '17:00', // Use the end_time field
       location: event.location || '',
-      eventType: event.type || 'ACADEMIC',
-      capacity: event.max_capacity || 100,
+      type: event.type || 'ACADEMIC',
+      max_capacity: event.max_capacity || 100,
       scope_type: event.scope_type || 'UNIVERSITY_WIDE',
       scope_college: event.scope_college || null,
       scope_course: event.scope_course || null,
-      require_evaluation: event.require_evaluation || false
+      require_evaluation: event.require_evaluation || false,
+      created_at: event.created_at,
+      updated_at: event.updated_at
     }
 
     return NextResponse.json(transformedEvent)
@@ -71,9 +73,9 @@ export async function PUT(
     const updateData = {
       title: body.title,
       description: body.description || null,
-      date: body.eventDate, // Just the date
-      start_time: body.startTime || '09:00', // Just the time
-      end_time: body.endTime || '17:00', // Just the time
+      date: body.date || body.eventDate, // Support both field names for backward compatibility
+      start_time: body.start_time || body.startTime || '09:00', // Support both field names
+      end_time: body.end_time || body.endTime || '17:00', // Support both field names
       location: body.location || null,
       type: body.type || 'ACADEMIC',
       max_capacity: body.max_capacity || 100,

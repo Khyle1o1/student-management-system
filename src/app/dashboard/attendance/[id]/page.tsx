@@ -42,9 +42,9 @@ interface Event {
   id: string
   title: string
   description: string
-  eventDate: string
-  startTime: string
-  endTime: string
+  date: string
+  start_time: string
+  end_time: string
   location: string
   scope_type: string
   scope_college: string | null
@@ -110,9 +110,9 @@ export default function EventAttendancePage() {
   // Check event time status
   const checkEventTimeStatus = (event: Event): EventTimeStatus => {
     const now = new Date()
-    const eventDate = new Date(event.eventDate)
-    const [startHour, startMinute] = event.startTime.split(':').map(Number)
-    const [endHour, endMinute] = event.endTime.split(':').map(Number)
+    const eventDate = new Date(event.date)
+    const [startHour, startMinute] = event.start_time.split(':').map(Number)
+    const [endHour, endMinute] = event.end_time.split(':').map(Number)
     
     // Create start and end datetime objects
     const eventStartTime = new Date(eventDate)
@@ -147,7 +147,7 @@ export default function EventAttendancePage() {
       return {
         isActive: false,
         status: 'not-started',
-        message: `Event starts at ${event.startTime} (${timeUntilStart} minutes from now)`
+        message: `Event starts at ${event.start_time} (${timeUntilStart} minutes from now)`
       }
     }
     
@@ -155,14 +155,14 @@ export default function EventAttendancePage() {
       return {
         isActive: false,
         status: 'ended',
-        message: `Event ended at ${event.endTime}`
+        message: `Event ended at ${event.end_time}`
       }
     }
     
     return {
       isActive: true,
       status: 'active',
-      message: `Event is active until ${event.endTime}`
+      message: `Event is active until ${event.end_time}`
     }
   }
 
@@ -546,11 +546,11 @@ export default function EventAttendancePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
               <div className="flex items-center space-x-2">
                 <Calendar className="h-4 w-4 text-blue-500" />
-                <span>{format(new Date(event.eventDate), "EEEE, MMMM dd, yyyy")}</span>
+                <span>{format(new Date(event.date), "EEEE, MMMM dd, yyyy")}</span>
               </div>
               <div className="flex items-center space-x-2">
                 <Clock className="h-4 w-4 text-green-500" />
-                <span>{event.startTime} - {event.endTime}</span>
+                <span>{event.start_time} - {event.end_time}</span>
               </div>
               <div className="flex items-center space-x-2">
                 <MapPin className="h-4 w-4 text-red-500" />
