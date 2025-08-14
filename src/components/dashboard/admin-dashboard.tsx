@@ -19,7 +19,8 @@ import {
   CheckCircle,
   AlertCircle,
   Activity,
-  Loader2
+  Loader2,
+  ClipboardCheck
 } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
@@ -101,6 +102,13 @@ const quickActions = [
     icon: CalendarPlus,
     description: "Schedule new event",
     color: "bg-green-500 hover:bg-green-600"
+  },
+  {
+    href: "/dashboard/attendance",
+    label: "Manage Attendance",
+    icon: ClipboardCheck,
+    description: "Track event attendance",
+    color: "bg-indigo-500 hover:bg-indigo-600"
   },
   {
     href: "/dashboard/fees/new",
