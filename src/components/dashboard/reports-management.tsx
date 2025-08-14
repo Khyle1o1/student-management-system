@@ -219,6 +219,18 @@ export function ReportsManagement() {
           <ReportHistory />
         </TabsContent>
       </Tabs>
+      
+      {/* Footer */}
+      <div className="border-t border-gray-200/60 p-3 mt-8">
+        <div className="text-center">
+          <p className="text-xs text-gray-500 flex items-center justify-center gap-1">
+            Made with 
+            ❤️
+            by Khyle Amacna of 
+            AOG Tech
+          </p>
+        </div>
+      </div>
     </div>
   )
 } 

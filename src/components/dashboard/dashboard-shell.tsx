@@ -439,11 +439,14 @@ export function DashboardShell({ children }: DashboardShellProps) {
               )}
             </div>
 
-            {/* Sidebar Footer */}
+           {/* Sidebar Footer */}
             <div className="border-t border-gray-200/60 p-3">
               <div className="text-center">
-                <p className="text-xs text-gray-500">
-                  © 2024 EduManage Pro
+                <p className="text-xs text-gray-500 flex items-center justify-center gap-1">
+                  Made with 
+                  ❤️
+                  by Khyle Amacna of 
+                  AOG Tech
                 </p>
               </div>
             </div>

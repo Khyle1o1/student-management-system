@@ -1,50 +1,83 @@
-import { auth } from "@/lib/auth"
-import { redirect } from "next/navigation"
-import { notFound } from "next/navigation"
+"use client"
+
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { EditEventForm } from "@/components/dashboard/edit-event-form"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, FileText } from "lucide-react"
 import Link from "next/link"
-import { supabase } from "@/lib/supabase"
 
-export default async function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const session = await auth()
+export default function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
+  const [id, setId] = useState<string>('')
+  const [event, setEvent] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
-  if (!session) {
-    redirect("/auth/login")
-  }
+  useEffect(() => {
+    const initializePage = async () => {
+      try {
+        const resolvedParams = await params
+        setId(resolvedParams.id)
+        
+        // Check authentication
+        const sessionResponse = await fetch('/api/auth/session')
+        if (!sessionResponse.ok) {
+          router.push('/auth/login')
+          return
+        }
+        
+        const session = await sessionResponse.json()
+        if (session.user?.role !== 'ADMIN') {
+          router.push('/dashboard')
+          return
+        }
 
-  if (session.user.role !== "ADMIN") {
-    redirect("/dashboard")
-  }
+        // Fetch event data
+        const eventResponse = await fetch(`/api/events/${resolvedParams.id}`)
+        if (!eventResponse.ok) {
+          router.push('/dashboard/events')
+          return
+        }
 
-  const { data: rawEvent, error } = await supabase
-    .from('events')
-    .select('*')
-    .eq('id', id)
-    .single()
+        const eventData = await eventResponse.json()
+        setEvent({
+          id: eventData.id,
+          title: eventData.title || '',
+          description: eventData.description || '',
+          eventDate: eventData.date || '',
+          startTime: eventData.start_time || '09:00',
+          endTime: eventData.end_time || '17:00',
+          location: eventData.location || '',
+          eventType: eventData.type || 'ACADEMIC',
+          capacity: eventData.max_capacity || 100,
+          status: eventData.status || 'ACTIVE',
+          scope_type: eventData.scope_type || 'UNIVERSITY_WIDE',
+          scope_college: eventData.scope_college || '',
+          scope_course: eventData.scope_course || ''
+        })
+      } catch (error) {
+        console.error('Error initializing page:', error)
+        router.push('/dashboard/events')
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  if (error || !rawEvent) {
-    notFound()
-  }
+    initializePage()
+  }, [params, router])
 
-  // Transform database column names to match the TypeScript interface
-  const event = {
-    id: rawEvent.id,
-    title: rawEvent.title || '',
-    description: rawEvent.description || '',
-    eventDate: rawEvent.date || '',
-    startTime: rawEvent.start_time || '09:00',
-    endTime: rawEvent.end_time || '17:00',
-    location: rawEvent.location || '',
-    eventType: rawEvent.type || 'ACADEMIC',
-    capacity: rawEvent.max_capacity || 100,
-    status: rawEvent.status || 'ACTIVE',
-    scope_type: rawEvent.scope_type || 'UNIVERSITY_WIDE',
-    scope_college: rawEvent.scope_college || '',
-    scope_course: rawEvent.scope_course || ''
+  if (loading || !event) {
+    return (
+      <DashboardShell>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+            <p className="mt-2 text-muted-foreground">Loading event...</p>
+          </div>
+        </div>
+      </DashboardShell>
+    )
   }
 
   return (
@@ -64,6 +97,16 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
                 Update event information for {event.title}
               </p>
             </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.open(`/api/events/${id}/report`, '_blank')}
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Generate PDF Report
+            </Button>
           </div>
         </div>
         

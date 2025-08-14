@@ -25,7 +25,8 @@ import {
   Users,
   Target,
   Eye,
-  UserCheck
+  UserCheck,
+  FileText
 } from "lucide-react"
 import Link from "next/link"
 import { EVENT_SCOPE_LABELS } from "@/lib/constants/academic-programs"
@@ -262,6 +263,15 @@ export function EventsTable() {
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Details
                               </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.preventDefault();
+                                window.open(`/api/events/${event.id}/report`, '_blank');
+                              }}
+                            >
+                              <FileText className="mr-2 h-4 w-4" />
+                              Generate PDF Report
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={(e) => {
