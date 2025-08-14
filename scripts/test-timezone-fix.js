@@ -1,12 +1,48 @@
 // Test script to verify timezone fix for attendance system (Philippine Time UTC+8)
 // Run with: node scripts/test-timezone-fix.js
 
+// Helper function to safely parse date with Philippine timezone
+function parseEventDate(dateString) {
+  try {
+    // Handle different date formats
+    let parsedDate
+    
+    if (dateString.includes('T')) {
+      // Already has time component
+      parsedDate = new Date(dateString)
+    } else {
+      // Just date, add Philippine timezone
+      parsedDate = new Date(dateString + 'T00:00:00+08:00')
+    }
+    
+    // Check if date is valid
+    if (isNaN(parsedDate.getTime())) {
+      // Fallback: try parsing as just date
+      parsedDate = new Date(dateString)
+    }
+    
+    return parsedDate
+  } catch (error) {
+    console.error('Error parsing date:', error, 'Date string:', dateString)
+    return new Date() // Return current date as fallback
+  }
+}
+
 function checkEventTimeWindow(event) {
   try {
     const now = new Date()
     
     // Parse event date and times
-    const eventDate = new Date(event.date + 'T00:00:00+08:00') // Use Philippine Time (UTC+8)
+    const eventDate = parseEventDate(event.date)
+    
+    // Check if date parsing failed
+    if (isNaN(eventDate.getTime())) {
+      return {
+        isActive: false,
+        message: 'Invalid event date format. Please contact administrator.'
+      }
+    }
+    
     const [startHour, startMinute] = event.start_time.split(':').map(Number)
     const [endHour, endMinute] = event.end_time.split(':').map(Number)
     

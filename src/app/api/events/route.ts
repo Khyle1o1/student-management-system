@@ -83,7 +83,25 @@ export async function GET(request: Request) {
       eventType: event.type || "ACADEMIC",
       capacity: event.max_capacity || 100,
       registeredCount: 0, // TODO: Calculate actual count
-      status: new Date(event.date + 'T00:00:00+08:00') > new Date() ? "upcoming" : "completed",
+      status: (() => {
+        try {
+          let eventDate: Date
+          if (event.date.includes('T')) {
+            eventDate = new Date(event.date)
+          } else {
+            eventDate = new Date(event.date + 'T00:00:00+08:00')
+          }
+          
+          if (isNaN(eventDate.getTime())) {
+            return "error"
+          }
+          
+          return eventDate > new Date() ? "upcoming" : "completed"
+        } catch (error) {
+          console.error('Error parsing event date:', error)
+          return "error"
+        }
+      })(),
       scope_type: event.scope_type || "UNIVERSITY_WIDE",
       scope_college: event.scope_college || "",
       scope_course: event.scope_course || "",

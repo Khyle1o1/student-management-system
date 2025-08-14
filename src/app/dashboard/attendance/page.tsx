@@ -66,11 +66,40 @@ export default function AttendancePage() {
         const data = await response.json()
         setEvents(data.events || [])
         
+        // Helper function to safely parse date with Philippine timezone
+        const parseEventDate = (dateString: string): Date => {
+          try {
+            // Handle different date formats
+            let parsedDate: Date
+            
+            if (dateString.includes('T')) {
+              // Already has time component
+              parsedDate = new Date(dateString)
+            } else {
+              // Just date, add Philippine timezone
+              parsedDate = new Date(dateString + 'T00:00:00+08:00')
+            }
+            
+            // Check if date is valid
+            if (isNaN(parsedDate.getTime())) {
+              // Fallback: try parsing as just date
+              parsedDate = new Date(dateString)
+            }
+            
+            return parsedDate
+          } catch (error) {
+            console.error('Error parsing date:', error, 'Date string:', dateString)
+            return new Date() // Return current date as fallback
+          }
+        }
+
         // Calculate overview stats
         const now = new Date()
         const totalEvents = data.events?.length || 0
         const activeEvents = data.events?.filter((event: Event) => {
-          const eventDate = new Date(event.date + 'T00:00:00+08:00') // Use Philippine Time (UTC+8)
+          const eventDate = parseEventDate(event.date)
+          if (isNaN(eventDate.getTime())) return false // Skip invalid dates
+          
           const eventStart = new Date(eventDate)
           const [startHour, startMinute] = event.start_time.split(':').map(Number)
           eventStart.setHours(startHour, startMinute, 0, 0)
@@ -83,7 +112,9 @@ export default function AttendancePage() {
         }).length || 0
         
         const completedEvents = data.events?.filter((event: Event) => {
-          const eventDate = new Date(event.date + 'T00:00:00+08:00') // Use Philippine Time (UTC+8)
+          const eventDate = parseEventDate(event.date)
+          if (isNaN(eventDate.getTime())) return false // Skip invalid dates
+          
           const eventEnd = new Date(eventDate)
           const [endHour, endMinute] = event.end_time.split(':').map(Number)
           eventEnd.setHours(endHour, endMinute, 59, 999)
@@ -106,9 +137,42 @@ export default function AttendancePage() {
     }
   }
 
+  // Helper function to safely parse date with Philippine timezone
+  const parseEventDate = (dateString: string): Date => {
+    try {
+      // Handle different date formats
+      let parsedDate: Date
+      
+      if (dateString.includes('T')) {
+        // Already has time component
+        parsedDate = new Date(dateString)
+      } else {
+        // Just date, add Philippine timezone
+        parsedDate = new Date(dateString + 'T00:00:00+08:00')
+      }
+      
+      // Check if date is valid
+      if (isNaN(parsedDate.getTime())) {
+        // Fallback: try parsing as just date
+        parsedDate = new Date(dateString)
+      }
+      
+      return parsedDate
+    } catch (error) {
+      console.error('Error parsing date:', error, 'Date string:', dateString)
+      return new Date() // Return current date as fallback
+    }
+  }
+
   const getEventStatus = (event: Event) => {
     const now = new Date()
-    const eventDate = new Date(event.date + 'T00:00:00+08:00') // Use Philippine Time (UTC+8)
+    const eventDate = parseEventDate(event.date)
+    
+    // Handle invalid dates
+    if (isNaN(eventDate.getTime())) {
+      return { status: "error", label: "Invalid Date", color: "bg-red-100 text-red-800" }
+    }
+    
     const eventStart = new Date(eventDate)
     const [startHour, startMinute] = event.start_time.split(':').map(Number)
     eventStart.setHours(startHour, startMinute, 0, 0)
