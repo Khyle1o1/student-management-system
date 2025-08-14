@@ -89,7 +89,7 @@ export async function GET(request: Request) {
           if (event.date.includes('T')) {
             eventDate = new Date(event.date)
           } else {
-            eventDate = new Date(event.date + 'T00:00:00+08:00')
+            eventDate = new Date(event.date + 'T00:00:00')
           }
           
           if (isNaN(eventDate.getTime())) {

@@ -229,7 +229,7 @@ export async function POST(request: Request) {
   }
 }
 
-// Helper function to safely parse date with Philippine timezone
+// Helper function to safely parse date (system already in Philippine timezone)
 function parseEventDate(dateString: string): Date {
   try {
     // Handle different date formats
@@ -239,8 +239,8 @@ function parseEventDate(dateString: string): Date {
       // Already has time component
       parsedDate = new Date(dateString)
     } else {
-      // Just date, add Philippine timezone
-      parsedDate = new Date(dateString + 'T00:00:00+08:00')
+      // Just date, system is already in Philippine timezone
+      parsedDate = new Date(dateString + 'T00:00:00')
     }
     
     // Check if date is valid

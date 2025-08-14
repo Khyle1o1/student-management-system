@@ -66,7 +66,7 @@ export default function AttendancePage() {
         const data = await response.json()
         setEvents(data.events || [])
         
-        // Helper function to safely parse date with Philippine timezone
+        // Helper function to safely parse date (system already in Philippine timezone)
         const parseEventDate = (dateString: string): Date => {
           try {
             // Handle different date formats
@@ -76,8 +76,8 @@ export default function AttendancePage() {
               // Already has time component
               parsedDate = new Date(dateString)
             } else {
-              // Just date, add Philippine timezone
-              parsedDate = new Date(dateString + 'T00:00:00+08:00')
+              // Just date, system is already in Philippine timezone
+              parsedDate = new Date(dateString + 'T00:00:00')
             }
             
             // Check if date is valid
@@ -137,7 +137,7 @@ export default function AttendancePage() {
     }
   }
 
-  // Helper function to safely parse date with Philippine timezone
+  // Helper function to safely parse date (system already in Philippine timezone)
   const parseEventDate = (dateString: string): Date => {
     try {
       // Handle different date formats
@@ -147,8 +147,8 @@ export default function AttendancePage() {
         // Already has time component
         parsedDate = new Date(dateString)
       } else {
-        // Just date, add Philippine timezone
-        parsedDate = new Date(dateString + 'T00:00:00+08:00')
+        // Just date, system is already in Philippine timezone
+        parsedDate = new Date(dateString + 'T00:00:00')
       }
       
       // Check if date is valid
