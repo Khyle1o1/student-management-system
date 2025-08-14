@@ -3,9 +3,7 @@
 import { Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Alert, AlertDescription } from "@/components/ui"
 import { AlertTriangle, ArrowLeft } from "lucide-react"
 
 function AuthErrorContent() {
