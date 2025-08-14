@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase"
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -12,11 +12,12 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const { id } = await params
     // First get the event details to determine scope
     const { data: event, error: eventError } = await supabase
       .from('events')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (eventError) {
@@ -44,7 +45,7 @@ export async function GET(
     const { count: attended, error: attendanceError } = await supabase
       .from('event_attendance')
       .select('*', { count: 'exact' })
-      .eq('event_id', params.id)
+      .eq('event_id', id)
 
     if (attendanceError) {
       console.error('Error counting attendance:', attendanceError)

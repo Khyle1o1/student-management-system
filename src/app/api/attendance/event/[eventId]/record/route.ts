@@ -9,7 +9,7 @@ const recordAttendanceSchema = z.object({
 
 export async function POST(
   request: Request,
-  { params }: { params: { eventId: string } }
+  { params }: { params: Promise<{ eventId: string }> }
 ) {
   try {
     const session = await auth()
@@ -17,7 +17,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { eventId } = params
+    const { eventId } = await params
     const body = await request.json()
     const { barcode } = recordAttendanceSchema.parse(body)
 

@@ -6,7 +6,7 @@ import { z } from "zod"
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -19,10 +19,11 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
+    const { id } = await params
     const { data: fee, error } = await supabase
       .from('fee_structures')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('is_active', true)
       .is('deleted_at', null)
       .single()
@@ -63,7 +64,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -79,6 +80,7 @@ export async function PUT(
     const body = await request.json()
     const validatedData = feeSchema.parse(body)
 
+    const { id } = await params
     const { data: updatedFee, error } = await supabase
       .from('fee_structures')
       .update({
@@ -94,7 +96,7 @@ export async function PUT(
         scope_course: validatedData.scope_course || null,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('is_active', true)
       .is('deleted_at', null)
       .select()
@@ -123,7 +125,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -136,6 +138,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
+    const { id } = await params
     // Soft delete by setting deleted_at timestamp and is_active to false
     const { error } = await supabase
       .from('fee_structures')
@@ -143,7 +146,7 @@ export async function DELETE(
         deleted_at: new Date().toISOString(),
         is_active: false,
       })
-      .eq('id', params.id)
+      .eq('id', id)
 
     if (error) {
       console.error("Error deleting fee:", error)

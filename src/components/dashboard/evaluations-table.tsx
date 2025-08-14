@@ -274,8 +274,8 @@ export function EvaluationsTable() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete Evaluation</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Are you sure you want to delete "{evaluation.title}"? 
-                              This action cannot be undone and will prevent it from being used in new events.
+                                                          Are you sure you want to delete &quot;{evaluation.title}&quot;? 
+                            This action cannot be undone and will prevent it from being used in new events.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>

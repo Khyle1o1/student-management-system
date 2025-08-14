@@ -8,7 +8,8 @@ import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { supabase } from "@/lib/supabase"
 
-export default async function EditEventPage({ params }: { params: { id: string } }) {
+export default async function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await auth()
 
   if (!session) {
@@ -22,7 +23,7 @@ export default async function EditEventPage({ params }: { params: { id: string }
   const { data: rawEvent, error } = await supabase
     .from('events')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (error || !rawEvent) {
@@ -66,7 +67,7 @@ export default async function EditEventPage({ params }: { params: { id: string }
           </div>
         </div>
         
-        <EditEventForm eventId={params.id} initialData={event} />
+        <EditEventForm eventId={id} initialData={event} />
       </div>
     </DashboardShell>
   )

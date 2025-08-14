@@ -13,10 +13,10 @@ const updateProfileSchema = z.object({
 
 export async function GET(
   request: Request,
-  { params }: { params: { studentId: string } }
+  { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
-    const { studentId } = params
+    const { studentId } = await params
 
     const { data: student, error } = await supabase
       .from('students')
@@ -62,10 +62,10 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { studentId: string } }
+  { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
-    const { studentId } = params
+    const { studentId } = await params
     const body = await request.json()
     const data = updateProfileSchema.parse(body)
 

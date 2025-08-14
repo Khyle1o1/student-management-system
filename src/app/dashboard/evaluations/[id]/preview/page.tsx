@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
-export default async function EvaluationPreviewPage({ params }: { params: { id: string } }) {
+export default async function EvaluationPreviewPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
 
   if (!session) {
@@ -16,6 +16,8 @@ export default async function EvaluationPreviewPage({ params }: { params: { id: 
   if (session.user.role !== "ADMIN") {
     redirect("/dashboard")
   }
+
+  const { id } = await params
 
   return (
     <DashboardShell>
@@ -37,7 +39,7 @@ export default async function EvaluationPreviewPage({ params }: { params: { id: 
           </div>
         </div>
         
-        <EvaluationPreview evaluationId={params.id} />
+        <EvaluationPreview evaluationId={id} />
       </div>
     </DashboardShell>
   )

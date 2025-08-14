@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { EventEvaluationForm } from "@/components/dashboard/event-evaluation-form"
 
-export default async function EventEvaluationPage({ params }: { params: { id: string } }) {
+export default async function EventEvaluationPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
 
   if (!session) {
@@ -14,9 +14,11 @@ export default async function EventEvaluationPage({ params }: { params: { id: st
     redirect("/dashboard")
   }
 
+  const { id } = await params
+
   return (
     <DashboardShell>
-      <EventEvaluationForm eventId={params.id} studentId={session.user.studentId} />
+      <EventEvaluationForm eventId={id} studentId={session.user.studentId} />
     </DashboardShell>
   )
 } 

@@ -10,9 +10,9 @@ import Link from "next/link"
 import { format } from "date-fns"
 
 interface CertificateTemplatePageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default async function CertificateTemplatePage({ params }: CertificateTemplatePageProps) {

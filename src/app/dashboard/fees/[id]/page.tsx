@@ -19,9 +19,9 @@ async function getFee(id: string) {
 }
 
 interface EditFeePageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default async function EditFeePage({ params }: EditFeePageProps) {
@@ -35,7 +35,8 @@ export default async function EditFeePage({ params }: EditFeePageProps) {
     redirect("/dashboard")
   }
 
-  const fee = await getFee(params.id)
+  const { id } = await params
+  const fee = await getFee(id)
 
   return (
     <DashboardShell>
@@ -47,7 +48,7 @@ export default async function EditFeePage({ params }: EditFeePageProps) {
           </p>
         </div>
         
-        <FeeForm feeId={params.id} initialData={fee} />
+        <FeeForm feeId={id} initialData={fee} />
       </div>
     </DashboardShell>
   )

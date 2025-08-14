@@ -4,9 +4,9 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { FeeManagement } from "@/components/dashboard/fee-management"
 
 interface FeeManagePageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default async function FeeManagePage({ params }: FeeManagePageProps) {
@@ -20,9 +20,11 @@ export default async function FeeManagePage({ params }: FeeManagePageProps) {
     redirect("/dashboard")
   }
 
+  const { id } = await params
+
   return (
     <DashboardShell>
-      <FeeManagement feeId={params.id} />
+      <FeeManagement feeId={id} />
     </DashboardShell>
   )
 } 

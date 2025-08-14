@@ -493,7 +493,7 @@ export default function EventAttendancePage() {
           <div className="text-center">
             <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Event Not Found</h3>
-            <p className="text-muted-foreground">The event you're looking for doesn't exist.</p>
+            <p className="text-muted-foreground">The event you&apos;re looking for doesn&apos;t exist.</p>
           </div>
         </div>
       </DashboardShell>

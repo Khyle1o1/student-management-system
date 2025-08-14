@@ -8,9 +8,9 @@ import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
 interface EditCertificateTemplatePageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default async function EditCertificateTemplatePage({ params }: Readonly<EditCertificateTemplatePageProps>) {
@@ -59,7 +59,7 @@ export default async function EditCertificateTemplatePage({ params }: Readonly<E
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Edit Template</h1>
               <p className="text-muted-foreground">
-                Modify the certificate template "{template.title}"
+                Modify the certificate template &quot;{template.title}&quot;
               </p>
             </div>
           </div>

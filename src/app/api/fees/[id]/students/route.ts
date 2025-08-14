@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase"
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -26,10 +26,11 @@ export async function GET(
     const offset = (page - 1) * limit
 
     // First get the fee details to determine scope
+    const { id } = await params
     const { data: fee, error: feeError } = await supabase
       .from('fee_structures')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('is_active', true)
       .is('deleted_at', null)
       .single()
@@ -102,7 +103,7 @@ export async function GET(
     const { data: payments, error: paymentsError } = await supabase
       .from('payments')
       .select('*')
-      .eq('fee_id', params.id)
+      .eq('fee_id', id)
       .in('student_id', studentIds)
       .is('deleted_at', null)
 
@@ -164,7 +165,7 @@ export async function GET(
     const { data: allPayments, error: allPaymentsError } = await supabase
       .from('payments')
       .select('student_id, amount, status')
-      .eq('fee_id', params.id)
+      .eq('fee_id', id)
       .is('deleted_at', null)
 
     if (allPaymentsError) {
