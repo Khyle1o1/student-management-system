@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { feeSchema } from "@/lib/validations"
 import { z } from "zod"
 
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
     const offset = (page - 1) * limit
 
     // Build query for search
-    let query = supabase
+    let query = supabaseAdmin
       .from('fee_structures')
       .select('*')
 
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
     }
 
     // Get total count for pagination
-    const { count } = await supabase
+    const { count } = await supabaseAdmin
       .from('fee_structures')
       .select('*', { count: 'exact', head: true })
       .eq('is_active', true)
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
     const validatedData = feeSchema.parse(body)
 
     // Create the fee structure
-    const { data: fee, error } = await supabase
+    const { data: fee, error } = await supabaseAdmin
       .from('fee_structures')
       .insert([{
         name: validatedData.name,

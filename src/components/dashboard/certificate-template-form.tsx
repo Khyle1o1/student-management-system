@@ -68,14 +68,25 @@ export function CertificateTemplateForm({ templateId, initialData }: Certificate
   useEffect(() => {
     if (initialData) {
       setFormData({
-        title: initialData.title || "",
-        description: initialData.description || "",
-        is_active: initialData.is_active !== undefined ? initialData.is_active : true,
+        title: initialData.title ?? "",
+        description: initialData.description ?? "",
+        is_active: initialData.is_active !== undefined ? Boolean(initialData.is_active) : true,
       })
       setBackgroundDesign(initialData.background_design ? {
         ...initialData.background_design,
+        logo_url: initialData.background_design.logo_url ?? "",
+        certificate_background: initialData.background_design.certificate_background ?? "",
         design_type: initialData.background_design?.design_type || "custom"
-      } : backgroundDesign)
+      } : {
+        background_color: "#ffffff",
+        border_color: "#000000",
+        border_width: 2,
+        logo_url: "",
+        logo_position: "top-center",
+        pattern: "none",
+        certificate_background: "",
+        design_type: "image"
+      })
     }
   }, [initialData])
 
@@ -267,7 +278,7 @@ export function CertificateTemplateForm({ templateId, initialData }: Certificate
                 <Input
                   id="title"
                   placeholder="e.g., Participation Certificate"
-                  value={formData.title}
+                  value={formData.title ?? ""}
                   onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                   required
                 />
@@ -277,7 +288,7 @@ export function CertificateTemplateForm({ templateId, initialData }: Certificate
                 <Input
                   id="description"
                   placeholder="Brief description of the template"
-                  value={formData.description}
+                  value={formData.description ?? ""}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 />
               </div>
@@ -287,7 +298,7 @@ export function CertificateTemplateForm({ templateId, initialData }: Certificate
               <input
                 type="checkbox"
                 id="is_active"
-                checked={formData.is_active}
+                checked={Boolean(formData.is_active)}
                 onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
                 className="w-4 h-4"
               />

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
 
@@ -45,7 +46,7 @@ export async function GET(
 
     const { id } = await params
 
-    const { data: evaluation, error } = await supabase
+    const { data: evaluation, error } = await supabaseAdmin
       .from('evaluations')
       .select(`
         *,
@@ -93,7 +94,7 @@ export async function PUT(
     const data = updateEvaluationSchema.parse(body)
 
     // Check if evaluation exists and if user can modify it
-    const { data: existingEvaluation, error: fetchError } = await supabase
+    const { data: existingEvaluation, error: fetchError } = await supabaseAdmin
       .from('evaluations')
       .select('*')
       .eq('id', id)
@@ -108,7 +109,7 @@ export async function PUT(
     }
 
     // Check if there are any event_evaluations using this evaluation
-    const { data: eventEvaluations, error: eventEvalError } = await supabase
+    const { data: eventEvaluations, error: eventEvalError } = await supabaseAdmin
       .from('event_evaluations')
       .select('id')
       .eq('evaluation_id', id)
@@ -121,7 +122,7 @@ export async function PUT(
     // If evaluation is being used by events, create a new version instead of updating
     if (eventEvaluations && eventEvaluations.length > 0 && data.questions) {
       // Create a new evaluation with updated questions
-      const { data: newEvaluation, error: createError } = await supabase
+      const { data: newEvaluation, error: createError } = await supabaseAdmin
         .from('evaluations')
         .insert([{
           title: data.title || existingEvaluation.title,
@@ -161,7 +162,7 @@ export async function PUT(
     if (data.questions !== undefined) updateData.questions = data.questions
     if (data.is_template !== undefined) updateData.is_template = data.is_template
 
-    const { data: evaluation, error } = await supabase
+    const { data: evaluation, error } = await supabaseAdmin
       .from('evaluations')
       .update(updateData)
       .eq('id', id)
@@ -212,7 +213,7 @@ export async function DELETE(
     const { id } = await params
 
     // Check if evaluation is being used by any events
-    const { data: eventEvaluations, error: eventEvalError } = await supabase
+    const { data: eventEvaluations, error: eventEvalError } = await supabaseAdmin
       .from('event_evaluations')
       .select('id')
       .eq('evaluation_id', id)
@@ -229,7 +230,7 @@ export async function DELETE(
     }
 
     // Check if evaluation has responses
-    const { data: responses, error: responsesError } = await supabase
+    const { data: responses, error: responsesError } = await supabaseAdmin
       .from('student_evaluation_responses')
       .select('id')
       .eq('evaluation_id', id)
@@ -246,7 +247,7 @@ export async function DELETE(
     }
 
     // Delete the evaluation
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('evaluations')
       .delete()
       .eq('id', id)

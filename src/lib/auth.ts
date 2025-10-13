@@ -1,6 +1,7 @@
 import NextAuth from "next-auth"
 import { compare, hash } from "bcryptjs"
 import { supabase } from "./supabase"
+import { supabaseAdmin } from "./supabase-admin"
 import type { Database } from "./supabase"
 import { z } from "zod"
 import type { NextAuthOptions, User } from "next-auth"
@@ -94,7 +95,7 @@ export async function getUserByEmail(email: string): Promise<DBUser | null> {
     return cached.user
   }
   
-  const { data: user, error } = await supabase
+  const { data: user, error } = await supabaseAdmin
     .from('users')
     .select(`
       *,
@@ -128,7 +129,7 @@ export async function hashPassword(password: string) {
 export async function createUser(email: string, password: string, name?: string) {
   const hashedPassword = await hashPassword(password)
   
-  const { data: existingUser, error: checkError } = await supabase
+  const { data: existingUser, error: checkError } = await supabaseAdmin
     .from('users')
     .select('id')
     .eq('email', email)
@@ -138,13 +139,13 @@ export async function createUser(email: string, password: string, name?: string)
     throw new Error('User already exists')
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('users')
     .insert([
       {
         email,
         name,
-        role: 'user',
+        role: 'USER',
         password: hashedPassword
       }
     ])
@@ -160,7 +161,7 @@ export async function createUser(email: string, password: string, name?: string)
 }
 
 export async function updateUser(userId: string, data: Partial<DBUser>) {
-  const { data: updatedUser, error } = await supabase
+  const { data: updatedUser, error } = await supabaseAdmin
     .from('users')
     .update(data)
     .eq('id', userId)

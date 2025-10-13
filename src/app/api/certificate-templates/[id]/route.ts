@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
 
@@ -57,7 +58,7 @@ export async function GET(
 
     const { id } = await params
 
-    const { data: template, error } = await supabase
+    const { data: template, error } = await supabaseAdmin
       .from('certificate_templates')
       .select(`
         *,
@@ -106,7 +107,7 @@ export async function PUT(
     const data = updateCertificateTemplateSchema.parse(body)
 
     // Check if template exists
-    const { data: existingTemplate, error: existingError } = await supabase
+    const { data: existingTemplate, error: existingError } = await supabaseAdmin
       .from('certificate_templates')
       .select('*')
       .eq('id', id)
@@ -150,7 +151,7 @@ export async function PUT(
     }
 
     // Update the template
-    const { data: updatedTemplate, error } = await supabase
+    const { data: updatedTemplate, error } = await supabaseAdmin
       .from('certificate_templates')
       .update(updateData)
       .eq('id', id)
@@ -205,7 +206,7 @@ export async function DELETE(
     const { id } = await params
 
     // Check if template is used in any events
-    const { data: eventTemplates, error: eventError } = await supabase
+    const { data: eventTemplates, error: eventError } = await supabaseAdmin
       .from('event_certificate_templates')
       .select('id')
       .eq('certificate_template_id', id)
@@ -223,7 +224,7 @@ export async function DELETE(
     }
 
     // Check if template is used in any certificates
-    const { data: certificates, error: certError } = await supabase
+    const { data: certificates, error: certError } = await supabaseAdmin
       .from('certificates')
       .select('id')
       .eq('certificate_template_id', id)
@@ -241,7 +242,7 @@ export async function DELETE(
     }
 
     // Delete the template
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('certificate_templates')
       .delete()
       .eq('id', id)

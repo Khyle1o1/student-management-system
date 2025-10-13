@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { format } from 'date-fns'
 import { jsPDF } from 'jspdf'
@@ -456,7 +457,7 @@ export async function GET(
     const { id } = await params
 
     // Fetch the certificate template
-    const { data: template, error: templateError } = await supabase
+    const { data: template, error: templateError } = await supabaseAdmin
       .from('certificate_templates')
       .select('*')
       .eq('id', id)

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { format } from 'date-fns'
@@ -358,7 +359,7 @@ export async function GET(
 
     // Get certificate with related data
     console.log('Fetching certificate from database...')
-    const { data: certificate, error } = await supabase
+    const { data: certificate, error } = await supabaseAdmin
       .from('certificates')
       .select(`
         *,
@@ -410,7 +411,7 @@ export async function GET(
     if (session.user.role === 'STUDENT') {
       console.log('Student access check...')
       // Students can only access their own certificates
-      const { data: studentRecord, error: studentError } = await supabase
+      const { data: studentRecord, error: studentError } = await supabaseAdmin
         .from('students')
         .select('id')
         .eq('student_id', session.user.studentId)
@@ -474,7 +475,7 @@ export async function GET(
       // If template ID is not in certificate record, get it from event_certificate_templates
       if (!templateId) {
         console.log('No template ID in certificate record, looking up from event_certificate_templates')
-        const { data: eventTemplate, error: eventTemplateError } = await supabase
+        const { data: eventTemplate, error: eventTemplateError } = await supabaseAdmin
           .from('event_certificate_templates')
           .select('certificate_template_id')
           .eq('event_id', certificate.event_id)
@@ -565,7 +566,7 @@ export async function GET(
           }
 
           // Create the default template
-          const { data: newTemplate, error: createTemplateError } = await supabase
+          const { data: newTemplate, error: createTemplateError } = await supabaseAdmin
             .from('certificate_templates')
             .insert([{
               ...defaultTemplate,
@@ -580,7 +581,7 @@ export async function GET(
           }
 
           // Link the template to the event
-          const { error: linkError } = await supabase
+          const { error: linkError } = await supabaseAdmin
             .from('event_certificate_templates')
             .insert([{
               event_id: certificate.event_id,
@@ -603,7 +604,7 @@ export async function GET(
       }
 
       // Get the certificate template
-      const { data: template, error: templateError } = await supabase
+      const { data: template, error: templateError } = await supabaseAdmin
         .from('certificate_templates')
         .select('*')
         .eq('id', templateId)
@@ -651,7 +652,7 @@ export async function GET(
           // Get student ID for access log
           let logStudentId = null
           if (session.user.role === 'STUDENT') {
-            const { data: studentRecord } = await supabase
+          const { data: studentRecord } = await supabaseAdmin
               .from('students')
               .select('id')
               .eq('student_id', session.user.studentId)
@@ -659,7 +660,7 @@ export async function GET(
             logStudentId = studentRecord?.id || null
           }
 
-          const { error: logError } = await supabase
+          const { error: logError } = await supabaseAdmin
             .from('certificate_access_log')
             .insert([{
               certificate_id: id,
@@ -789,7 +790,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
     }
 
-    const { data: certificate, error } = await supabase
+    const { data: certificate, error } = await supabaseAdmin
       .from('certificates')
       .update(updateData)
       .eq('id', id)
@@ -842,7 +843,7 @@ export async function DELETE(
     const { id } = await params
 
     // Check if certificate exists
-    const { data: certificate, error: fetchError } = await supabase
+    const { data: certificate, error: fetchError } = await supabaseAdmin
       .from('certificates')
       .select('id, student_id, event_id')
       .eq('id', id)
@@ -857,7 +858,7 @@ export async function DELETE(
     }
 
     // Delete access logs first (due to foreign key constraint)
-    const { error: accessLogError } = await supabase
+    const { error: accessLogError } = await supabaseAdmin
       .from('certificate_access_log')
       .delete()
       .eq('certificate_id', id)
@@ -868,7 +869,7 @@ export async function DELETE(
     }
 
     // Delete the certificate
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('certificates')
       .delete()
       .eq('id', id)
@@ -879,7 +880,7 @@ export async function DELETE(
     }
 
     // Update attendance record to mark certificate as not generated
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from('attendance')
       .update({ certificate_generated: false })
       .eq('event_id', certificate.event_id)

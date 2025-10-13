@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
 import { createAttendanceConfirmationNotification, createCertificateAvailableNotification } from "@/lib/notifications"
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
     const offset = (page - 1) * limit
 
     // Build query based on user role and parameters
-    let query = supabase
+    let query = supabaseAdmin
       .from('certificates')
       .select(`
         *,
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
 
     // If student user, only show their own certificates
     if (session.user.role === 'STUDENT') {
-      const { data: studentRecord, error: studentError } = await supabase
+      const { data: studentRecord, error: studentError } = await supabaseAdmin
         .from('students')
         .select('id')
         .eq('student_id', session.user.studentId)
@@ -88,7 +89,7 @@ export async function GET(request: Request) {
 
     // For student requests, also get evaluation status for each certificate
     if (session.user.role === 'STUDENT') {
-      const studentRecord = await supabase
+      const studentRecord = await supabaseAdmin
         .from('students')
         .select('id')
         .eq('student_id', session.user.studentId)

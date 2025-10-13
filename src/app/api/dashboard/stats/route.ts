@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 
 // Force dynamic rendering to prevent static generation issues
@@ -11,9 +12,12 @@ export async function GET() {
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    if (session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
 
     // Get total students count
-    const { count: totalStudents } = await supabase
+    const { count: totalStudents } = await supabaseAdmin
       .from('students')
       .select('*', { count: 'exact', head: true })
 
@@ -22,7 +26,7 @@ export async function GET() {
     startOfMonth.setDate(1)
     startOfMonth.setHours(0, 0, 0, 0)
 
-    const { count: newStudents } = await supabase
+    const { count: newStudents } = await supabaseAdmin
       .from('students')
       .select('*', { count: 'exact', head: true })
       .gte('created_at', startOfMonth.toISOString())
@@ -33,7 +37,7 @@ export async function GET() {
     lastMonth.setDate(1)
     lastMonth.setHours(0, 0, 0, 0)
 
-    const { count: lastMonthStudents } = await supabase
+    const { count: lastMonthStudents } = await supabaseAdmin
       .from('students')
       .select('*', { count: 'exact', head: true })
       .gte('created_at', lastMonth.toISOString())
@@ -46,19 +50,19 @@ export async function GET() {
     const now = new Date()
 
     // Get total events count for active events
-    const { count: totalEvents } = await supabase
+    const { count: totalEvents } = await supabaseAdmin
       .from('events')
       .select('*', { count: 'exact', head: true })
       .gt('date', now.toISOString())
 
     // Get upcoming events
-    const { count: upcomingEvents } = await supabase
+    const { count: upcomingEvents } = await supabaseAdmin
       .from('events')
       .select('*', { count: 'exact', head: true })
       .gt('date', now.toISOString())
 
     // Get events this month
-    const { count: eventsThisMonth } = await supabase
+    const { count: eventsThisMonth } = await supabaseAdmin
       .from('events')
       .select('*', { count: 'exact', head: true })
       .gte('date', startOfMonth.toISOString())
@@ -69,17 +73,17 @@ export async function GET() {
       Math.round((eventsThisMonth / totalEvents) * 100) : 0
 
     // Get total fees
-    const { count: totalFees } = await supabase
+    const { count: totalFees } = await supabaseAdmin
       .from('fee_structures')
       .select('*', { count: 'exact', head: true })
 
     // Get total payments
-    const { count: totalPayments } = await supabase
+    const { count: totalPayments } = await supabaseAdmin
       .from('payments')
       .select('*', { count: 'exact', head: true })
 
     // Get total amount collected
-    const { data: totalAmountData } = await supabase
+    const { data: totalAmountData } = await supabaseAdmin
       .from('payments')
       .select('amount')
       .eq('status', 'PAID')
@@ -87,7 +91,7 @@ export async function GET() {
     const totalAmount = totalAmountData?.reduce((sum, payment) => sum + payment.amount, 0) || 0
 
     // Get total revenue from paid payments
-    const { data: totalRevenueData } = await supabase
+    const { data: totalRevenueData } = await supabaseAdmin
       .from('payments')
       .select('amount')
       .eq('status', 'PAID')
@@ -95,7 +99,7 @@ export async function GET() {
     const totalRevenue = totalRevenueData?.reduce((sum, payment) => sum + payment.amount, 0) || 0
 
     // Get this month's revenue
-    const { data: monthlyAmountData } = await supabase
+    const { data: monthlyAmountData } = await supabaseAdmin
       .from('payments')
       .select('amount')
       .eq('status', 'PAID')
@@ -104,7 +108,7 @@ export async function GET() {
     const monthlyAmount = monthlyAmountData?.reduce((sum, payment) => sum + payment.amount, 0) || 0
 
     // Get last month's revenue
-    const { data: lastMonthRevenueData } = await supabase
+    const { data: lastMonthRevenueData } = await supabaseAdmin
       .from('payments')
       .select('amount')
       .eq('status', 'PAID')
@@ -118,13 +122,13 @@ export async function GET() {
       Math.round((monthlyAmount / lastMonthRevenue - 1) * 100) : 0
 
     // Get pending payments count
-    const { count: pendingPayments } = await supabase
+    const { count: pendingPayments } = await supabaseAdmin
       .from('payments')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'PENDING')
 
     // Calculate unpaid fees percentage
-    const { count: totalPaymentsCount } = await supabase
+    const { count: totalPaymentsCount } = await supabaseAdmin
       .from('payments')
       .select('*', { count: 'exact', head: true })
 
@@ -132,14 +136,14 @@ export async function GET() {
       Math.round((pendingPayments / totalPaymentsCount) * 100) : 0
 
     // Get recent students
-    const { data: recentStudents } = await supabase
+    const { data: recentStudents } = await supabaseAdmin
       .from('students')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(5)
 
     // Get recent payments
-    const { data: recentPayments } = await supabase
+    const { data: recentPayments } = await supabaseAdmin
       .from('payments')
       .select(`
         *,
@@ -157,7 +161,7 @@ export async function GET() {
       .limit(5)
 
     // Get recent events
-    const { data: recentEvents } = await supabase
+    const { data: recentEvents } = await supabaseAdmin
       .from('events')
       .select('*')
       .order('date', { ascending: false })

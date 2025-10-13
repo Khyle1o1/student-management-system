@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { CertificateTemplateForm } from "@/components/dashboard/certificate-template-form"
 import { Button } from "@/components/ui/button"
@@ -28,7 +29,7 @@ export default async function EditCertificateTemplatePage({ params }: Readonly<E
   const { id } = await params
 
   // Fetch template data
-  const { data: template, error } = await supabase
+  const { data: template, error } = await supabaseAdmin
     .from('certificate_templates')
     .select(`
       *,

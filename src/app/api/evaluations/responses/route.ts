@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
 import { createCertificateAvailableNotification } from "@/lib/notifications"
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
     const offset = (page - 1) * limit
 
     // Build query based on user role and parameters
-    let query = supabase
+    let query = supabaseAdmin
       .from('student_evaluation_responses')
       .select(`
         *,
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
 
     // If student user, only show their own responses
     if (session.user.role === 'STUDENT') {
-      const { data: studentRecord, error: studentError } = await supabase
+      const { data: studentRecord, error: studentError } = await supabaseAdmin
         .from('students')
         .select('id')
         .eq('student_id', session.user.studentId)
@@ -117,7 +118,7 @@ export async function POST(request: Request) {
     let studentId: string
     let studentData: any
     if (session.user.role === 'STUDENT') {
-      const { data: studentRecord, error: studentError } = await supabase
+      const { data: studentRecord, error: studentError } = await supabaseAdmin
         .from('students')
         .select('*')
         .eq('student_id', session.user.studentId)
@@ -135,7 +136,7 @@ export async function POST(request: Request) {
       }
       studentId = body.student_id
 
-      const { data: studentRecord, error: studentError } = await supabase
+      const { data: studentRecord, error: studentError } = await supabaseAdmin
         .from('students')
         .select('*')
         .eq('id', studentId)
@@ -148,7 +149,7 @@ export async function POST(request: Request) {
     }
 
     // Verify event exists
-    const { data: event, error: eventError } = await supabase
+    const { data: event, error: eventError } = await supabaseAdmin
       .from('events')
       .select('id, title, require_evaluation')
       .eq('id', data.event_id)
@@ -163,7 +164,7 @@ export async function POST(request: Request) {
     }
 
     // Verify evaluation exists
-    const { data: evaluation, error: evaluationError } = await supabase
+    const { data: evaluation, error: evaluationError } = await supabaseAdmin
       .from('evaluations')
       .select('id, questions')
       .eq('id', data.evaluation_id)
@@ -178,7 +179,7 @@ export async function POST(request: Request) {
     }
 
     // Verify student attended the event (has attendance record)
-    const { data: attendance, error: attendanceError } = await supabase
+    const { data: attendance, error: attendanceError } = await supabaseAdmin
       .from('attendance')
       .select('id, status')
       .eq('event_id', data.event_id)
@@ -192,7 +193,7 @@ export async function POST(request: Request) {
     }
 
     // Check if response already exists
-    const { data: existingResponse, error: existingError } = await supabase
+    const { data: existingResponse, error: existingError } = await supabaseAdmin
       .from('student_evaluation_responses')
       .select('id')
       .eq('event_id', data.event_id)
@@ -218,7 +219,7 @@ export async function POST(request: Request) {
     }
 
     // Submit the response
-    const { data: response, error } = await supabase
+    const { data: response, error } = await supabaseAdmin
       .from('student_evaluation_responses')
       .insert([{
         event_id: data.event_id,
@@ -252,7 +253,7 @@ export async function POST(request: Request) {
     }
 
     // Update attendance record to mark evaluation as completed
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from('attendance')
       .update({ evaluation_completed: true })
       .eq('event_id', data.event_id)
@@ -266,7 +267,7 @@ export async function POST(request: Request) {
     // If event requires evaluation, this submission may unlock the certificate
     if (event.require_evaluation) {
       // Check if certificate exists and update accessibility
-      const { data: certificate, error: certError } = await supabase
+      const { data: certificate, error: certError } = await supabaseAdmin
         .from('certificates')
         .select('*')
         .eq('event_id', data.event_id)
@@ -274,7 +275,7 @@ export async function POST(request: Request) {
         .single()
 
       if (certificate) {
-        const { error: updateCertError } = await supabase
+        const { error: updateCertError } = await supabaseAdmin
           .from('certificates')
           .update({ is_accessible: true })
           .eq('id', certificate.id)

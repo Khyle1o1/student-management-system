@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
+import { auth } from "@/lib/auth"
 import { hashPassword } from "@/lib/auth"
 import { z } from "zod"
 
@@ -31,6 +33,10 @@ const studentSchema = z.object({
 
 export async function GET(request: Request) {
   try {
+    const session = await auth()
+    if (!session || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
@@ -39,13 +45,13 @@ export async function GET(request: Request) {
     const offset = (page - 1) * limit
 
     // Get total count for pagination
-    const { count } = await supabase
+    const { count } = await supabaseAdmin
       .from('students')
       .select('*', { count: 'exact', head: true })
       .ilike('name', `%${search}%`)
 
     // Get paginated students
-    const { data: studentsData, error } = await supabase
+    const { data: studentsData, error } = await supabaseAdmin
       .from('students')
       .select(`
         id,

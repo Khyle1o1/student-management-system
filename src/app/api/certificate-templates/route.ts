@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
 
@@ -61,7 +62,7 @@ export async function GET(request: Request) {
     const offset = (page - 1) * limit
 
     // Build query
-    let query = supabase
+    let query = supabaseAdmin
       .from('certificate_templates')
       .select(`
         *,
@@ -132,7 +133,7 @@ export async function POST(request: Request) {
     }
 
     // Create certificate template
-    const { data: template, error } = await supabase
+    const { data: template, error } = await supabaseAdmin
       .from('certificate_templates')
       .insert([{
         title: data.title,

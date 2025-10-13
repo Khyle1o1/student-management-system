@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { z } from "zod"
 
 // Temporary schema that works with current database (before complete migration)
@@ -18,6 +19,10 @@ const tempEventSchema = z.object({
 
 export async function GET(request: Request) {
   try {
+    const session = await auth()
+    if (!session || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
@@ -26,13 +31,13 @@ export async function GET(request: Request) {
     const offset = (page - 1) * limit
 
     // Get total count for pagination
-    const { count } = await supabase
+    const { count } = await supabaseAdmin
       .from('events')
       .select('*', { count: 'exact', head: true })
       .ilike('title', `%${search}%`)
 
     // Get paginated events with evaluation info
-    const { data: events, error } = await supabase
+    const { data: events, error } = await supabaseAdmin
       .from('events')
       .select(`
         id,
