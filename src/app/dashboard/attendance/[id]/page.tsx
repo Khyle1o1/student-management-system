@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import {
   Table,
@@ -32,7 +40,9 @@ import {
   ArrowLeft,
   Award,
   FileText,
-  Download
+  Download,
+  Unlock,
+  Shield
 } from "lucide-react"
 import { format } from "date-fns"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
@@ -106,6 +116,12 @@ export default function EventAttendancePage() {
     hasTemplate: false
   })
   const [eventTimeStatus, setEventTimeStatus] = useState<EventTimeStatus | null>(null)
+  const [bulkInput, setBulkInput] = useState("")
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [showBulkInput, setShowBulkInput] = useState(false)
+  const [isOverrideActive, setIsOverrideActive] = useState(false)
+  const [showOverrideDialog, setShowOverrideDialog] = useState(false)
+  const [overridePassword, setOverridePassword] = useState("")
 
   // Helper function to safely parse date (system already in Philippine timezone)
   const parseEventDate = (dateString: string): Date => {
@@ -432,8 +448,8 @@ export default function EventAttendancePage() {
       return
     }
 
-    // Check event time status before proceeding
-    if (eventTimeStatus && !eventTimeStatus.isActive) {
+    // Check event time status before proceeding (respect override)
+    if (eventTimeStatus && !eventTimeStatus.isActive && !isOverrideActive) {
       toast({
         title: "Event Not Active",
         description: eventTimeStatus.message,
@@ -460,7 +476,8 @@ export default function EventAttendancePage() {
         body: JSON.stringify({
           studentId: barcodeInput.trim(),
           eventId: event.id,
-          mode: mode
+          mode: mode,
+          adminOverride: isOverrideActive
         }),
       })
 
@@ -499,6 +516,147 @@ export default function EventAttendancePage() {
     } finally {
       setScanLoading(false)
     }
+  }
+
+  const handleBulkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!event) {
+      toast({
+        title: "No Event Selected",
+        description: "Event information is not loaded",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Check event time status before proceeding (respect override)
+    if (eventTimeStatus && !eventTimeStatus.isActive && !isOverrideActive) {
+      toast({
+        title: "Event Not Active",
+        description: eventTimeStatus.message,
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!bulkInput.trim()) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter at least one student ID",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setBulkLoading(true)
+      
+      // Parse student IDs (one per line, trim whitespace)
+      const studentIds = bulkInput
+        .split('\n')
+        .map(id => id.trim())
+        .filter(id => id.length > 0)
+
+      if (studentIds.length === 0) {
+        toast({
+          title: "Invalid Input",
+          description: "No valid student IDs found",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const response = await fetch("/api/attendance/bulk-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentIds,
+          eventId: event.id,
+          mode: mode,
+          adminOverride: isOverrideActive
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        const { results } = data
+        
+        // Show success toast with summary
+        toast({
+          title: "✅ Bulk Attendance Processed",
+          description: `Successfully processed: ${results.summary.successful}/${results.summary.total} students`,
+        })
+
+        // Show detailed results if there were failures
+        if (results.failed.length > 0) {
+          console.log("Failed records:", results.failed)
+          toast({
+            title: `⚠️ ${results.failed.length} Failed`,
+            description: `Some student IDs could not be processed. Check console for details.`,
+            variant: "destructive",
+          })
+        }
+        
+        // Refresh stats and records
+        fetchAttendanceStats()
+        fetchAttendanceRecords()
+        fetchCertificateStats()
+        
+        // Clear input
+        setBulkInput("")
+        setShowBulkInput(false)
+      } else {
+        // Error toast
+        toast({
+          title: "❌ " + data.error,
+          description: "Failed to process bulk attendance.",
+          variant: "destructive",
+        })
+      }
+
+    } catch (error) {
+      console.error("Error submitting bulk attendance:", error)
+      toast({
+        title: "Error",
+        description: "Failed to process bulk attendance",
+        variant: "destructive",
+      })
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  const handleOverrideSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    // Set your override password here - you can change this to any password you want
+    const OVERRIDE_PASSWORD = "admin123"
+    
+    if (overridePassword === OVERRIDE_PASSWORD) {
+      setIsOverrideActive(true)
+      setShowOverrideDialog(false)
+      setOverridePassword("")
+      toast({
+        title: "✅ Override Activated",
+        description: "Attendance recording has been enabled. This will remain active until page refresh.",
+      })
+    } else {
+      toast({
+        title: "❌ Invalid Password",
+        description: "The password you entered is incorrect.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDeactivateOverride = () => {
+    setIsOverrideActive(false)
+    toast({
+      title: "Override Deactivated",
+      description: "Attendance recording is now controlled by event timing.",
+    })
   }
 
   const getEventScopeDisplay = (event: Event) => {
@@ -621,27 +779,49 @@ export default function EventAttendancePage() {
             {/* Event Time Status */}
             {eventTimeStatus && (
               <div className={`flex items-center space-x-3 p-3 rounded-lg ${
-                eventTimeStatus.isActive 
+                eventTimeStatus.isActive || isOverrideActive
                   ? 'bg-green-50 border border-green-200' 
                   : 'bg-yellow-50 border border-yellow-200'
               }`}>
-                {eventTimeStatus.isActive ? (
+                {eventTimeStatus.isActive || isOverrideActive ? (
                   <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
                 ) : (
                   <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
                 )}
-                <div>
+                <div className="flex-1">
                   <p className={`text-sm font-medium ${
-                    eventTimeStatus.isActive ? 'text-green-800' : 'text-yellow-800'
+                    eventTimeStatus.isActive || isOverrideActive ? 'text-green-800' : 'text-yellow-800'
                   }`}>
-                    {eventTimeStatus.isActive ? 'Event Active' : 'Event Inactive'}
+                    {eventTimeStatus.isActive ? 'Event Active' : isOverrideActive ? 'Event Active (Override)' : 'Event Inactive'}
                   </p>
                   <p className={`text-sm ${
-                    eventTimeStatus.isActive ? 'text-green-700' : 'text-yellow-700'
+                    eventTimeStatus.isActive || isOverrideActive ? 'text-green-700' : 'text-yellow-700'
                   }`}>
-                    {eventTimeStatus.message}
+                    {isOverrideActive ? 'Attendance recording enabled by admin override' : eventTimeStatus.message}
                   </p>
                 </div>
+                {!eventTimeStatus.isActive && !isOverrideActive && (
+                  <Button
+                    onClick={() => setShowOverrideDialog(true)}
+                    variant="outline"
+                    size="sm"
+                    className="border-yellow-400 text-yellow-700 hover:bg-yellow-100"
+                  >
+                    <Unlock className="h-4 w-4 mr-2" />
+                    Override
+                  </Button>
+                )}
+                {isOverrideActive && (
+                  <Button
+                    onClick={handleDeactivateOverride}
+                    variant="outline"
+                    size="sm"
+                    className="border-green-400 text-green-700 hover:bg-green-100"
+                  >
+                    <Shield className="h-4 w-4 mr-2" />
+                    Deactivate
+                  </Button>
+                )}
               </div>
             )}
           </CardContent>
@@ -833,12 +1013,12 @@ export default function EventAttendancePage() {
                     value={barcodeInput}
                     onChange={(e) => setBarcodeInput(e.target.value)}
                     className="text-lg"
-                    disabled={!eventTimeStatus?.isActive}
+                    disabled={!eventTimeStatus?.isActive && !isOverrideActive}
                   />
                 </div>
                 <Button 
                   type="submit" 
-                  disabled={scanLoading || !barcodeInput.trim() || !eventTimeStatus?.isActive}
+                  disabled={scanLoading || !barcodeInput.trim() || (!eventTimeStatus?.isActive && !isOverrideActive)}
                   className="px-6"
                 >
                   {scanLoading ? (
@@ -849,7 +1029,70 @@ export default function EventAttendancePage() {
                 </Button>
               </form>
 
-              {eventTimeStatus && !eventTimeStatus.isActive && (
+              {/* Bulk Attendance Toggle */}
+              <div className="flex items-center justify-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowBulkInput(!showBulkInput)}
+                  className="text-sm"
+                  disabled={!eventTimeStatus?.isActive && !isOverrideActive}
+                >
+                  {showBulkInput ? "Hide Bulk Input" : "Show Bulk Attendance Input"}
+                </Button>
+              </div>
+
+              {/* Bulk Attendance Input */}
+              {showBulkInput && (
+                <div className="border border-purple-200 rounded-lg p-4 bg-purple-50">
+                  <div className="mb-3">
+                    <Label className="text-sm font-semibold text-purple-800">
+                      Bulk Attendance Input
+                    </Label>
+                    <p className="text-xs text-purple-600 mt-1">
+                      Enter multiple student IDs (one per line) to process attendance in bulk
+                    </p>
+                  </div>
+                  <form onSubmit={handleBulkSubmit} className="space-y-3">
+                    <textarea
+                      placeholder="Enter student IDs, one per line:&#10;2401105088&#10;2401111804&#10;2401105364&#10;..."
+                      value={bulkInput}
+                      onChange={(e) => setBulkInput(e.target.value)}
+                      className="w-full h-48 p-3 border border-purple-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      disabled={!eventTimeStatus?.isActive && !isOverrideActive}
+                    />
+                    <div className="flex items-center space-x-2">
+                      <Button 
+                        type="submit" 
+                        disabled={bulkLoading || !bulkInput.trim() || (!eventTimeStatus?.isActive && !isOverrideActive)}
+                        className="bg-purple-600 hover:bg-purple-700"
+                      >
+                        {bulkLoading ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <Users className="h-4 w-4 mr-2" />
+                            Process Bulk {mode === 'SIGN_IN' ? 'Sign In' : 'Sign Out'}
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setBulkInput("")}
+                        disabled={bulkLoading || !bulkInput.trim()}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {eventTimeStatus && !eventTimeStatus.isActive && !isOverrideActive && (
                 <div className="flex items-center space-x-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
                   <div>
@@ -867,6 +1110,7 @@ export default function EventAttendancePage() {
                     <h4 className="text-sm font-semibold text-blue-800 mb-1">Quick Instructions</h4>
                     <ul className="text-sm text-blue-700 space-y-1">
                       <li>• Scan barcode or manually enter the student ID</li>
+                      <li>• <strong>NEW:</strong> Use bulk input to process multiple student IDs at once</li>
                       <li>• Select Sign In/Sign Out mode based on student status</li>
                       <li>• System validates student eligibility automatically</li>
                       <li>• Certificates are auto-generated when students sign out</li>
@@ -944,6 +1188,57 @@ export default function EventAttendancePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Override Password Dialog */}
+      <Dialog open={showOverrideDialog} onOpenChange={setShowOverrideDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Shield className="h-5 w-5 text-yellow-600" />
+              <span>Admin Override</span>
+            </DialogTitle>
+            <DialogDescription>
+              Enter the admin password to enable attendance recording for this inactive event.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleOverrideSubmit}>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter admin password"
+                  value={overridePassword}
+                  onChange={(e) => setOverridePassword(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-xs text-yellow-700">
+                  <strong>Note:</strong> The default password is &quot;admin123&quot;. You can change it in the page code.
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowOverrideDialog(false)
+                  setOverridePassword("")
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" className="bg-yellow-600 hover:bg-yellow-700">
+                <Unlock className="h-4 w-4 mr-2" />
+                Activate Override
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </DashboardShell>
   )
 } 

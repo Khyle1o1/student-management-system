@@ -1,18 +1,26 @@
 import { NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
-import { generateCertificatesForEvent } from "../../certificates/route"
 
-const barcodeScanSchema = z.object({
-  studentId: z.string().min(1, "Student ID is required"),
+const bulkScanSchema = z.object({
+  studentIds: z.array(z.string().min(1)).min(1, "At least one student ID is required"),
   eventId: z.string().min(1, "Event ID is required"),
   mode: z.enum(['SIGN_IN', 'SIGN_OUT'], {
     required_error: "Mode must be either SIGN_IN or SIGN_OUT"
   }),
   adminOverride: z.boolean().optional().default(false)
 })
+
+interface BulkAttendanceResult {
+  success: string[]
+  failed: Array<{ studentId: string; error: string }>
+  summary: {
+    total: number
+    successful: number
+    failed: number
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -22,7 +30,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { studentId, eventId, mode, adminOverride } = barcodeScanSchema.parse(body)
+    const { studentIds, eventId, mode, adminOverride } = bulkScanSchema.parse(body)
 
     // 1. Check if event exists and get event details
     const { data: event, error: eventError } = await supabaseAdmin
@@ -57,166 +65,146 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. Check if student exists by student_id (barcode)
-    const { data: student, error: studentError } = await supabaseAdmin
-      .from('students')
-      .select('*')
-      .eq('student_id', studentId)
-      .single()
-
-    if (studentError) {
-      if (studentError.code === 'PGRST116') {
-        return NextResponse.json({ 
-          success: false,
-          error: 'Student not found or not eligible. Nothing was saved.' 
-        }, { status: 404 })
-      }
-      console.error('Error fetching student:', studentError)
-      return NextResponse.json({ 
-        success: false,
-        error: 'Failed to verify student' 
-      }, { status: 500 })
-    }
-
-    // 4. Check student eligibility based on event scope
-    const isEligible = await checkStudentEligibility(student, event)
-    if (!isEligible) {
-      return NextResponse.json({ 
-        success: false,
-        error: 'Student not eligible for this event. Nothing was saved.' 
-      }, { status: 403 })
-    }
-
-    // 5. Get current attendance status for this student-event combination
-    const { data: existingAttendance, error: attendanceCheckError } = await supabaseAdmin
-      .from('attendance')
-      .select('*')
-      .eq('event_id', eventId)
-      .eq('student_id', student.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    if (attendanceCheckError && attendanceCheckError.code !== 'PGRST116') {
-      console.error('Error checking existing attendance:', attendanceCheckError)
-      return NextResponse.json({ 
-        success: false,
-        error: 'Failed to check attendance status' 
-      }, { status: 500 })
-    }
-
-    const latestRecord = existingAttendance?.[0]
-
-    // 6. Validate sign-in/sign-out logic
-    if (mode === 'SIGN_IN') {
-      // Check if student is already signed in (has a sign-in without sign-out)
-      if (latestRecord && latestRecord.mode === 'SIGN_IN' && !latestRecord.time_out) {
-        return NextResponse.json({ 
-          success: false,
-          error: 'Student already signed in. Nothing was saved.' 
-        }, { status: 400 })
-      }
-    } else if (mode === 'SIGN_OUT') {
-      // Check if student can sign out (must have a sign-in first)
-      if (!latestRecord || latestRecord.mode !== 'SIGN_IN' || latestRecord.time_out) {
-        return NextResponse.json({ 
-          success: false,
-          error: 'Student must sign in first or is already signed out. Nothing was saved.' 
-        }, { status: 400 })
+    // 3. Process each student ID
+    const results: BulkAttendanceResult = {
+      success: [],
+      failed: [],
+      summary: {
+        total: studentIds.length,
+        successful: 0,
+        failed: 0
       }
     }
 
-    // 7. Record the attendance
-    const currentTime = new Date().toISOString()
-    let attendanceRecord
-
-    if (mode === 'SIGN_IN') {
-      // Create new sign-in record
-      const { data: newRecord, error: insertError } = await supabaseAdmin
-        .from('attendance')
-        .insert([{
-          event_id: eventId,
-          student_id: student.id,
-          status: 'PRESENT',
-          mode: 'SIGN_IN',
-          time_in: currentTime,
-          time_out: null
-        }])
-        .select(`
-          *,
-          student:students(
-            id,
-            student_id,
-            name,
-            email,
-            college,
-            course
-          )
-        `)
-        .single()
-
-      if (insertError) {
-        console.error('Error creating sign-in record:', insertError)
-        return NextResponse.json({ 
-          success: false,
-          error: 'Failed to record sign-in' 
-        }, { status: 500 })
-      }
-
-      attendanceRecord = newRecord
-    } else {
-      // Update existing record with sign-out time
-      const { data: updatedRecord, error: updateError } = await supabaseAdmin
-        .from('attendance')
-        .update({
-          time_out: currentTime,
-          updated_at: currentTime
-        })
-        .eq('id', latestRecord.id)
-        .select(`
-          *,
-          student:students(
-            id,
-            student_id,
-            name,
-            email,
-            college,
-            course
-          )
-        `)
-        .single()
-
-      if (updateError) {
-        console.error('Error updating sign-out record:', updateError)
-        return NextResponse.json({ 
-          success: false,
-          error: 'Failed to record sign-out' 
-        }, { status: 500 })
-      }
-
-      attendanceRecord = updatedRecord
-      
-      // Auto-generate certificates when student signs out (completes attendance)
+    for (const studentId of studentIds) {
       try {
-        await generateCertificatesForEvent(eventId)
-      } catch (certificateError) {
-        console.error('Error auto-generating certificates:', certificateError)
-        // Don't fail the attendance recording if certificate generation fails
+        // Find student by student_id
+        const { data: student, error: studentError } = await supabaseAdmin
+          .from('students')
+          .select('*')
+          .eq('student_id', studentId.trim())
+          .single()
+
+        if (studentError || !student) {
+          results.failed.push({
+            studentId,
+            error: 'Student not found'
+          })
+          continue
+        }
+
+        // Check student eligibility based on event scope
+        const isEligible = await checkStudentEligibility(student, event)
+        if (!isEligible) {
+          results.failed.push({
+            studentId,
+            error: 'Not eligible for this event'
+          })
+          continue
+        }
+
+        // Get current attendance status for this student-event combination
+        const { data: existingAttendance, error: attendanceCheckError } = await supabaseAdmin
+          .from('attendance')
+          .select('*')
+          .eq('event_id', eventId)
+          .eq('student_id', student.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        if (attendanceCheckError && attendanceCheckError.code !== 'PGRST116') {
+          results.failed.push({
+            studentId,
+            error: 'Failed to check attendance status'
+          })
+          continue
+        }
+
+        const latestRecord = existingAttendance?.[0]
+
+        // Validate sign-in/sign-out logic
+        if (mode === 'SIGN_IN') {
+          // Check if student is already signed in
+          if (latestRecord && latestRecord.mode === 'SIGN_IN' && !latestRecord.time_out) {
+            results.failed.push({
+              studentId,
+              error: 'Already signed in'
+            })
+            continue
+          }
+        } else if (mode === 'SIGN_OUT') {
+          // Check if student can sign out
+          if (!latestRecord || latestRecord.mode !== 'SIGN_IN' || latestRecord.time_out) {
+            results.failed.push({
+              studentId,
+              error: 'Must sign in first or already signed out'
+            })
+            continue
+          }
+        }
+
+        // Record the attendance
+        const currentTime = new Date().toISOString()
+
+        if (mode === 'SIGN_IN') {
+          // Create new sign-in record
+          const { error: insertError } = await supabaseAdmin
+            .from('attendance')
+            .insert([{
+              event_id: eventId,
+              student_id: student.id,
+              status: 'PRESENT',
+              mode: 'SIGN_IN',
+              time_in: currentTime,
+              time_out: null
+            }])
+
+          if (insertError) {
+            results.failed.push({
+              studentId,
+              error: 'Failed to record sign-in'
+            })
+            continue
+          }
+        } else {
+          // Update existing record with sign-out time
+          const { error: updateError } = await supabaseAdmin
+            .from('attendance')
+            .update({
+              time_out: currentTime,
+              updated_at: currentTime
+            })
+            .eq('id', latestRecord.id)
+
+          if (updateError) {
+            results.failed.push({
+              studentId,
+              error: 'Failed to record sign-out'
+            })
+            continue
+          }
+        }
+
+        // Success
+        results.success.push(`${student.name} (${studentId})`)
+
+      } catch (error) {
+        console.error(`Error processing student ${studentId}:`, error)
+        results.failed.push({
+          studentId,
+          error: 'Processing error'
+        })
       }
     }
 
-    // 8. Return success response
+    // Update summary
+    results.summary.successful = results.success.length
+    results.summary.failed = results.failed.length
+
     return NextResponse.json({
       success: true,
-      message: `Attendance recorded successfully.`,
-      data: {
-        studentName: student.name,
-        studentId: student.student_id,
-        eventTitle: event.title,
-        mode: mode,
-        timestamp: currentTime,
-        record: attendanceRecord
-      }
-    }, { status: 201 })
+      results
+    }, { status: 200 })
 
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -226,7 +214,7 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    console.error('Error in barcode scan endpoint:', error)
+    console.error('Error in bulk scan endpoint:', error)
     return NextResponse.json({ 
       success: false,
       error: 'Internal server error' 
@@ -366,4 +354,5 @@ async function checkStudentEligibility(student: any, event: any): Promise<boolea
     default:
       return false
   }
-} 
+}
+
