@@ -643,7 +643,7 @@ export async function generateCertificatesForEvent(eventId: string) {
         if (existingCert) {
           // Certificate already exists, skip
           results.push({
-            student_id: student.student_id,
+            student_id: attendee.student_id,
             success: true,
             message: 'Certificate already exists',
             certificate_id: existingCert.id
@@ -652,7 +652,7 @@ export async function generateCertificatesForEvent(eventId: string) {
         }
         
         // Generate unique certificate number
-        const certificateNumber = `CERT-${event.title.substring(0, 3).toUpperCase()}-${student.student_id}-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`
+        const certificateNumber = `CERT-${event.title.substring(0, 3).toUpperCase()}-${attendee.student_id}-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`
 
         // Determine accessibility based on evaluation requirement
         let isAccessible = true
@@ -682,9 +682,9 @@ export async function generateCertificatesForEvent(eventId: string) {
           .single()
 
         if (certError) {
-          console.error(`Error creating certificate for student ${student.student_id}:`, certError)
+          console.error(`Error creating certificate for student ${attendee.student_id}:`, certError)
           results.push({
-            student_id: student.student_id,
+            student_id: attendee.student_id,
             success: false,
             error: certError.message
           })
@@ -701,7 +701,7 @@ export async function generateCertificatesForEvent(eventId: string) {
         // Create attendance confirmation notification
         await createAttendanceConfirmationNotification({
           studentId: attendee.student_id,
-          userId: student.user_id,
+          userId: (student as any)?.user_id,
           eventTitle: event.title,
           eventDate: new Date(event.date).toLocaleDateString(),
           eventLocation: event.location || 'TBD',
@@ -715,7 +715,7 @@ export async function generateCertificatesForEvent(eventId: string) {
         if (isAccessible) {
           await createCertificateAvailableNotification({
             studentId: attendee.student_id,
-            userId: student.user_id,
+            userId: (student as any)?.user_id,
             eventTitle: event.title,
             certificateUrl: `/dashboard/certificates/${certificate.id}`,
             certificateNumber: certificateNumber,
@@ -725,16 +725,15 @@ export async function generateCertificatesForEvent(eventId: string) {
         }
 
         results.push({
-          student_id: student.student_id,
+          student_id: attendee.student_id,
           success: true,
           certificate_id: certificate.id
         })
 
       } catch (error) {
-        const student = attendee.student
-        console.error(`Error processing certificate for student ${student?.student_id || 'unknown'}:`, error)
+        console.error(`Error processing certificate for student ${attendee.student_id || 'unknown'}:`, error)
         results.push({
-          student_id: student?.student_id || 'unknown',
+          student_id: attendee.student_id || 'unknown',
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error'
         })
