@@ -265,9 +265,36 @@ export function EventsTable() {
                               </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={(e) => {
+                              onClick={async (e) => {
                                 e.preventDefault();
-                                window.open(`/api/events/${event.id}/report`, '_blank');
+                                try {
+                                  const response = await fetch(`/api/events/${event.id}/report`);
+                                  
+                                  if (!response.ok) {
+                                    const error = await response.json();
+                                    if (response.status === 404) {
+                                      alert('Event not found. The event may have been deleted. Please refresh the page.');
+                                      fetchEvents(); // Refresh the events list
+                                    } else {
+                                      alert(`Failed to generate report: ${error.error || 'Unknown error'}`);
+                                    }
+                                    return;
+                                  }
+                                  
+                                  // Download the PDF
+                                  const blob = await response.blob();
+                                  const url = window.URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = `event-report-${event.title.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  window.URL.revokeObjectURL(url);
+                                  document.body.removeChild(a);
+                                } catch (error) {
+                                  console.error('Error generating report:', error);
+                                  alert('Failed to generate report. Please try again.');
+                                }
                               }}
                             >
                               <FileText className="mr-2 h-4 w-4" />

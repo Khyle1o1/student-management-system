@@ -222,9 +222,16 @@ export default function EventAttendancePage() {
   // Fetch attendance records
   const fetchAttendanceRecords = useCallback(async () => {
     try {
-      const response = await fetch(`/api/attendance/event/${id}/records`)
+      // Add cache busting to force fresh data
+      const response = await fetch(`/api/attendance/event/${id}/records?_=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      })
       if (response.ok) {
         const data = await response.json()
+        console.log('📝 Attendance Records Response - Total:', data.total, 'Records:', data.records?.length)
         if (data.success) {
           setAttendanceRecords(data.records)
         }
@@ -237,9 +244,16 @@ export default function EventAttendancePage() {
   // Fetch attendance stats
   const fetchAttendanceStats = useCallback(async () => {
     try {
-      const response = await fetch(`/api/attendance/event/${id}/stats`)
+      // Add cache busting to force fresh data
+      const response = await fetch(`/api/attendance/event/${id}/stats?_=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      })
       if (response.ok) {
         const data = await response.json()
+        console.log('📊 Attendance Stats Response:', data)
         setStats(data)
       }
     } catch (error) {

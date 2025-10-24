@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { jsPDF } from 'jspdf'
 import { format } from 'date-fns'
 
@@ -256,7 +256,22 @@ async function generateEventReportPDF(event: any, attendanceData: any, stats: an
       doc.setTextColor(0, 0, 0)
       doc.setFont('helvetica', 'normal')
       
+      console.log('📄 Starting to render', attendanceData.length, 'attendance records in PDF...')
+      
+      let renderedCount = 0
       attendanceData.forEach((record: any, index: number) => {
+        renderedCount++
+        
+        // Log progress every 200 records
+        if (renderedCount % 200 === 0) {
+          console.log(`   Rendering progress: ${renderedCount}/${attendanceData.length} records...`)
+        }
+        
+        // Log records around 1000 to debug
+        if (index >= 999 && index <= 1002) {
+          console.log(`   Row ${index + 1}: ${record.student?.student_id} - ${record.student?.name}`)
+        }
+        
         // Calculate row height based on content
         const rowData = [
           (index + 1).toString(),
@@ -326,8 +341,13 @@ async function generateEventReportPDF(event: any, attendanceData: any, stats: an
         currentY += rowHeight
       })
       
+      console.log('✅ Finished rendering all', attendanceData.length, 'records in PDF')
+      console.log('   Total rows actually rendered:', renderedCount)
+      
       // Add some space after the table
       currentY += 10
+    } else {
+      console.log('⚠️ No attendance data to render in PDF')
     }
 
     // Footer - ensure it doesn't overlap with content
@@ -365,13 +385,14 @@ export async function GET(
     }
 
     const { id } = await params
+    console.log('Generating report for event ID:', id)
 
-    // Get event details
-    const { data: event, error: eventError } = await supabase
+    // Get event details with better error handling
+    const { data: event, error: eventError } = await supabaseAdmin
       .from('events')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (eventError) {
       console.error('Error fetching event:', eventError)
@@ -379,42 +400,93 @@ export async function GET(
     }
 
     if (!event) {
+      console.error('Event not found with ID:', id)
       return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     }
 
     // Get attendance records with student details
-    const { data: attendanceRecords, error: attendanceError } = await supabase
-      .from('attendance')
-      .select(`
-        *,
-        student:students(
-          id,
-          student_id,
-          name,
-          email,
-          college,
-          course,
-          year_level
-        )
-      `)
-      .eq('event_id', id)
-      .order('created_at', { ascending: true })
+    // Fetch ALL records using pagination to bypass Supabase's hard 1000 row limit
+    let allAttendanceRecords: any[] = []
+    let page = 0
+    const pageSize = 1000
+    let hasMore = true
 
-    if (attendanceError) {
-      console.error('Error fetching attendance records:', attendanceError)
-      return NextResponse.json({ error: 'Failed to fetch attendance records' }, { status: 500 })
+    while (hasMore) {
+      const from = page * pageSize
+      const to = from + pageSize - 1
+      
+      const { data: pageRecords, error: attendanceError } = await supabaseAdmin
+        .from('attendance')
+        .select(`
+          *,
+          student:students(
+            id,
+            student_id,
+            name,
+            email,
+            college,
+            course,
+            year_level
+          )
+        `)
+        .eq('event_id', id)
+        .order('created_at', { ascending: true })
+        .range(from, to)
+
+      if (attendanceError) {
+        console.error('Error fetching attendance records:', attendanceError)
+        return NextResponse.json({ error: 'Failed to fetch attendance records' }, { status: 500 })
+      }
+
+      if (pageRecords && pageRecords.length > 0) {
+        allAttendanceRecords = allAttendanceRecords.concat(pageRecords)
+        hasMore = pageRecords.length === pageSize // Continue if we got a full page
+        page++
+        console.log(`Fetched page ${page} - Got ${pageRecords.length} records, Total so far: ${allAttendanceRecords.length}`)
+      } else {
+        hasMore = false
+      }
     }
 
-    // Get event statistics
-    const { data: statsResponse, error: statsError } = await fetch(
-      `${request.url.replace('/report', '/stats')}`,
-      { headers: { cookie: request.headers.get('cookie') || '' } }
-    ).then(res => res.json()).catch(() => null)
+    // Ensure we have an array even if no records
+    const safeAttendanceRecords = allAttendanceRecords || []
+    console.log('✅ Fetched attendance records for report (with pagination):', safeAttendanceRecords.length)
+
+    // Get event statistics with better error handling
+    let statsResponse = null
+    try {
+      const statsUrl = `${request.url.replace('/report', '/stats')}`
+      const statsRes = await fetch(statsUrl, { 
+        headers: { cookie: request.headers.get('cookie') || '' } 
+      })
+      
+      if (statsRes.ok) {
+        statsResponse = await statsRes.json()
+      } else {
+        console.warn('Stats API returned error:', statsRes.status, statsRes.statusText)
+      }
+    } catch (error) {
+      console.warn('Failed to fetch stats:', error)
+    }
+
+    // Process attendance records to get unique students (same logic as stats API)
+    const studentRecords = new Map()
+    
+    safeAttendanceRecords.forEach(record => {
+      const studentId = record.student_id
+      if (!studentRecords.has(studentId) || 
+          new Date(record.created_at) > new Date(studentRecords.get(studentId).created_at)) {
+        studentRecords.set(studentId, record)
+      }
+    })
+
+    const uniqueStudentRecords = Array.from(studentRecords.values())
+    console.log('Found', uniqueStudentRecords.length, 'unique student records for event')
 
     // Fallback stats calculation if API call fails
     let stats = statsResponse || {
       total_eligible: 0,
-      attended: attendanceRecords?.filter(r => r.time_in && r.time_out).length || 0,
+      attended: uniqueStudentRecords.filter(r => r.time_in && r.time_out).length,
       percentage: 0,
       scope_type: event.scope_type || 'UNIVERSITY_WIDE',
       scope_details: {
@@ -424,18 +496,24 @@ export async function GET(
     }
 
     // Generate PDF
-    const pdfBuffer = await generateEventReportPDF(event, attendanceRecords || [], stats)
+    try {
+      console.log('🎯 Generating PDF with', uniqueStudentRecords?.length || 0, 'unique student records')
+      const pdfBuffer = await generateEventReportPDF(event, uniqueStudentRecords || [], stats)
 
-    // Set response headers
-    const filename = `event-report-${event.title.replace(/[^a-zA-Z0-9]/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.pdf`
-    
-    return new NextResponse(pdfBuffer, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Content-Length': pdfBuffer.length.toString(),
-      },
-    })
+      // Set response headers
+      const filename = `event-report-${event.title.replace(/[^a-zA-Z0-9]/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.pdf`
+      
+      return new NextResponse(pdfBuffer, {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Content-Length': pdfBuffer.length.toString(),
+        },
+      })
+    } catch (pdfError) {
+      console.error('Error generating PDF:', pdfError)
+      return NextResponse.json({ error: 'Failed to generate PDF report' }, { status: 500 })
+    }
 
   } catch (error) {
     console.error('Error in GET /api/events/[id]/report:', error)

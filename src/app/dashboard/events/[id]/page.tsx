@@ -102,7 +102,36 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.open(`/api/events/${id}/report`, '_blank')}
+              onClick={async () => {
+                try {
+                  const response = await fetch(`/api/events/${id}/report`);
+                  
+                  if (!response.ok) {
+                    const error = await response.json();
+                    if (response.status === 404) {
+                      alert('Event not found. The event may have been deleted. Redirecting to events page...');
+                      router.push('/dashboard/events');
+                    } else {
+                      alert(`Failed to generate report: ${error.error || 'Unknown error'}`);
+                    }
+                    return;
+                  }
+                  
+                  // Download the PDF
+                  const blob = await response.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `event-report-${event?.title?.replace(/[^a-zA-Z0-9]/g, '-') || 'event'}.pdf`;
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  document.body.removeChild(a);
+                } catch (error) {
+                  console.error('Error generating report:', error);
+                  alert('Failed to generate report. Please try again.');
+                }
+              }}
             >
               <FileText className="mr-2 h-4 w-4" />
               Generate PDF Report

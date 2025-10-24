@@ -31,36 +31,59 @@ export async function GET(
     }
 
     // Get attendance records with student details
-    const { data: attendanceRecords, error: recordsError } = await supabaseAdmin
-      .from('attendance')
-      .select(`
-        id,
-        time_in,
-        time_out,
-        mode,
-        status,
-        created_at,
-        students!inner (
-          id,
-          student_id,
-          name,
-          email,
-          college,
-          course
-        )
-      `)
-      .eq('event_id', eventId)
-      .order('created_at', { ascending: false })
+    // Fetch ALL records using pagination to bypass Supabase's hard limit
+    let allAttendanceRecords: any[] = []
+    let page = 0
+    const pageSize = 1000
+    let hasMore = true
 
-    if (recordsError) {
-      console.error('Error fetching attendance records:', recordsError)
-      return NextResponse.json({ error: 'Failed to fetch attendance records' }, { status: 500 })
+    while (hasMore) {
+      const from = page * pageSize
+      const to = from + pageSize - 1
+      
+      const { data: pageRecords, error: recordsError } = await supabaseAdmin
+        .from('attendance')
+        .select(`
+          id,
+          time_in,
+          time_out,
+          mode,
+          status,
+          created_at,
+          student:students (
+            id,
+            student_id,
+            name,
+            email,
+            college,
+            course
+          )
+        `)
+        .eq('event_id', eventId)
+        .order('created_at', { ascending: false })
+        .range(from, to)
+
+      if (recordsError) {
+        console.error('Error fetching attendance records:', recordsError)
+        return NextResponse.json({ error: 'Failed to fetch attendance records' }, { status: 500 })
+      }
+
+      if (pageRecords && pageRecords.length > 0) {
+        allAttendanceRecords = allAttendanceRecords.concat(pageRecords)
+        hasMore = pageRecords.length === pageSize
+        page++
+      } else {
+        hasMore = false
+      }
     }
+
+    const attendanceRecords = allAttendanceRecords
+    console.log('Fetched attendance records for display (with pagination):', attendanceRecords?.length || 0)
 
     // Transform the data to match the expected format
     const transformedRecords = attendanceRecords?.map(record => {
       // Handle the student data properly - it should be a single object
-      const student = Array.isArray(record.students) ? record.students[0] : record.students
+      const student = record.student
       
       // Determine status based on time_in and time_out
       // Student is only considered PRESENT if they have both signed in AND signed out

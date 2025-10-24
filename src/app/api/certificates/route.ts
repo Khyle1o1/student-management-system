@@ -466,7 +466,7 @@ export async function generateCertificatesForEvent(eventId: string) {
       .from('attendance')
       .select(`
         student_id,
-        students!inner(
+        student:students(
           id,
           student_id,
           name,
@@ -475,8 +475,8 @@ export async function generateCertificatesForEvent(eventId: string) {
         )
       `)
       .eq('event_id', eventId)
-      .eq('status', 'PRESENT')
       .not('time_out', 'is', null) // Must have signed out
+      .not('time_in', 'is', null) // Must have signed in
       .eq('certificate_generated', false)
 
     if (attendeesError) {
@@ -630,7 +630,7 @@ export async function generateCertificatesForEvent(eventId: string) {
     for (const attendee of attendees) {
       try {
         // Access student data properly - it's a single object, not an array
-        const student = Array.isArray(attendee.students) ? attendee.students[0] : attendee.students
+        const student = attendee.student
         
         // Check if certificate already exists for this student
         const { data: existingCert, error: existingError } = await supabase
@@ -731,7 +731,7 @@ export async function generateCertificatesForEvent(eventId: string) {
         })
 
       } catch (error) {
-        const student = Array.isArray(attendee.students) ? attendee.students[0] : attendee.students
+        const student = attendee.student
         console.error(`Error processing certificate for student ${student?.student_id || 'unknown'}:`, error)
         results.push({
           student_id: student?.student_id || 'unknown',

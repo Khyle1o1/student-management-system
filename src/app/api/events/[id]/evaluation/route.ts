@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 
 export async function GET(
@@ -15,7 +15,7 @@ export async function GET(
     const { id: eventId } = await params
 
     // Get the evaluation linked to this event
-    const { data: eventEvaluation, error: eventEvalError } = await supabase
+    const { data: eventEvaluation, error: eventEvalError } = await supabaseAdmin
       .from('event_evaluations')
       .select(`
         evaluation_id,
@@ -23,14 +23,15 @@ export async function GET(
         evaluation:evaluations(*)
       `)
       .eq('event_id', eventId)
-      .single()
+      .maybeSingle()
 
     if (eventEvalError) {
-      if (eventEvalError.code === 'PGRST116') {
-        return NextResponse.json({ error: 'No evaluation found for this event' }, { status: 404 })
-      }
       console.error('Error fetching event evaluation:', eventEvalError)
       return NextResponse.json({ error: 'Failed to fetch evaluation' }, { status: 500 })
+    }
+
+    if (!eventEvaluation) {
+      return NextResponse.json({ error: 'No evaluation found for this event' }, { status: 404 })
     }
 
     // Return the evaluation data

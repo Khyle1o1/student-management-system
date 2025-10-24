@@ -75,46 +75,105 @@ export async function GET(request: Request) {
     }
 
     // Transform events to match expected format with defaults for missing fields
-    const transformedEvents = events?.map(event => ({
-      id: event.id,
-      title: event.title,
-      description: event.description || '',
-      eventDate: event.date.split('T')[0],
-      startTime: event.start_time || "09:00",
-      endTime: event.end_time || "17:00",
-      location: event.location || "TBD",
-      type: event.type || "ACADEMIC",
-      max_capacity: event.max_capacity || 100,
-      eventType: event.type || "ACADEMIC",
-      capacity: event.max_capacity || 100,
-      registeredCount: 0, // TODO: Calculate actual count
-      status: (() => {
-        try {
-          let eventDate: Date
-          if (event.date.includes('T')) {
-            eventDate = new Date(event.date)
-          } else {
-            eventDate = new Date(event.date + 'T00:00:00')
+    const transformedEvents = await Promise.all(events?.map(async (event) => {
+      // Fetch attendance statistics for this event
+      let attendanceStats = null
+      try {
+        // Get total eligible students based on scope
+        // Use head: true to only get count without fetching data
+        let eligibleStudentsQuery = supabaseAdmin
+          .from('students')
+          .select('*', { count: 'exact', head: true })
+        
+        if (event.scope_type === 'COLLEGE_WIDE' && event.scope_college) {
+          eligibleStudentsQuery = eligibleStudentsQuery.eq('college', event.scope_college)
+        } else if (event.scope_type === 'COURSE_SPECIFIC' && event.scope_course) {
+          eligibleStudentsQuery = eligibleStudentsQuery.eq('course', event.scope_course)
+        }
+
+        const { count: totalEligible } = await eligibleStudentsQuery
+
+        // Get attendance records for this event
+        // Use limit to fetch all records (Supabase default is 1000)
+        const { data: attendanceRecords } = await supabaseAdmin
+          .from('attendance')
+          .select('id, time_in, time_out, student_id, created_at')
+          .eq('event_id', event.id)
+          .limit(10000)
+
+        // Group records by student_id to get the latest record for each student
+        const studentRecords = new Map()
+        
+        attendanceRecords?.forEach(record => {
+          const studentId = record.student_id
+          if (!studentRecords.has(studentId) || 
+              new Date(record.created_at) > new Date(studentRecords.get(studentId).created_at)) {
+            studentRecords.set(studentId, record)
           }
-          
-          if (isNaN(eventDate.getTime())) {
+        })
+
+        // Count students with complete attendance (both time_in and time_out)
+        const uniqueStudentRecords = Array.from(studentRecords.values())
+        const totalPresent = uniqueStudentRecords.filter(record => 
+          record.time_in !== null && record.time_out !== null
+        ).length
+
+        const attendanceRate = totalEligible && totalEligible > 0 
+          ? Math.round((totalPresent / totalEligible) * 100) 
+          : 0
+
+        attendanceStats = {
+          total_present: totalPresent,
+          total_eligible: totalEligible || 0,
+          attendance_rate: attendanceRate
+        }
+      } catch (error) {
+        console.error('Error fetching attendance stats for event:', event.id, error)
+        // Continue without attendance stats
+      }
+
+      return {
+        id: event.id,
+        title: event.title,
+        description: event.description || '',
+        eventDate: event.date.split('T')[0],
+        startTime: event.start_time || "09:00",
+        endTime: event.end_time || "17:00",
+        location: event.location || "TBD",
+        type: event.type || "ACADEMIC",
+        max_capacity: event.max_capacity || 100,
+        eventType: event.type || "ACADEMIC",
+        capacity: event.max_capacity || 100,
+        registeredCount: 0, // TODO: Calculate actual count
+        status: (() => {
+          try {
+            let eventDate: Date
+            if (event.date.includes('T')) {
+              eventDate = new Date(event.date)
+            } else {
+              eventDate = new Date(event.date + 'T00:00:00')
+            }
+            
+            if (isNaN(eventDate.getTime())) {
+              return "error"
+            }
+            
+            return eventDate > new Date() ? "upcoming" : "completed"
+          } catch (error) {
+            console.error('Error parsing event date:', error)
             return "error"
           }
-          
-          return eventDate > new Date() ? "upcoming" : "completed"
-        } catch (error) {
-          console.error('Error parsing event date:', error)
-          return "error"
-        }
-      })(),
-      scope_type: event.scope_type || "UNIVERSITY_WIDE",
-      scope_college: event.scope_college || "",
-      scope_course: event.scope_course || "",
-      require_evaluation: event.require_evaluation || false,
-      evaluation: event.event_evaluation?.[0]?.evaluation || null,
-      createdAt: event.created_at,
-      updatedAt: event.updated_at
-    })) || []
+        })(),
+        scope_type: event.scope_type || "UNIVERSITY_WIDE",
+        scope_college: event.scope_college || "",
+        scope_course: event.scope_course || "",
+        require_evaluation: event.require_evaluation || false,
+        evaluation: event.event_evaluation?.[0]?.evaluation || null,
+        attendance_stats: attendanceStats,
+        createdAt: event.created_at,
+        updatedAt: event.updated_at
+      }
+    }) || [])
 
     return NextResponse.json({
       events: transformedEvents,
