@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
 import { generateCertificatesForEvent } from "../../certificates/route"
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
     const { studentId, eventId, mode } = barcodeScanSchema.parse(body)
 
     // 1. Check if event exists and get event details
-    const { data: event, error: eventError } = await supabase
+    const { data: event, error: eventError } = await supabaseAdmin
       .from('events')
       .select('*')
       .eq('id', eventId)
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
     }
 
     // 3. Check if student exists by student_id (barcode)
-    const { data: student, error: studentError } = await supabase
+    const { data: student, error: studentError } = await supabaseAdmin
       .from('students')
       .select('*')
       .eq('student_id', studentId)
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
     }
 
     // 5. Get current attendance status for this student-event combination
-    const { data: existingAttendance, error: attendanceCheckError } = await supabase
+    const { data: existingAttendance, error: attendanceCheckError } = await supabaseAdmin
       .from('attendance')
       .select('*')
       .eq('event_id', eventId)
@@ -126,7 +127,7 @@ export async function POST(request: Request) {
 
     if (mode === 'SIGN_IN') {
       // Create new sign-in record
-      const { data: newRecord, error: insertError } = await supabase
+      const { data: newRecord, error: insertError } = await supabaseAdmin
         .from('attendance')
         .insert([{
           event_id: eventId,
@@ -160,7 +161,7 @@ export async function POST(request: Request) {
       attendanceRecord = newRecord
     } else {
       // Update existing record with sign-out time
-      const { data: updatedRecord, error: updateError } = await supabase
+      const { data: updatedRecord, error: updateError } = await supabaseAdmin
         .from('attendance')
         .update({
           time_out: currentTime,

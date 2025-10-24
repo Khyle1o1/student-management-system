@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
 
@@ -22,7 +23,7 @@ export async function POST(
     const { barcode } = recordAttendanceSchema.parse(body)
 
     // Check if event exists
-    const { data: event, error: eventError } = await supabase
+    const { data: event, error: eventError } = await supabaseAdmin
       .from('events')
       .select('*')
       .eq('id', eventId)
@@ -37,7 +38,7 @@ export async function POST(
     }
 
     // Find student by student_id (barcode)
-    const { data: student, error: studentError } = await supabase
+    const { data: student, error: studentError } = await supabaseAdmin
       .from('students')
       .select('*')
       .eq('student_id', barcode)
@@ -52,7 +53,7 @@ export async function POST(
     }
 
     // Check if student already has attendance for this event
-    const { data: existingRecord } = await supabase
+    const { data: existingRecord } = await supabaseAdmin
       .from('attendance')
       .select('*')
       .eq('event_id', eventId)
@@ -66,7 +67,7 @@ export async function POST(
 
     if (!existingRecord || existingRecord.length === 0 || existingRecord[0].time_out) {
       // First sign-in or re-entry after sign-out
-      const { data: newRecord, error: insertError } = await supabase
+      const { data: newRecord, error: insertError } = await supabaseAdmin
         .from('attendance')
         .insert([{
           event_id: eventId,
@@ -88,7 +89,7 @@ export async function POST(
       action = 'in'
     } else {
       // Sign-out
-      const { data: updatedRecord, error: updateError } = await supabase
+      const { data: updatedRecord, error: updateError } = await supabaseAdmin
         .from('attendance')
         .update({
           time_out: currentTime,

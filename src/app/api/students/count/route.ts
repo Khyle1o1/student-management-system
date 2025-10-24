@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic'
@@ -14,10 +15,10 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const scope = searchParams.get('scope') || 'UNIVERSITY_WIDE'
-    const collegeId = searchParams.get('collegeId')
-    const courseId = searchParams.get('courseId')
+    const collegeId = searchParams.get('collegeId') || searchParams.get('college')
+    const courseId = searchParams.get('courseId') || searchParams.get('course')
 
-    let query = supabase.from('students').select('id', { count: 'exact' })
+    let query = supabaseAdmin.from('students').select('id', { count: 'exact' })
 
     // Apply filters based on scope
     if (scope === 'COLLEGE_WIDE' && collegeId) {
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Failed to fetch student count' }, { status: 500 })
     }
 
+    console.log(`Student count for scope ${scope}: ${count || 0}`)
     return NextResponse.json({ count: count || 0 })
   } catch (error) {
     console.error('Error in GET /api/students/count:', error)

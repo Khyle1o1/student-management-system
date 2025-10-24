@@ -58,13 +58,14 @@ npm run dev
 ## Database Setup
 
 1. Create a new project in Supabase
-2. Use the SQL editor to create the required tables:
+2. Use the SQL editor to run `schema.sql` to create the required tables:
    - Users
    - Students
    - Events
    - Attendance
    - Fee Structures
    - Payments
+3. **Upload real student data** - See [Quick Upload Guide](./QUICK_UPLOAD_GUIDE.md) or [Complete Upload Guide](./REAL_STUDENT_DATA_UPLOAD_GUIDE.md)
 
 ## Authentication Setup
 

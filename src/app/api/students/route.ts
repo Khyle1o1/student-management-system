@@ -140,7 +140,7 @@ export async function POST(request: Request) {
     // Create user first
     // For OAuth users, we'll set a random password that they won't use
     const hashedPassword = await hashPassword(data.password || Math.random().toString(36).slice(-8))
-    const { data: user, error: userError } = await supabase
+    const { data: user, error: userError } = await supabaseAdmin
       .from('users')
       .insert([{
         email: data.email,
@@ -157,7 +157,7 @@ export async function POST(request: Request) {
     }
 
     // Then create student record
-    const { data: student, error: studentError } = await supabase
+    const { data: student, error: studentError } = await supabaseAdmin
       .from('students')
       .insert([{
         user_id: user.id,
@@ -182,7 +182,7 @@ export async function POST(request: Request) {
 
     if (studentError) {
       // Rollback user creation if student creation fails
-      await supabase
+      await supabaseAdmin
         .from('users')
         .delete()
         .eq('id', user.id)

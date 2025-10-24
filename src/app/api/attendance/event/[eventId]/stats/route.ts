@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 
 export async function GET(
@@ -15,7 +16,7 @@ export async function GET(
     const { eventId } = await params
 
     // Check if event exists
-    const { data: event, error: eventError } = await supabase
+    const { data: event, error: eventError } = await supabaseAdmin
       .from('events')
       .select('id')
       .eq('id', eventId)
@@ -30,7 +31,7 @@ export async function GET(
     }
 
     // Get all attendance records for this event
-    const { data: attendanceRecords, error: attendanceError } = await supabase
+    const { data: attendanceRecords, error: attendanceError } = await supabaseAdmin
       .from('attendance')
       .select('id, time_in, time_out, mode')
       .eq('event_id', eventId)

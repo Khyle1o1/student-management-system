@@ -1,0 +1,12 @@
+name,email,studentId,college,yearLevel,course,phone,password
+Juan Dela Cruz,juan.delacruz@student.buksu.edu.ph,2024001,College of Technology,YEAR_1,Computer Science,09171234567,student2024
+Maria Santos,maria.santos@student.buksu.edu.ph,2024002,College of Engineering,YEAR_2,Civil Engineering,09181234567,student2024
+Pedro Reyes,pedro.reyes@student.buksu.edu.ph,2024003,College of Business Administration,YEAR_3,Business Administration,09191234567,student2024
+Ana Garcia,ana.garcia@student.buksu.edu.ph,2024004,College of Arts and Sciences,YEAR_4,Psychology,09201234567,student2024
+Carlos Torres,carlos.torres@student.buksu.edu.ph,2024005,College of Technology,YEAR_1,Information Technology,09211234567,student2024
+Rosa Fernandez,rosa.fernandez@student.buksu.edu.ph,2024006,College of Engineering,YEAR_2,Mechanical Engineering,09221234567,student2024
+Miguel Lopez,miguel.lopez@student.buksu.edu.ph,2024007,College of Engineering,YEAR_3,Electrical Engineering,09231234567,student2024
+Isabella Cruz,isabella.cruz@student.buksu.edu.ph,2024008,College of Arts and Sciences,YEAR_1,Biology,09241234567,student2024
+Gabriel Ramos,gabriel.ramos@student.buksu.edu.ph,2024009,College of Business Administration,YEAR_2,Accounting,09251234567,student2024
+Sofia Mendoza,sofia.mendoza@student.buksu.edu.ph,2024010,College of Education,YEAR_4,Elementary Education,09261234567,student2024
+

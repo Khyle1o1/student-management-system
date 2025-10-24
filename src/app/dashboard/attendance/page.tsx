@@ -97,26 +97,32 @@ export default function AttendancePage() {
         const now = new Date()
         const totalEvents = data.events?.length || 0
         const activeEvents = data.events?.filter((event: Event) => {
-          const eventDate = parseEventDate(event.date)
+          const eventDate = parseEventDate((event as any)?.date as any)
           if (isNaN(eventDate.getTime())) return false // Skip invalid dates
           
           const eventStart = new Date(eventDate)
-          const [startHour, startMinute] = event.start_time.split(':').map(Number)
+          const [startHour, startMinute] = (event as any)?.start_time
+            ? (event as any).start_time.split(':').map(Number)
+            : [9, 0]
           eventStart.setHours(startHour, startMinute, 0, 0)
           
           const eventEnd = new Date(eventDate)
-          const [endHour, endMinute] = event.end_time.split(':').map(Number)
+          const [endHour, endMinute] = (event as any)?.end_time
+            ? (event as any).end_time.split(':').map(Number)
+            : [17, 0]
           eventEnd.setHours(endHour, endMinute, 59, 999)
           
           return now >= eventStart && now <= eventEnd
         }).length || 0
         
         const completedEvents = data.events?.filter((event: Event) => {
-          const eventDate = parseEventDate(event.date)
+          const eventDate = parseEventDate((event as any)?.date as any)
           if (isNaN(eventDate.getTime())) return false // Skip invalid dates
           
           const eventEnd = new Date(eventDate)
-          const [endHour, endMinute] = event.end_time.split(':').map(Number)
+          const [endHour, endMinute] = (event as any)?.end_time
+            ? (event as any).end_time.split(':').map(Number)
+            : [17, 0]
           eventEnd.setHours(endHour, endMinute, 59, 999)
           
           return now > eventEnd
@@ -140,6 +146,9 @@ export default function AttendancePage() {
   // Helper function to safely parse date (system already in Philippine timezone)
   const parseEventDate = (dateString: string): Date => {
     try {
+      if (!dateString || typeof dateString !== 'string') {
+        return new Date(NaN)
+      }
       // Handle different date formats
       let parsedDate: Date
       
@@ -166,7 +175,7 @@ export default function AttendancePage() {
 
   const getEventStatus = (event: Event) => {
     const now = new Date()
-    const eventDate = parseEventDate(event.date)
+    const eventDate = parseEventDate((event as any)?.date as any)
     
     // Handle invalid dates
     if (isNaN(eventDate.getTime())) {
@@ -174,11 +183,15 @@ export default function AttendancePage() {
     }
     
     const eventStart = new Date(eventDate)
-    const [startHour, startMinute] = event.start_time.split(':').map(Number)
+    const [startHour, startMinute] = (event as any)?.start_time
+      ? (event as any).start_time.split(':').map(Number)
+      : [9, 0]
     eventStart.setHours(startHour, startMinute, 0, 0)
     
     const eventEnd = new Date(eventDate)
-    const [endHour, endMinute] = event.end_time.split(':').map(Number)
+    const [endHour, endMinute] = (event as any)?.end_time
+      ? (event as any).end_time.split(':').map(Number)
+      : [17, 0]
     eventEnd.setHours(endHour, endMinute, 59, 999)
     
     if (now < eventStart) {

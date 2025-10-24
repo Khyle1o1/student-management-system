@@ -178,7 +178,7 @@ export async function POST(request: Request) {
 
     console.log("Inserting event data:", insertData)
 
-    const { data: event, error } = await supabase
+    const { data: event, error } = await supabaseAdmin
       .from('events')
       .insert([insertData])
       .select()
@@ -201,7 +201,7 @@ export async function POST(request: Request) {
 
     // If evaluation is required and evaluation_id is provided, link them
     if (data.require_evaluation && data.evaluation_id) {
-      const { error: linkError } = await supabase
+      const { error: linkError } = await supabaseAdmin
         .from('event_evaluations')
         .insert([{
           event_id: event.id,
@@ -218,7 +218,7 @@ export async function POST(request: Request) {
 
     // If certificate template is provided and certificate_template_id is provided, link them
     if (data.certificate_template_id) {
-      const { error: linkError } = await supabase
+      const { error: linkError } = await supabaseAdmin
         .from('event_certificate_templates')
         .insert([{
           event_id: event.id,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 
 export async function GET(
   request: Request,
@@ -13,13 +14,17 @@ export async function GET(
     }
 
     const { id } = await params
-    const { data: event, error } = await supabase
+    const { data: event, error } = await supabaseAdmin
       .from('events')
       .select('*')
       .eq('id', id)
       .single()
 
     if (error) {
+      // Map not-found error to 404 instead of 500 for better semantics
+      if ((error as any).code === 'PGRST116') {
+        return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+      }
       console.error('Error fetching event:', error)
       return NextResponse.json({ error: 'Failed to fetch event' }, { status: 500 })
     }
@@ -87,7 +92,7 @@ export async function PUT(
     }
 
     const { id } = await params
-    const { data: event, error } = await supabase
+    const { data: event, error } = await supabaseAdmin
       .from('events')
       .update(updateData)
       .eq('id', id)
@@ -124,7 +129,7 @@ export async function DELETE(
     const { id } = await params
 
     // Check if event exists
-    const { data: existingEvent, error: checkError } = await supabase
+    const { data: existingEvent, error: checkError } = await supabaseAdmin
       .from('events')
       .select('id')
       .eq('id', id)
@@ -138,7 +143,7 @@ export async function DELETE(
     }
 
     // Delete the event
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('events')
       .delete()
       .eq('id', id)

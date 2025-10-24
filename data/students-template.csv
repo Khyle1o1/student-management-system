@@ -1,0 +1,6 @@
+name,email,studentId,college,yearLevel,course,phone,password
+Juan Dela Cruz,juan.delacruz@student.buksu.edu.ph,2024001,College of Technology,YEAR_1,Computer Science,09171234567,student2024
+Maria Santos,maria.santos@student.buksu.edu.ph,2024002,College of Engineering,YEAR_2,Civil Engineering,09181234567,student2024
+Pedro Reyes,pedro.reyes@student.buksu.edu.ph,2024003,College of Business,YEAR_3,Business Administration,09191234567,student2024
+Ana Garcia,ana.garcia@student.buksu.edu.ph,2024004,College of Arts and Sciences,YEAR_4,Psychology,09201234567,student2024
+

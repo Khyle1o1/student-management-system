@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { z } from "zod"
 
 const attendanceSchema = z.object({
@@ -21,7 +22,7 @@ export async function GET(
     const offset = (page - 1) * limit
 
     // First check if event exists
-    const { data: event, error: eventError } = await supabase
+    const { data: event, error: eventError } = await supabaseAdmin
       .from('events')
       .select('*')
       .eq('id', eventId)
@@ -36,13 +37,13 @@ export async function GET(
     }
 
     // Get total count for pagination
-    const { count } = await supabase
+    const { count } = await supabaseAdmin
       .from('attendance')
       .select('*', { count: 'exact', head: true })
       .eq('event_id', eventId)
 
     // Get attendance records with student details
-    const { data: records, error } = await supabase
+    const { data: records, error } = await supabaseAdmin
       .from('attendance')
       .select(`
         *,
@@ -89,7 +90,7 @@ export async function POST(
     const data = attendanceSchema.parse(body)
 
     // Check if event exists
-    const { data: event, error: eventError } = await supabase
+    const { data: event, error: eventError } = await supabaseAdmin
       .from('events')
       .select('*')
       .eq('id', eventId)
@@ -104,7 +105,7 @@ export async function POST(
     }
 
     // Check if student exists
-    const { data: student, error: studentError } = await supabase
+    const { data: student, error: studentError } = await supabaseAdmin
       .from('students')
       .select('*')
       .eq('student_id', data.student_id)
@@ -119,7 +120,7 @@ export async function POST(
     }
 
     // Check if attendance record already exists
-    const { data: existingRecord } = await supabase
+    const { data: existingRecord } = await supabaseAdmin
       .from('attendance')
       .select('id')
       .eq('event_id', eventId)
@@ -131,7 +132,7 @@ export async function POST(
     }
 
     // Create attendance record
-    const { data: record, error } = await supabase
+    const { data: record, error } = await supabaseAdmin
       .from('attendance')
       .insert([{
         event_id: eventId,
