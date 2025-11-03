@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { feeSchema } from "@/lib/validations"
 import { z } from "zod"
 
@@ -20,7 +21,7 @@ export async function GET(
     }
 
     const { id } = await params
-    const { data: fee, error } = await supabase
+    const { data: fee, error } = await supabaseAdmin
       .from('fee_structures')
       .select('*')
       .eq('id', id)
@@ -81,7 +82,7 @@ export async function PUT(
     const validatedData = feeSchema.parse(body)
 
     const { id } = await params
-    const { data: updatedFee, error } = await supabase
+    const { data: updatedFee, error } = await supabaseAdmin
       .from('fee_structures')
       .update({
         name: validatedData.name,
@@ -139,8 +140,20 @@ export async function DELETE(
     }
 
     const { id } = await params
-    // Soft delete by setting deleted_at timestamp and is_active to false
-    const { error } = await supabase
+    
+    // First, delete all associated payment records
+    const { error: paymentsError } = await supabaseAdmin
+      .from('payments')
+      .delete()
+      .eq('fee_id', id)
+
+    if (paymentsError) {
+      console.error("Error deleting payment records:", paymentsError)
+      // Continue anyway - we still want to delete the fee
+    }
+
+    // Then soft delete the fee by setting deleted_at timestamp and is_active to false
+    const { error } = await supabaseAdmin
       .from('fee_structures')
       .update({
         deleted_at: new Date().toISOString(),

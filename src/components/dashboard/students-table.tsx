@@ -21,11 +21,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { 
   Search, 
   MoreHorizontal, 
   Edit, 
-  Trash2, 
+  Archive, 
+  ArchiveRestore,
   Mail, 
   Phone,
   User,
@@ -33,10 +41,12 @@ import {
   Download,
   Save,
   Loader2,
-  Plus
+  Plus,
+  Eye
 } from "lucide-react"
 import Link from "next/link"
 import { ConfirmModal } from "@/components/ui/confirm-modal"
+import { StudentDetailsModal } from "./student-details-modal"
 
 interface Student {
   id: string
@@ -47,6 +57,8 @@ interface Student {
   course: string
   college: string
   enrolledAt: string
+  archived?: boolean
+  archivedAt?: string
   user: {
     id: string
     email: string
@@ -59,6 +71,7 @@ export function StudentsTable() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
+  const [filter, setFilter] = useState<"all" | "active" | "archived">("active")
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -67,7 +80,12 @@ export function StudentsTable() {
   const [hasNext, setHasNext] = useState(false)
   const [hasPrevious, setHasPrevious] = useState(false)
   const [pageSize] = useState(20) // Fixed page size
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  
+  // Modal states
+  const [showArchiveModal, setShowArchiveModal] = useState(false)
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+  const [showDetailsModal, setShowDetailsModal] = useState(false)
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
 
   // Debounce search term
   useEffect(() => {
@@ -79,6 +97,11 @@ export function StudentsTable() {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
+  // Reset to first page when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filter])
+
   const fetchStudents = useCallback(async () => {
     try {
       setLoading(true)
@@ -87,6 +110,7 @@ export function StudentsTable() {
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: pageSize.toString(),
+        filter: filter,
         ...(debouncedSearchTerm && { search: debouncedSearchTerm })
       })
       
@@ -104,31 +128,41 @@ export function StudentsTable() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, debouncedSearchTerm, pageSize])
+  }, [currentPage, debouncedSearchTerm, pageSize, filter])
 
   useEffect(() => {
     fetchStudents()
   }, [fetchStudents])
 
-  const handleDeleteStudent = async (studentId: string) => {
-    if (!confirm("Are you sure you want to delete this student? This action cannot be undone.")) {
-      return
-    }
+  const handleArchiveStudent = async () => {
+    if (!selectedStudent) return
 
     try {
-      const response = await fetch(`/api/students/${studentId}`, {
-        method: "DELETE",
+      const response = await fetch(`/api/students/${selectedStudent.id}/archive`, {
+        method: "POST",
       })
 
       if (response.ok) {
         await fetchStudents() // Refresh the current page
+        setShowArchiveModal(false)
+        setSelectedStudent(null)
       } else {
-        alert("Error deleting student")
+        alert("Error archiving student")
       }
     } catch (error) {
-      console.error("Error deleting student:", error)
-      alert("Error deleting student")
+      console.error("Error archiving student:", error)
+      alert("Error archiving student")
     }
+  }
+
+  const openArchiveModal = (student: Student) => {
+    setSelectedStudent(student)
+    setShowArchiveModal(true)
+  }
+
+  const openDetailsModal = (studentId: string) => {
+    setSelectedStudentId(studentId)
+    setShowDetailsModal(true)
   }
 
   const handlePageChange = (page: number) => {
@@ -168,28 +202,6 @@ export function StudentsTable() {
     }
   }
 
-  const handleDeleteAll = async () => {
-    setLoading(true)
-    try {
-      const response = await fetch("/api/students/bulk-delete", {
-        method: "DELETE",
-      })
-
-      if (response.ok) {
-        // Refresh the table data
-        fetchStudents()
-      } else {
-        const error = await response.json()
-        alert(error.error || "An error occurred")
-      }
-    } catch (error) {
-      console.error("Error deleting students:", error)
-      alert("An error occurred while deleting students")
-    } finally {
-      setLoading(false)
-      setShowDeleteModal(false)
-    }
-  }
 
   if (loading && students.length === 0) {
     return (
@@ -214,20 +226,22 @@ export function StudentsTable() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-[300px]"
           />
+          <Select value={filter} onValueChange={(value: any) => setFilter(value)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter students" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active Students</SelectItem>
+              <SelectItem value="archived">Archived Students</SelectItem>
+              <SelectItem value="all">All Students</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" onClick={fetchStudents} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>
         <div className="flex items-center gap-4">
-          <Button
-            variant="destructive"
-            onClick={() => setShowDeleteModal(true)}
-            disabled={loading}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete All Students
-          </Button>
           <Button asChild>
             <Link href="/dashboard/students/new">
               <Plus className="h-4 w-4 mr-2" />
@@ -238,19 +252,42 @@ export function StudentsTable() {
       </div>
 
       <ConfirmModal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        onConfirm={handleDeleteAll}
-        title="Delete All Students"
-        description="Are you sure you want to delete all students? This action cannot be undone."
-        confirmText="Delete All"
+        isOpen={showArchiveModal}
+        onClose={() => {
+          setShowArchiveModal(false)
+          setSelectedStudent(null)
+        }}
+        onConfirm={handleArchiveStudent}
+        title={selectedStudent?.archived ? "Unarchive Student" : "Archive Student"}
+        description={
+          selectedStudent?.archived
+            ? `Are you sure you want to unarchive ${selectedStudent?.name}? They will be restored to the active students list.`
+            : `Are you sure you want to archive ${selectedStudent?.name}? They will be hidden from the active students list and automatically deleted after 2 years.`
+        }
+        confirmText={selectedStudent?.archived ? "Unarchive" : "Archive"}
         cancelText="Cancel"
-        variant="destructive"
+        variant={selectedStudent?.archived ? "default" : "destructive"}
+      />
+
+      <StudentDetailsModal
+        studentId={selectedStudentId}
+        open={showDetailsModal}
+        onClose={() => {
+          setShowDetailsModal(false)
+          setSelectedStudentId(null)
+        }}
       />
 
       <Card>
         <CardHeader>
-          <CardTitle>Students</CardTitle>
+          <div className="flex justify-between items-center">
+            <CardTitle>Students</CardTitle>
+            {filter === 'archived' && (
+              <Badge variant="default" className="bg-yellow-100 text-yellow-800">
+                Archived students are automatically deleted after 2 years
+              </Badge>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="rounded-md border">
@@ -263,6 +300,7 @@ export function StudentsTable() {
                   <TableHead>College</TableHead>
                   <TableHead>Course</TableHead>
                   <TableHead>Year Level</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Enrolled Date</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -270,7 +308,7 @@ export function StudentsTable() {
               <TableBody>
                 {loading && students.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       <div className="flex items-center justify-center space-x-2">
                         <RefreshCw className="h-4 w-4 animate-spin" />
                         <span>Loading students...</span>
@@ -279,11 +317,15 @@ export function StudentsTable() {
                   </TableRow>
                 ) : students.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       <div className="flex flex-col items-center space-y-2">
                         <User className="h-8 w-8 text-muted-foreground" />
                         <span className="text-muted-foreground">
-                          {searchTerm ? "No students found matching your search." : "No students found."}
+                          {searchTerm 
+                            ? "No students found matching your search." 
+                            : filter === 'archived' 
+                              ? "No archived students found."
+                              : "No students found."}
                         </span>
                       </div>
                     </TableCell>
@@ -295,12 +337,12 @@ export function StudentsTable() {
                         {student.studentId}
                       </TableCell>
                       <TableCell className="font-medium">
-                        <Link 
-                          href={`/dashboard/students/${student.id}`}
+                        <button
+                          onClick={() => openDetailsModal(student.id)}
                           className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer transition-colors"
                         >
                           {student.name}
-                        </Link>
+                        </button>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-1">
@@ -314,6 +356,18 @@ export function StudentsTable() {
                         <Badge className={getYearLevelBadgeColor(student.yearLevel)}>
                           {getYearLevelDisplayText(student.yearLevel)}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {student.archived ? (
+                          <Badge variant="default" className="bg-yellow-100 text-yellow-800">
+                            <Archive className="h-3 w-3 mr-1" />
+                            Archived
+                          </Badge>
+                        ) : (
+                          <Badge variant="default" className="bg-green-100 text-green-800">
+                            Active
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm text-gray-600">
                         {formatDate(student.enrolledAt)}
@@ -329,18 +383,32 @@ export function StudentsTable() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => openDetailsModal(student.id)}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Details
+                            </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                               <Link href={`/dashboard/students/${student.id}`}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit
                               </Link>
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onClick={() => handleDeleteStudent(student.id)}
-                              className="text-red-600"
+                              onClick={() => openArchiveModal(student)}
+                              className={student.archived ? "text-green-600" : "text-orange-600"}
                             >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
+                              {student.archived ? (
+                                <>
+                                  <ArchiveRestore className="mr-2 h-4 w-4" />
+                                  Unarchive
+                                </>
+                              ) : (
+                                <>
+                                  <Archive className="mr-2 h-4 w-4" />
+                                  Archive
+                                </>
+                              )}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

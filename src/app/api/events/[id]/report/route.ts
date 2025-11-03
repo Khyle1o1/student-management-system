@@ -95,6 +95,140 @@ async function generateEventReportPDF(event: any, attendanceData: any, stats: an
 
     currentY += 70
 
+    // Attendance Statistics Summary Section
+    if (attendanceData && attendanceData.length > 0) {
+      checkPageBreak(100)
+      
+      // Group attendance by college and course
+      interface CollegeSummary {
+        total: number
+        courses: { [course: string]: number }
+      }
+      
+      const collegeSummary: { [college: string]: CollegeSummary } = {}
+      
+      attendanceData.forEach((record: any) => {
+        const college = record.student?.college || 'Unknown College'
+        const course = record.student?.course || 'Unknown Course'
+        
+        if (!collegeSummary[college]) {
+          collegeSummary[college] = { total: 0, courses: {} }
+        }
+        
+        collegeSummary[college].total++
+        
+        if (!collegeSummary[college].courses[course]) {
+          collegeSummary[college].courses[course] = 0
+        }
+        
+        collegeSummary[college].courses[course]++
+      })
+      
+      // Draw Statistics Summary Section
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Attendance Statistics Summary', margin, currentY)
+      currentY += 15
+      
+      // Calculate total for "out of" calculations
+      const totalAttendance = attendanceData.length
+      
+      // Summary table with three columns
+      const summaryWidth = pageWidth - 2 * margin
+      const categoryColWidth = summaryWidth * 0.50 // 50% for category name
+      const countColWidth = summaryWidth * 0.20 // 20% for count
+      const outOfColWidth = summaryWidth * 0.30 // 30% for "out of" display
+      
+      // Header
+      doc.setFillColor(52, 73, 94)
+      doc.rect(margin, currentY, summaryWidth, 10, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Category', margin + 3, currentY + 7)
+      doc.text('Count', margin + categoryColWidth + 3, currentY + 7)
+      doc.text('Out of Total', margin + categoryColWidth + countColWidth + 3, currentY + 7)
+      currentY += 10
+      
+      // Sort colleges alphabetically
+      const sortedColleges = Object.keys(collegeSummary).sort()
+      
+      doc.setTextColor(0, 0, 0)
+      doc.setFont('helvetica', 'normal')
+      let rowIndex = 0
+      
+      sortedColleges.forEach((college) => {
+        const data = collegeSummary[college]
+        
+        // Check for page break
+        const coursesCount = Object.keys(data.courses).length
+        const requiredHeight = (coursesCount + 1) * 8 + 10
+        checkPageBreak(requiredHeight)
+        
+        // College row
+        if (rowIndex % 2 === 0) {
+          doc.setFillColor(240, 248, 255) // Light blue for college rows
+        } else {
+          doc.setFillColor(248, 249, 250)
+        }
+        doc.rect(margin, currentY, summaryWidth, 8, 'F')
+        
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(10)
+        doc.text(college, margin + 3, currentY + 5.5)
+        doc.text(data.total.toString(), margin + categoryColWidth + 3, currentY + 5.5)
+        
+        // Display "out of" count
+        doc.text(`${data.total} out of ${totalAttendance}`, margin + categoryColWidth + countColWidth + 3, currentY + 5.5)
+        
+        currentY += 8
+        rowIndex++
+        
+        // Sort courses alphabetically
+        const sortedCourses = Object.keys(data.courses).sort()
+        
+        // Course rows (indented)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
+        sortedCourses.forEach((course) => {
+          if (rowIndex % 2 === 0) {
+            doc.setFillColor(248, 249, 250)
+          } else {
+            doc.setFillColor(255, 255, 255)
+          }
+          doc.rect(margin, currentY, summaryWidth, 8, 'F')
+          
+          doc.setTextColor(100, 100, 100)
+          doc.text(`    ${course}`, margin + 3, currentY + 5.5)
+          doc.setTextColor(0, 0, 0)
+          doc.text(data.courses[course].toString(), margin + categoryColWidth + 3, currentY + 5.5)
+          
+          // Display "out of" count for course (out of college total, not overall total)
+          doc.text(`${data.courses[course]} out of ${data.total}`, margin + categoryColWidth + countColWidth + 3, currentY + 5.5)
+          
+          currentY += 8
+          rowIndex++
+        })
+      })
+      
+      // Total summary row
+      doc.setDrawColor(52, 73, 94)
+      doc.setLineWidth(0.5)
+      doc.line(margin, currentY, pageWidth - margin, currentY)
+      currentY += 5
+      
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(11)
+      doc.setTextColor(0, 0, 0)
+      doc.text('Total Attendances:', margin + 3, currentY + 5)
+      doc.text(attendanceData.length.toString(), margin + categoryColWidth + 3, currentY + 5)
+      doc.text(`${totalAttendance} out of ${totalAttendance}`, margin + categoryColWidth + countColWidth + 3, currentY + 5)
+      currentY += 15
+      
+      // Add spacing before detailed records
+      currentY += 10
+    }
+
     // Attendance Records Section
     if (attendanceData && attendanceData.length > 0) {
       checkPageBreak(120)

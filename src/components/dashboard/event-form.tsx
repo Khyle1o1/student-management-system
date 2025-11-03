@@ -514,7 +514,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
                 <div className="space-y-2 pl-6 border-l-2 border-blue-200 bg-blue-50 p-4">
                   <Label htmlFor="evaluation_id">Select Evaluation Template *</Label>
                   <Select
-                    value={formData.evaluation_id}
+                    value={formData.evaluation_id || undefined}
                     onValueChange={(value) => handleInputChange("evaluation_id", value)}
                     disabled={loadingEvaluations}
                   >
@@ -577,7 +577,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
                 <div className="space-y-2 pl-6 border-l-2 border-green-200 bg-green-50 p-4">
                   <Label htmlFor="certificate_template_id">Select Certificate Template *</Label>
                   <Select
-                    value={formData.certificate_template_id}
+                    value={formData.certificate_template_id || undefined}
                     onValueChange={(value) => handleInputChange("certificate_template_id", value)}
                     disabled={loadingCertificateTemplates}
                   >
@@ -649,7 +649,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
                   <div className="space-y-2">
                     <Label htmlFor="scope_college">College *</Label>
                     <Select
-                      value={formData.scope_college}
+                      value={formData.scope_college || undefined}
                       onValueChange={(value) => handleInputChange("scope_college", value)}
                       required={formData.scope_type !== "UNIVERSITY_WIDE"}
                     >
@@ -670,7 +670,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
                     <div className="space-y-2">
                       <Label htmlFor="scope_course">Course *</Label>
                       <Select
-                        value={formData.scope_course}
+                        value={formData.scope_course || undefined}
                         onValueChange={(value) => handleInputChange("scope_course", value)}
                         required={formData.scope_type === "COURSE_SPECIFIC"}
                         disabled={!formData.scope_college}

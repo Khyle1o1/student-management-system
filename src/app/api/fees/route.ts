@@ -128,7 +128,100 @@ export async function POST(request: Request) {
 
     console.log("Created fee:", fee)
 
-    return NextResponse.json(fee, { status: 201 })
+    // Automatically assign fee to eligible students based on scope
+    // Fetch ALL students using pagination (Supabase default limit is 1000)
+    const PAGE_SIZE = 1000
+    let allStudents: { id: string }[] = []
+    let page = 0
+    let hasMore = true
+
+    console.log(`Fetching students for scope: ${validatedData.scope_type}`)
+
+    while (hasMore) {
+      // Build query with filters
+      let pageQuery = supabaseAdmin
+        .from('students')
+        .select('id')
+        .or('archived.is.null,archived.eq.false')
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+
+      // Apply scope filters
+      if (validatedData.scope_type === 'COLLEGE_WIDE' && validatedData.scope_college) {
+        pageQuery = pageQuery.eq('college', validatedData.scope_college)
+      } else if (validatedData.scope_type === 'COURSE_SPECIFIC' && validatedData.scope_course) {
+        pageQuery = pageQuery.eq('course', validatedData.scope_course)
+      }
+
+      const { data: pageData, error: pageError } = await pageQuery
+
+      if (pageError) {
+        console.error(`Error fetching students page ${page + 1}:`, pageError)
+        break
+      }
+
+      if (pageData && pageData.length > 0) {
+        allStudents = [...allStudents, ...pageData]
+        console.log(`Fetched page ${page + 1}: ${pageData.length} students (Total so far: ${allStudents.length})`)
+        
+        if (pageData.length < PAGE_SIZE) {
+          hasMore = false
+        } else {
+          page++
+        }
+      } else {
+        hasMore = false
+      }
+    }
+
+    const eligibleStudents = allStudents
+    const studentsError = null
+    
+    console.log(`Total students fetched: ${eligibleStudents.length}`)
+
+    if (studentsError) {
+      console.error('Error fetching eligible students:', studentsError)
+      // Don't fail fee creation if student assignment fails
+    } else if (eligibleStudents && eligibleStudents.length > 0) {
+      // Create payment records for all eligible students
+      const paymentRecords = eligibleStudents.map(student => ({
+        student_id: student.id,
+        fee_id: fee.id,
+        amount: validatedData.amount,
+        status: 'UNPAID',
+        payment_date: null,
+      }))
+
+      // Batch insert to avoid hitting database limits
+      const BATCH_SIZE = 500
+      let totalInserted = 0
+      let errors = []
+
+      for (let i = 0; i < paymentRecords.length; i += BATCH_SIZE) {
+        const batch = paymentRecords.slice(i, i + BATCH_SIZE)
+        const { error: paymentsError } = await supabaseAdmin
+          .from('payments')
+          .insert(batch)
+
+        if (paymentsError) {
+          console.error(`Error creating payment records batch ${i / BATCH_SIZE + 1}:`, paymentsError)
+          errors.push(paymentsError)
+        } else {
+          totalInserted += batch.length
+          console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: Assigned fee to ${batch.length} students (Total: ${totalInserted}/${eligibleStudents.length})`)
+        }
+      }
+
+      if (errors.length > 0) {
+        console.error(`Failed to assign fee to ${eligibleStudents.length - totalInserted} students`)
+      } else {
+        console.log(`Successfully assigned fee to all ${totalInserted} students`)
+      }
+    }
+
+    return NextResponse.json({
+      ...fee,
+      assignedStudents: eligibleStudents?.length || 0
+    }, { status: 201 })
 
   } catch (error) {
     if (error instanceof z.ZodError) {

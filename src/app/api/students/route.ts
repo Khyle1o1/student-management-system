@@ -41,17 +41,17 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
     const search = searchParams.get('search') || ''
+    const filter = searchParams.get('filter') || 'active' // all, active, archived
     
     const offset = (page - 1) * limit
 
-    // Get total count for pagination
-    const { count } = await supabaseAdmin
+    // Build query based on filter
+    let countQuery = supabaseAdmin
       .from('students')
       .select('*', { count: 'exact', head: true })
       .ilike('name', `%${search}%`)
 
-    // Get paginated students
-    const { data: studentsData, error } = await supabaseAdmin
+    let dataQuery = supabaseAdmin
       .from('students')
       .select(`
         id,
@@ -62,6 +62,8 @@ export async function GET(request: Request) {
         course,
         year_level,
         created_at,
+        archived,
+        archived_at,
         user:users(
           id,
           email,
@@ -70,6 +72,22 @@ export async function GET(request: Request) {
         )
       `)
       .ilike('name', `%${search}%`)
+
+    // Apply filter
+    if (filter === 'active') {
+      countQuery = countQuery.or('archived.is.null,archived.eq.false')
+      dataQuery = dataQuery.or('archived.is.null,archived.eq.false')
+    } else if (filter === 'archived') {
+      countQuery = countQuery.eq('archived', true)
+      dataQuery = dataQuery.eq('archived', true)
+    }
+    // 'all' filter shows both active and archived
+
+    // Get total count for pagination
+    const { count } = await countQuery
+
+    // Get paginated students
+    const { data: studentsData, error } = await dataQuery
       .range(offset, offset + limit - 1)
       .order('created_at', { ascending: false })
 
@@ -88,6 +106,8 @@ export async function GET(request: Request) {
       course: student.course,
       yearLevel: `YEAR_${student.year_level}`,
       enrolledAt: student.created_at,
+      archived: student.archived || false,
+      archivedAt: student.archived_at,
       user: student.user
     }))
 
@@ -189,6 +209,39 @@ export async function POST(request: Request) {
 
       console.error('Error creating student:', studentError)
       return NextResponse.json({ error: 'Failed to create student' }, { status: 500 })
+    }
+
+    // Automatically assign applicable fees to the new student
+    let feesQuery = supabaseAdmin
+      .from('fee_structures')
+      .select('id, amount')
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .or(`scope_type.eq.UNIVERSITY_WIDE,and(scope_type.eq.COLLEGE_WIDE,scope_college.eq.${data.college}),and(scope_type.eq.COURSE_SPECIFIC,scope_course.eq.${data.course})`)
+
+    const { data: applicableFees, error: feesError } = await feesQuery
+
+    if (!feesError && applicableFees && applicableFees.length > 0) {
+      // Create payment records for all applicable fees
+      const paymentRecords = applicableFees.map(fee => ({
+        student_id: student.id,
+        fee_id: fee.id,
+        amount: fee.amount,
+        status: 'UNPAID',
+        payment_date: null,
+      }))
+
+      // For individual students, batch size isn't critical but keeping consistency
+      const { error: paymentsError } = await supabaseAdmin
+        .from('payments')
+        .insert(paymentRecords)
+
+      if (paymentsError) {
+        console.error('Error creating payment records for new student:', paymentsError)
+        // Log but don't fail - student was created successfully
+      } else {
+        console.log(`Assigned ${applicableFees.length} fees to new student`)
+      }
     }
 
     return NextResponse.json(student, { status: 201 })

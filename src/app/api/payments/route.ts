@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { z } from "zod"
 import { filterFeesForStudent } from "@/lib/fee-scope-utils"
 
@@ -212,7 +213,7 @@ export async function POST(request: NextRequest) {
     const data = paymentSchema.parse(body)
 
     // Find the student by their student_id (not internal id)
-    const { data: student, error: studentError } = await supabase
+    const { data: student, error: studentError } = await supabaseAdmin
       .from('students')
       .select('*')
       .eq('id', data.studentId)
@@ -227,7 +228,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if fee exists
-    const { data: fee, error: feeError } = await supabase
+    const { data: fee, error: feeError } = await supabaseAdmin
       .from('fee_structures')
       .select('*')
       .eq('id', data.feeId)
@@ -242,7 +243,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if payment already exists for this student-fee combination
-    const { data: existingPayment, error: existingError } = await supabase
+    const { data: existingPayment, error: existingError } = await supabaseAdmin
       .from('payments')
       .select('*')
       .eq('student_id', student.id)
@@ -253,7 +254,7 @@ export async function POST(request: NextRequest) {
     let payment
     if (existingPayment) {
       // Update existing payment
-      const { data: updatedPayment, error: updateError } = await supabase
+      const { data: updatedPayment, error: updateError } = await supabaseAdmin
         .from('payments')
         .update({
           amount: data.amount,
@@ -293,7 +294,7 @@ export async function POST(request: NextRequest) {
       payment = updatedPayment
     } else {
       // Create new payment record
-      const { data: newPayment, error: createError } = await supabase
+      const { data: newPayment, error: createError } = await supabaseAdmin
         .from('payments')
         .insert([{
           student_id: student.id,
