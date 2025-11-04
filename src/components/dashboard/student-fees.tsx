@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Table,
   TableBody,
@@ -22,8 +23,12 @@ import {
   AlertTriangle,
   RefreshCw,
   CreditCard,
-  FileText
+  FileText,
+  Upload,
+  Clock,
+  Eye
 } from "lucide-react"
+// Receipt upload removed: admin marks payments as paid directly
 
 interface FeeStructure {
   id: string
@@ -43,6 +48,10 @@ interface Payment {
   reference?: string
   notes?: string
   paidAt: string
+  approvalStatus?: string
+  receiptUrl?: string
+  rejectionReason?: string
+  uploadedAt?: string
   fee: {
     id: string
     name: string
@@ -127,6 +136,7 @@ export function StudentFees({ studentId }: StudentFeesProps) {
       )
     }
   }
+
 
   const getFeeTypeBadge = (type: string) => {
     const typeColors = {
@@ -316,12 +326,13 @@ export function StudentFees({ studentId }: StudentFeesProps) {
                     <TableHead>Balance</TableHead>
                     <TableHead>Due Date</TableHead>
                     <TableHead>Status</TableHead>
+                  <TableHead>Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredFees.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
+                      <TableCell colSpan={8} className="text-center py-8">
                         <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                         <h3 className="text-lg font-medium text-gray-900 mb-2">No fees found</h3>
                         <p className="text-gray-600">
@@ -333,6 +344,8 @@ export function StudentFees({ studentId }: StudentFeesProps) {
                     filteredFees.map((fee) => {
                       const paidAmount = getPaidAmount(fee.id)
                       const balance = fee.amount - paidAmount
+                      const pending = false
+                      const rejectionReason = null
                       
                       return (
                         <TableRow key={fee.id}>
@@ -343,6 +356,13 @@ export function StudentFees({ studentId }: StudentFeesProps) {
                                 <p className="text-sm text-gray-600 truncate max-w-xs">
                                   {fee.description}
                                 </p>
+                              )}
+                              {rejectionReason && (
+                                <Alert className="mt-2 bg-orange-50 border-orange-200">
+                                  <AlertDescription className="text-sm text-orange-800">
+                                    <strong>Rejected:</strong> {rejectionReason}
+                                  </AlertDescription>
+                                </Alert>
                               )}
                             </div>
                           </TableCell>
@@ -371,6 +391,9 @@ export function StudentFees({ studentId }: StudentFeesProps) {
                           <TableCell>
                             {getStatusBadge(fee.id, fee.amount)}
                           </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-gray-500">Admin will mark as paid</span>
+                          </TableCell>
                         </TableRow>
                       )
                     })
@@ -387,8 +410,8 @@ export function StudentFees({ studentId }: StudentFeesProps) {
                     <TableHead>Date</TableHead>
                     <TableHead>Fee</TableHead>
                     <TableHead>Amount</TableHead>
-                    <TableHead>Method</TableHead>
-                    <TableHead>Reference</TableHead>
+                    <TableHead>Status</TableHead>
+                  <TableHead>Receipt</TableHead>
                     <TableHead>Notes</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -404,40 +427,68 @@ export function StudentFees({ studentId }: StudentFeesProps) {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredPayments.map((payment) => (
-                      <TableRow key={payment.id}>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Calendar className="h-4 w-4 text-gray-400" />
-                            <span>{formatDate(payment.paidAt)}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{payment.fee.name}</p>
-                            {getFeeTypeBadge(payment.fee.type)}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium text-green-600">
-                          {formatCurrency(payment.amount)}
-                        </TableCell>
-                        <TableCell>
-                          {payment.paymentMethod || (
-                            <span className="text-gray-400">Not specified</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {payment.reference || (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {payment.notes || (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    filteredPayments.map((payment) => {
+                      const getApprovalStatusBadge = () => {
+                        if (payment.approvalStatus === 'APPROVED') {
+                          return (
+                            <Badge className="bg-green-100 text-green-800">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Approved
+                            </Badge>
+                          )
+                        } else if (payment.approvalStatus === 'REJECTED') {
+                          return (
+                            <Badge className="bg-red-100 text-red-800">
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Rejected
+                            </Badge>
+                          )
+                        } else {
+                          return (
+                            <Badge className="bg-blue-100 text-blue-800">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Pending
+                            </Badge>
+                          )
+                        }
+                      }
+
+                      return (
+                        <TableRow key={payment.id}>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <Calendar className="h-4 w-4 text-gray-400" />
+                              <span>{formatDate(payment.paidAt)}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">{payment.fee.name}</p>
+                              {getFeeTypeBadge(payment.fee.type)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium text-green-600">
+                            {formatCurrency(payment.amount)}
+                          </TableCell>
+                          <TableCell>
+                            {getApprovalStatusBadge()}
+                            {payment.rejectionReason && (
+                              <p className="text-xs text-red-600 mt-1">
+                                {payment.rejectionReason}
+                              </p>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-gray-400">No receipt</span>
+                          </TableCell>
+                          <TableCell>
+                            {payment.notes || (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -445,6 +496,8 @@ export function StudentFees({ studentId }: StudentFeesProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Receipt upload removed */}
     </div>
   )
 } 

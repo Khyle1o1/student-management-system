@@ -27,7 +27,8 @@ import {
   X,
   ClipboardCheck,
   Award,
-  UserCog
+  UserCog,
+  Clock
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -140,8 +141,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
     { 
       href: "/dashboard/fees", 
       label: "Fees", 
-      icon: DollarSign, 
-      badge: stats?.payments?.pending?.toString() || "0"
+      icon: DollarSign
     },
     { href: "/dashboard/reports", label: "Reports", icon: FileText },
   ]

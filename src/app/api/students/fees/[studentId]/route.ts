@@ -70,7 +70,7 @@ export async function GET(
       `)
       .eq('student_id', student.id)
       .is('deleted_at', null)
-      .order('payment_date', { ascending: false })
+      .order('created_at', { ascending: false })
 
     if (paymentsError) {
       console.error("Error fetching payments:", paymentsError)
@@ -141,6 +141,10 @@ export async function GET(
       notes: payment.notes,
       paidAt: payment.payment_date,
       status: payment.status,
+      approvalStatus: payment.approval_status || null, // Only set if approval_status exists
+      receiptUrl: payment.receipt_url,
+      rejectionReason: payment.rejection_reason,
+      uploadedAt: payment.uploaded_at,
       fee: {
         id: payment.fee.id,
         name: payment.fee.name,
