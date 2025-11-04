@@ -15,9 +15,11 @@ export async function GET(request: Request) {
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-
-    // Only ADMIN can view all fees; for now, keep GET restricted to ADMIN
-    if (session.user.role !== "ADMIN") {
+    const role = session.user.role
+    const isAdmin = role === 'ADMIN'
+    const isCollegeOrg = role === 'COLLEGE_ORG'
+    const isCourseOrg = role === 'COURSE_ORG'
+    if (!(isAdmin || isCollegeOrg || isCourseOrg)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -37,16 +39,49 @@ export async function GET(request: Request) {
       query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%,type.ilike.%${search}%,school_year.ilike.%${search}%`)
     }
 
-    // Get total count for pagination
-    const { count } = await supabaseAdmin
+    // Get total count for pagination (respect scope and active visibility)
+    let countBuilder = supabaseAdmin
       .from('fee_structures')
       .select('*', { count: 'exact', head: true })
-      .eq('is_active', true)
       .is('deleted_at', null)
 
+    if (search) {
+      countBuilder = countBuilder.or(`name.ilike.%${search}%,description.ilike.%${search}%,type.ilike.%${search}%,school_year.ilike.%${search}%`)
+    }
+    if (isCollegeOrg) {
+      countBuilder = countBuilder.or(
+        `and(scope_type.eq.COLLEGE_WIDE,scope_college.eq.${session.user.assigned_college}),and(scope_type.eq.COURSE_SPECIFIC,scope_college.eq.${session.user.assigned_college})`
+      )
+    } else if (isCourseOrg) {
+      const course = session.user.assigned_course || ''
+      countBuilder = countBuilder
+        .eq('scope_type', 'COURSE_SPECIFIC')
+        .eq('scope_college', session.user.assigned_college || '')
+        .eq('scope_course', course)
+    } else {
+      // Admin only counts active
+      countBuilder = countBuilder.eq('is_active', true)
+    }
+
+    const { count } = await countBuilder
+
+    // Scope filtering for org roles
+    if (isCollegeOrg) {
+      query = query.or(
+        `and(scope_type.eq.COLLEGE_WIDE,scope_college.eq.${session.user.assigned_college}),and(scope_type.eq.COURSE_SPECIFIC,scope_college.eq.${session.user.assigned_college})`
+      )
+    } else if (isCourseOrg) {
+      const course = session.user.assigned_course || ''
+      query = query
+        .eq('scope_type', 'COURSE_SPECIFIC')
+        .eq('scope_college', session.user.assigned_college || '')
+        .eq('scope_course', course)
+    }
+
     // Get paginated fees
+    // Admin sees both active and pending; orgs see active + pending by scope
+
     const { data: fees, error } = await query
-      .eq('is_active', true)
       .is('deleted_at', null)
       .range(offset, offset + limit - 1)
       .order('created_at', { ascending: false })
@@ -69,6 +104,7 @@ export async function GET(request: Request) {
       scope_type: fee.scope_type || "UNIVERSITY_WIDE",
       scope_college: fee.scope_college || "",
       scope_course: fee.scope_course || "",
+      status: fee.is_active ? 'ACTIVE' : 'PENDING',
       createdAt: fee.created_at,
     })) || []
 

@@ -301,11 +301,11 @@ export function EventsTable() {
                             {/* Render Approve/Reject if event is pending; actual role gating is handled by API */}
                             {String(event.status).toUpperCase() === 'PENDING' && (
                               <>
-                                <DropdownMenuItem onClick={(e) => { e.preventDefault(); approveEvent(event.id) }}>
-                                  <span className="text-green-700">Approve</span>
+                                <DropdownMenuItem onClick={(e) => { e.preventDefault(); approveEvent(event.id) }} className="bg-green-50 text-green-700 font-medium focus:bg-green-100 focus:text-green-800">
+                                  <span>Approve</span>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.preventDefault(); rejectEvent(event.id) }}>
-                                  <span className="text-red-700">Reject</span>
+                                <DropdownMenuItem onClick={(e) => { e.preventDefault(); rejectEvent(event.id) }} className="bg-red-50 text-red-700 font-medium focus:bg-red-100 focus:text-red-800">
+                                  <span>Reject</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                               </>

@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
+import { useSession } from "next-auth/react"
 
 interface Fee {
   id: string
@@ -39,9 +40,11 @@ interface Fee {
   scope_college: string
   scope_course: string
   createdAt: string
+  status?: string
 }
 
 export function FeesCards() {
+  const { data: session } = useSession()
   const router = useRouter()
   const [fees, setFees] = useState<Fee[]>([])
   const [loading, setLoading] = useState(true)
@@ -102,6 +105,38 @@ export function FeesCards() {
     } catch (error) {
       console.error("Error deleting fee:", error)
       alert("Error deleting fee")
+    }
+  }
+
+  const approveFee = async (id: string) => {
+    if (!confirm('Approve this fee?')) return
+    try {
+      const res = await fetch(`/api/fees/${id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'APPROVE' }) })
+      if (res.ok) {
+        await fetchFees()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || 'Failed to approve fee')
+      }
+    } catch (e) {
+      console.error('Approve fee failed', e)
+      alert('Approve fee failed')
+    }
+  }
+
+  const rejectFee = async (id: string) => {
+    const reason = window.prompt('Enter rejection reason (optional):') || null
+    try {
+      const res = await fetch(`/api/fees/${id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'REJECT', reason }) })
+      if (res.ok) {
+        await fetchFees()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || 'Failed to reject fee')
+      }
+    } catch (e) {
+      console.error('Reject fee failed', e)
+      alert('Reject fee failed')
     }
   }
 
@@ -239,7 +274,14 @@ export function FeesCards() {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1 flex-1">
-                    <CardTitle className="text-lg leading-tight">{fee.name}</CardTitle>
+                    <CardTitle className="text-lg leading-tight flex items-center gap-2">
+                      {fee.name}
+                      {fee.status && (
+                        <Badge className={`${fee.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+                          {fee.status === 'PENDING' ? 'Pending' : 'Approved'}
+                        </Badge>
+                      )}
+                    </CardTitle>
                     <div className="flex items-center space-x-2">
                       {getFeeTypeBadge(fee.type)}
                       {getScopeBadge(fee.scope_type, fee.scope_college, fee.scope_course)}
@@ -253,17 +295,22 @@ export function FeesCards() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem asChild>
-                        <Link href={`/dashboard/fees/${fee.id}/manage`} className="flex items-center">
-                          <Settings className="h-4 w-4 mr-2" />
-                          Manage
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
                         <Link href={`/dashboard/fees/${fee.id}`} className="flex items-center">
                           <Edit className="h-4 w-4 mr-2" />
                           Edit
                         </Link>
                       </DropdownMenuItem>
+                      {/* Admin approval actions for pending fees */}
+                      {session?.user?.role === 'ADMIN' && fee.status === 'PENDING' && (
+                        <>
+                          <DropdownMenuItem onClick={() => approveFee(fee.id)} className="bg-green-50 text-green-700 font-medium focus:bg-green-100 focus:text-green-800">
+                            <span>Approve</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => rejectFee(fee.id)} className="bg-red-50 text-red-700 font-medium focus:bg-red-100 focus:text-red-800">
+                            <span>Reject</span>
+                          </DropdownMenuItem>
+                        </>
+                      )}
                       <DropdownMenuItem 
                         onClick={() => handleDeleteFee(fee.id)}
                         className="text-red-600 focus:text-red-700"

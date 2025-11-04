@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
+import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -37,6 +38,18 @@ interface FeeFormProps {
 
 export function FeeForm({ feeId, initialData }: FeeFormProps) {
   const router = useRouter()
+  const { data: session } = useSession()
+  const role = session?.user?.role
+  const assignedCollege = (session?.user as any)?.assigned_college || null
+  const assignedCourse = (session?.user as any)?.assigned_course || null
+  const assignedCourses: string[] = useMemo(() => {
+    const arr = (session?.user as any)?.assigned_courses as string[] | undefined
+    if (arr && Array.isArray(arr) && arr.length > 0) return arr
+    return assignedCourse ? [assignedCourse] : []
+  }, [session?.user, assignedCourse])
+  const isAdmin = role === 'ADMIN'
+  const isCollegeOrg = role === 'COLLEGE_ORG'
+  const isCourseOrg = role === 'COURSE_ORG'
   const [loading, setLoading] = useState(false)
   const [studentCount, setStudentCount] = useState<number | null>(null)
   const [formData, setFormData] = useState({
@@ -70,6 +83,25 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
       })
     }
   }, [initialData])
+
+  // Initialize defaults for org roles
+  useEffect(() => {
+    if (!initialData && !feeId && (isCollegeOrg || isCourseOrg)) {
+      setFormData(prev => {
+        const next = { ...prev }
+        if (isCollegeOrg) {
+          next.scope_type = 'COLLEGE_WIDE'
+          next.scope_college = assignedCollege || ""
+          next.scope_course = ""
+        } else if (isCourseOrg) {
+          next.scope_type = 'COURSE_SPECIFIC'
+          next.scope_college = assignedCollege || ""
+          next.scope_course = (assignedCourses && assignedCourses.length > 0) ? assignedCourses[0] : ""
+        }
+        return next
+      })
+    }
+  }, [initialData, feeId, isCollegeOrg, isCourseOrg, assignedCollege, assignedCourses])
 
   const fetchStudentCount = async (
     scope: string,
@@ -231,6 +263,7 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
   }
 
   const getAvailableCourses = () => {
+    if (isCourseOrg) return assignedCourses || []
     if (!formData.scope_college) return []
     return COURSES_BY_COLLEGE[formData.scope_college as keyof typeof COURSES_BY_COLLEGE] || []
   }
@@ -306,7 +339,7 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
                     <SelectValue placeholder="Select fee scope" />
                   </SelectTrigger>
                   <SelectContent>
-                    {EVENT_SCOPE_TYPES.map((scopeType) => (
+                    {(isAdmin ? EVENT_SCOPE_TYPES : isCollegeOrg ? ["COLLEGE_WIDE","COURSE_SPECIFIC"] : ["COURSE_SPECIFIC"]).map((scopeType) => (
                       <SelectItem key={scopeType} value={scopeType}>
                         {EVENT_SCOPE_LABELS[scopeType]}
                       </SelectItem>
@@ -326,12 +359,13 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
                       value={formData.scope_college}
                       onValueChange={(value) => handleInputChange("scope_college", value)}
                       required={formData.scope_type !== "UNIVERSITY_WIDE"}
+                      disabled={isCollegeOrg || isCourseOrg}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select college" />
                       </SelectTrigger>
                       <SelectContent>
-                        {COLLEGES.map((college) => (
+                        {(isAdmin ? COLLEGES : (assignedCollege ? [assignedCollege] : [])).map((college) => (
                           <SelectItem key={college} value={college}>
                             {college}
                           </SelectItem>

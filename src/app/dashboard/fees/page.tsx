@@ -10,7 +10,7 @@ export default async function FeesPage() {
     redirect("/auth/login")
   }
 
-  if (session.user.role !== "ADMIN") {
+  if (!['ADMIN','COLLEGE_ORG','COURSE_ORG'].includes(session.user.role as any)) {
     redirect("/dashboard")
   }
 
