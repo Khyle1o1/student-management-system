@@ -53,7 +53,7 @@ export async function GET(request: Request) {
       `, { count: 'exact' })
 
     // If student user, only show their own responses
-    if (session.user.role === 'STUDENT') {
+    if (session.user.role === 'USER') {
       const { data: studentRecord, error: studentError } = await supabaseAdmin
         .from('students')
         .select('id')
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
     }
 
     // Students can submit responses, admins can also submit (for testing)
-    if (session.user.role !== 'STUDENT' && session.user.role !== 'ADMIN') {
+    if (session.user.role !== 'USER' && session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
     // Get student record
     let studentId: string
     let studentData: any
-    if (session.user.role === 'STUDENT') {
+    if (session.user.role === 'USER') {
       const { data: studentRecord, error: studentError } = await supabaseAdmin
         .from('students')
         .select('*')

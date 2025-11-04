@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       `, { count: 'exact' })
 
     // If student user, only show their own certificates
-    if (session.user.role === 'STUDENT') {
+    if (session.user.role === 'USER') {
       const { data: studentRecord, error: studentError } = await supabaseAdmin
         .from('students')
         .select('id')
@@ -88,7 +88,7 @@ export async function GET(request: Request) {
     }
 
     // For student requests, also get evaluation status for each certificate
-    if (session.user.role === 'STUDENT') {
+    if (session.user.role === 'USER') {
       const studentRecord = await supabaseAdmin
         .from('students')
         .select('id')

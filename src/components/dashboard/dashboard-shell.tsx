@@ -26,7 +26,8 @@ import {
   XCircle,
   X,
   ClipboardCheck,
-  Award
+  Award,
+  UserCog
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -119,7 +120,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
     }
   }, [isAdmin, session?.user?.id]) // More specific dependencies
 
-  const adminNavItems: NavigationItem[] = [
+  // Navigation items based on user role
+  const baseAdminNavItems: NavigationItem[] = [
     { href: "/dashboard", label: "Overview", icon: BarChart3 },
     { 
       href: "/dashboard/students", 
@@ -142,6 +144,17 @@ export function DashboardShell({ children }: DashboardShellProps) {
       badge: stats?.payments?.pending?.toString() || "0"
     },
     { href: "/dashboard/reports", label: "Reports", icon: FileText },
+  ]
+
+  // Add Users menu item only for ADMIN and COLLEGE_ORG
+  const usersNavItem: NavigationItem[] = 
+    session?.user?.role === 'ADMIN' || session?.user?.role === 'COLLEGE_ORG'
+      ? [{ href: "/dashboard/users", label: "Users", icon: UserCog }]
+      : []
+
+  const adminNavItems: NavigationItem[] = [
+    ...baseAdminNavItems,
+    ...usersNavItem,
     { href: "/dashboard/settings", label: "Settings", icon: Settings },
   ]
 

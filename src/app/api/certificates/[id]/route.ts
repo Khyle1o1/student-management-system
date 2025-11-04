@@ -408,7 +408,7 @@ export async function GET(
 
     // Check access permissions
     console.log('Checking access permissions...')
-    if (session.user.role === 'STUDENT') {
+    if (session.user.role === 'USER') {
       console.log('Student access check...')
       // Students can only access their own certificates
       const { data: studentRecord, error: studentError } = await supabaseAdmin
@@ -651,7 +651,7 @@ export async function GET(
 
           // Get student ID for access log
           let logStudentId = null
-          if (session.user.role === 'STUDENT') {
+          if (session.user.role === 'USER') {
           const { data: studentRecord } = await supabaseAdmin
               .from('students')
               .select('id')

@@ -57,6 +57,14 @@ export const getAllCourses = () => {
   return Object.values(COURSES_BY_COLLEGE).flat();
 };
 
+// Helper function to get courses by college
+export const getCoursesByCollege = (college: string): string[] => {
+  if (isValidCollege(college)) {
+    return COURSES_BY_COLLEGE[college];
+  }
+  return [];
+};
+
 // Helper function to get college for a given course
 export const getCollegeForCourse = (course: string): College | undefined => {
   return Object.entries(COURSES_BY_COLLEGE).find(([_, courses]) => 

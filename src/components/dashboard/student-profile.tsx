@@ -292,7 +292,7 @@ export function StudentProfile({ studentId }: StudentProfileProps) {
                 <Label className="text-sm font-medium text-gray-700">Account Type</Label>
                 <div className="flex items-center space-x-2">
                   <Badge className="bg-green-100 text-green-800">
-                    {student.user.role}
+                    {student.user.role === "USER" ? "Student" : student.user.role}
                   </Badge>
                 </div>
               </div>

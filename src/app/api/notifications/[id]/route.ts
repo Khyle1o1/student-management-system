@@ -37,7 +37,7 @@ export async function PATCH(
     if (session.user.role === 'ADMIN') {
       // Admins can access all notifications
       hasAccess = true
-    } else if (session.user.role === 'STUDENT') {
+    } else if (session.user.role === 'USER') {
       // Students can only access their own notifications
       const { data: studentRecord, error: studentError } = await supabase
         .from('students')
@@ -112,7 +112,7 @@ export async function DELETE(
     if (session.user.role === 'ADMIN') {
       // Admins can delete all notifications
       hasAccess = true
-    } else if (session.user.role === 'STUDENT') {
+    } else if (session.user.role === 'USER') {
       // Students can only delete their own notifications
       const { data: studentRecord, error: studentError } = await supabase
         .from('students')

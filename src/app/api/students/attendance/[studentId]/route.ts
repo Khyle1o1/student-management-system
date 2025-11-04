@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 
 export async function GET(
@@ -15,7 +15,7 @@ export async function GET(
     const { studentId } = await params
 
     // Check if student exists
-    const { data: student, error: studentError } = await supabase
+    const { data: student, error: studentError } = await supabaseAdmin
       .from('students')
       .select('*')
       .eq('student_id', studentId)
@@ -30,7 +30,7 @@ export async function GET(
     }
 
     // Get attendance records with event details including evaluation requirements
-    const { data: attendanceRecords, error: attendanceError } = await supabase
+    const { data: attendanceRecords, error: attendanceError } = await supabaseAdmin
       .from('attendance')
       .select(`
         *,

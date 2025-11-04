@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { buildFeesScopeFilter } from "@/lib/fee-scope-utils"
 
@@ -16,7 +16,7 @@ export async function GET(
     const { studentId } = await params
 
     // Check if student exists
-    const { data: student, error: studentError } = await supabase
+    const { data: student, error: studentError } = await supabaseAdmin
       .from('students')
       .select('*')
       .eq('student_id', studentId)
@@ -31,7 +31,7 @@ export async function GET(
     }
 
     // Get attendance records
-    const { data: attendanceRecords, error: attendanceError } = await supabase
+    const { data: attendanceRecords, error: attendanceError } = await supabaseAdmin
       .from('attendance')
       .select(`
         *,
@@ -52,7 +52,7 @@ export async function GET(
 
     // Get fees that apply to this student based on scope
     const scopeFilter = buildFeesScopeFilter(student)
-    const { data: fees, error: feesError } = await supabase
+    const { data: fees, error: feesError } = await supabaseAdmin
       .from('fee_structures')
       .select('*')
       .eq('is_active', true)
@@ -66,7 +66,7 @@ export async function GET(
     }
 
     // Get student's payments
-    const { data: payments, error: paymentsError } = await supabase
+    const { data: payments, error: paymentsError } = await supabaseAdmin
       .from('payments')
       .select(`
         *,
@@ -94,7 +94,7 @@ export async function GET(
 
     // Get upcoming events
     const now = new Date()
-    const { data: upcomingEvents, error: eventsError } = await supabase
+    const { data: upcomingEvents, error: eventsError } = await supabaseAdmin
       .from('events')
       .select('*')
       .gt('date', now.toISOString())

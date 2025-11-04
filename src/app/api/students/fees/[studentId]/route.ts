@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { buildFeesScopeFilter } from "@/lib/fee-scope-utils"
 
 export async function GET(
@@ -17,12 +17,12 @@ export async function GET(
     const { studentId } = await params
 
     // Students can only access their own fee information
-    if (session.user.role === "STUDENT" && session.user.studentId !== studentId) {
+    if (session.user.role === "USER" && session.user.studentId !== studentId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     // Find the student
-    const { data: student, error: studentError } = await supabase
+    const { data: student, error: studentError } = await supabaseAdmin
       .from('students')
       .select('*')
       .eq('student_id', studentId)
@@ -42,7 +42,7 @@ export async function GET(
     // Build the scope filter correctly using the utility function
     const scopeFilter = buildFeesScopeFilter(student)
     
-    const { data: fees, error: feesError } = await supabase
+    const { data: fees, error: feesError } = await supabaseAdmin
       .from('fee_structures')
       .select('*')
       .eq('is_active', true)
@@ -57,7 +57,7 @@ export async function GET(
     }
 
     // Fetch all payments made by this student
-    const { data: payments, error: paymentsError } = await supabase
+    const { data: payments, error: paymentsError } = await supabaseAdmin
       .from('payments')
       .select(`
         *,
@@ -90,7 +90,7 @@ export async function GET(
 
     let additionalFees: any[] = []
     if (additionalFeeIds.length > 0) {
-      const { data: extraFees, error: extraFeesError } = await supabase
+      const { data: extraFees, error: extraFeesError } = await supabaseAdmin
         .from('fee_structures')
         .select('*')
         .in('id', additionalFeeIds)

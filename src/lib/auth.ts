@@ -60,9 +60,13 @@ declare module "next-auth" {
       id: string
       email: string
       name?: string | null
-      role: string
+      role: 'ADMIN' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER'
       student_id: string | null
       studentId: string | null
+      assigned_college?: string | null
+      assigned_course?: string | null
+      status?: string
+      isAdminUser?: boolean // True if from users table (admin), false if student
     }
   }
 
@@ -70,17 +74,25 @@ declare module "next-auth" {
     id: string
     email: string
     name?: string | null
-    role: string
+    role: 'ADMIN' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER'
     student_id: string | null
     studentId: string | null
+    assigned_college?: string | null
+    assigned_course?: string | null
+    status?: string
+    isAdminUser?: boolean
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
-    role: string
+    role: 'ADMIN' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER'
     student_id: string | null
     studentId: string | null
+    assigned_college?: string | null
+    assigned_course?: string | null
+    status?: string
+    isAdminUser?: boolean
   }
 }
 
@@ -102,6 +114,7 @@ export async function getUserByEmail(email: string): Promise<DBUser | null> {
       student:students(*)
     `)
     .eq('email', email)
+    .is('deleted_at', null) // Don't return deleted users
     .single()
   
   if (error) {
@@ -118,6 +131,29 @@ export async function getUserByEmail(email: string): Promise<DBUser | null> {
   return dbUser
 }
 
+// Fetch a student record directly by email (no users row needed)
+export async function getStudentByEmail(email: string): Promise<{
+  id: string
+  user_id: string | null
+  student_id: string
+  name: string
+  email: string
+  college: string
+  course: string
+  year_level: number
+} | null> {
+  const { data, error } = await supabaseAdmin
+    .from('students')
+    .select('id, user_id, student_id, name, email, college, course, year_level')
+    .eq('email', email)
+    .single()
+
+  if (error) {
+    return null
+  }
+  return data as any
+}
+
 export async function verifyPassword(password: string, hashedPassword: string) {
   return await compare(password, hashedPassword)
 }
@@ -126,7 +162,7 @@ export async function hashPassword(password: string) {
   return await hash(password, 12)
 }
 
-export async function createUser(email: string, password: string, name?: string) {
+export async function createUser(email: string, password: string, name?: string, role: 'ADMIN' | 'COLLEGE_ORG' | 'COURSE_ORG' = 'COURSE_ORG') {
   const hashedPassword = await hashPassword(password)
   
   const { data: existingUser, error: checkError } = await supabaseAdmin
@@ -145,8 +181,9 @@ export async function createUser(email: string, password: string, name?: string)
       {
         email,
         name,
-        role: 'USER',
-        password: hashedPassword
+        role, // Use provided role (administrative users only)
+        password: hashedPassword,
+        status: 'ACTIVE'
       }
     ])
     .select()
@@ -195,6 +232,11 @@ export const authOptions: NextAuthOptions = {
             return null
           }
 
+          // Check if user is active
+          if ((dbUser as any).status && (dbUser as any).status !== 'ACTIVE') {
+            return null
+          }
+
           const passwordMatch = await verifyPassword(password, dbUser.password)
           if (!passwordMatch) {
             return null
@@ -203,14 +245,21 @@ export const authOptions: NextAuthOptions = {
           // Fix: Handle student as array - get first element
           const studentData = Array.isArray(dbUser.student) ? dbUser.student[0] : dbUser.student
 
+          // Determine if this is an administrative user or a student
+          const isAdminUser = ['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG'].includes(dbUser.role)
+
           // Convert DBUser to NextAuth User
           const user: User = {
             id: dbUser.id,
             email: dbUser.email,
             name: dbUser.name,
-            role: dbUser.role,
+            role: dbUser.role as 'ADMIN' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER',
             student_id: studentData?.student_id || null,
             studentId: studentData?.student_id || null,
+            assigned_college: (dbUser as any).assigned_college || null,
+            assigned_course: (dbUser as any).assigned_course || null,
+            status: (dbUser as any).status || 'ACTIVE',
+            isAdminUser: isAdminUser,
           }
 
           return user
@@ -248,11 +297,13 @@ export const authOptions: NextAuthOptions = {
           return false
         }
         
-        // Check if user exists in database and is a student
+        // Allow if either an admin user exists OR a student exists
         const existingUser = await getUserByEmail(profile.email)
-        
-        // Only allow login if user exists and is a student
-        return !!(existingUser?.student)
+        if (existingUser?.student) return true
+
+        // Fallback: check students table directly
+        const student = await getStudentByEmail(profile.email)
+        return !!student
       }
       
       return false
@@ -263,6 +314,10 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role
         token.student_id = user.student_id
         token.studentId = user.studentId
+        token.assigned_college = user.assigned_college
+        token.assigned_course = user.assigned_course
+        token.status = user.status
+        token.isAdminUser = user.isAdminUser
         return token
       }
       
@@ -275,13 +330,29 @@ export const authOptions: NextAuthOptions = {
           // Fix: Handle student as array - get first element
           const studentData = Array.isArray(dbUser.student) ? dbUser.student[0] : dbUser.student
           
-          token.role = dbUser.role
+          const isAdminUser = ['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG'].includes(dbUser.role)
+          
+          token.role = dbUser.role as 'ADMIN' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER'
           token.student_id = studentData?.student_id || null
           token.studentId = studentData?.student_id || null
           token.name = dbUser.name
+          token.assigned_college = (dbUser as any).assigned_college || null
+          token.assigned_course = (dbUser as any).assigned_course || null
+          token.status = (dbUser as any).status || 'ACTIVE'
+          token.isAdminUser = isAdminUser
           
         } else {
-          console.log('JWT callback - No dbUser found for email:', token.email)
+          // Try direct student lookup
+          const student = await getStudentByEmail(token.email)
+          if (student) {
+            token.role = 'USER'
+            token.student_id = student.student_id
+            token.studentId = student.student_id
+            token.name = student.name
+            token.isAdminUser = false
+          } else {
+            console.log('JWT callback - No user or student found for email:', token.email)
+          }
         }
       }
       
@@ -293,6 +364,10 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role
         session.user.student_id = token.student_id
         session.user.studentId = token.studentId
+        session.user.assigned_college = token.assigned_college
+        session.user.assigned_course = token.assigned_course
+        session.user.status = token.status
+        session.user.isAdminUser = token.isAdminUser
       }
       
       return session

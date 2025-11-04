@@ -10,7 +10,7 @@ export default async function StudentAttendancePage() {
     redirect("/auth/login")
   }
 
-  if (session.user.role !== "STUDENT") {
+  if (session.user.role !== "USER") {
     redirect("/dashboard")
   }
 

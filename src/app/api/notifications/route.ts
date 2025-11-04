@@ -19,7 +19,7 @@ export async function GET(request: Request) {
 
     // Get user's student record if they are a student
     let studentId: string | null = null
-    if (session.user.role === 'STUDENT') {
+    if (session.user.role === 'USER') {
       const { data: studentRecord, error: studentError } = await supabase
         .from('students')
         .select('id')
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
       .select('*', { count: 'exact' })
 
     // Filter notifications based on user role
-    if (session.user.role === 'STUDENT' && studentId) {
+    if (session.user.role === 'USER' && studentId) {
       // Students see only their notifications
       query = query.eq('student_id', studentId)
     } else if (session.user.role === 'ADMIN') {
@@ -93,7 +93,7 @@ export async function PATCH(request: Request) {
     if (action === 'mark_all_read') {
       // Get user's student record if they are a student
       let studentId: string | null = null
-      if (session.user.role === 'STUDENT') {
+      if (session.user.role === 'USER') {
         const { data: studentRecord, error: studentError } = await supabase
           .from('students')
           .select('id')
@@ -107,7 +107,7 @@ export async function PATCH(request: Request) {
       }
 
       const result = await markAllNotificationsAsRead(
-        session.user.role !== 'STUDENT' ? session.user.id : undefined,
+        session.user.role !== 'USER' ? session.user.id : undefined,
         studentId || undefined
       )
 
