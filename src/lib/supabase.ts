@@ -443,7 +443,7 @@ export interface CertificateData {
 }
 
 // Notification types
-export type NotificationType = 'ATTENDANCE_CONFIRMED' | 'EVALUATION_REQUIRED' | 'CERTIFICATE_READY'
+export type NotificationType = 'ATTENDANCE_CONFIRMED' | 'EVALUATION_REQUIRED' | 'CERTIFICATE_READY' | 'SYSTEM_ACTIVITY'
 
 export interface NotificationData {
   event_id?: string

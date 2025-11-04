@@ -15,7 +15,7 @@ import {
   Building,
   Globe,
   Calendar,
-  DollarSign,
+  CreditCard,
   MoreHorizontal
 } from "lucide-react"
 import {
@@ -219,7 +219,7 @@ export function FeesCards() {
 
       {filteredFees.length === 0 && !loading ? (
         <div className="text-center py-12">
-          <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
             {searchTerm ? "No fees match your search" : "No fees found"}
           </h3>
@@ -282,12 +282,12 @@ export function FeesCards() {
                   )}
                   
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <DollarSign className="h-4 w-4 text-green-600" />
-                      <span className="font-semibold text-lg text-green-600">
-                        {formatCurrency(fee.amount)}
-                      </span>
-                    </div>
+                  <div className="flex items-center space-x-2">
+                    <CreditCard className="h-4 w-4 text-green-600" />
+                    <span className="font-semibold text-lg text-green-600">
+                      {formatCurrency(fee.amount)}
+                    </span>
+                  </div>
                   </div>
 
                   <div className="space-y-2 text-sm">

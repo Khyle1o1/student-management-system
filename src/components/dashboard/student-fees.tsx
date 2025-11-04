@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table"
 import { 
   Search, 
-  DollarSign, 
+  CreditCard, 
   Calendar,
   CheckCircle,
   XCircle,
@@ -206,7 +206,7 @@ export function StudentFees({ studentId }: StudentFeesProps) {
       <Card>
         <CardContent className="p-6">
           <div className="text-center text-gray-500">
-            <DollarSign className="h-8 w-8 mx-auto mb-2" />
+              <CreditCard className="h-8 w-8 mx-auto mb-2" />
             <p>Unable to load fee information</p>
           </div>
         </CardContent>
@@ -221,7 +221,7 @@ export function StudentFees({ studentId }: StudentFeesProps) {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
-              <FileText className="h-5 w-5 text-blue-600" />
+                <FileText className="h-5 w-5 text-blue-600" />
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Fees</p>
                 <p className="text-2xl font-bold">{formatCurrency(feeData.summary.totalFees)}</p>
@@ -333,7 +333,7 @@ export function StudentFees({ studentId }: StudentFeesProps) {
                   {filteredFees.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center py-8">
-                        <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                         <h3 className="text-lg font-medium text-gray-900 mb-2">No fees found</h3>
                         <p className="text-gray-600">
                           {searchTerm ? "Try adjusting your search terms." : "You don't have any fee obligations yet."}

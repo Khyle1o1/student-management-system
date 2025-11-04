@@ -167,6 +167,14 @@ export async function GET() {
       .order('date', { ascending: false })
       .limit(5)
 
+    // Get recent system activities (from notifications table)
+    const { data: recentActivities } = await supabaseAdmin
+      .from('notifications')
+      .select('*')
+      .eq('type', 'SYSTEM_ACTIVITY')
+      .order('created_at', { ascending: false })
+      .limit(20)
+
     return NextResponse.json({
       students: {
         total: totalStudents || 0,
@@ -199,7 +207,8 @@ export async function GET() {
       recent: {
         students: recentStudents || [],
         payments: recentPayments || [],
-        events: recentEvents || []
+        events: recentEvents || [],
+        activities: recentActivities || []
       }
     })
 

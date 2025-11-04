@@ -1,4 +1,4 @@
-# Payment Receipt Upload and Approval Workflow
+1# Payment Receipt Upload and Approval Workflow
 
 ## Overview
 This feature implements a complete payment receipt upload and approval workflow system for the Student Management System. Students can upload payment receipts, and administrators can review and approve/reject them based on role-based permissions.

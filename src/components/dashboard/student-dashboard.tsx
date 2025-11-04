@@ -6,13 +6,12 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { 
   Calendar, 
-  DollarSign, 
+  CreditCard, 
   CheckCircle, 
   XCircle, 
   TrendingUp,
   BookOpen,
   Clock,
-  CreditCard,
   User,
   AlertTriangle,
   Target,
@@ -304,7 +303,7 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
         <StatCard
           title="Payment Progress"
           value={`${stats.paymentProgress}%`}
-          icon={DollarSign}
+          icon={CreditCard}
           progress={stats.paymentProgress}
           description={`₱${stats.paidFees.toLocaleString()} of ₱${stats.totalFees.toLocaleString()} paid`}
           color="purple"

@@ -6,14 +6,13 @@ import { Badge } from "@/components/ui/badge"
 import { 
   Users, 
   Calendar, 
-  DollarSign, 
+  CreditCard, 
   FileText, 
   Plus, 
   TrendingUp, 
   TrendingDown,
   UserPlus,
   CalendarPlus,
-  CreditCard,
   BarChart3,
   Clock,
   CheckCircle,
@@ -76,6 +75,11 @@ interface DashboardStats {
       type: string
       status: string
     }>
+    activities: Array<{
+      id: string
+      message: string
+      created_at: string
+    }>
   }
 }
 
@@ -86,6 +90,7 @@ interface Activity {
   description: string
   time: string
   status: string
+  timestamp: number
 }
 
 const quickActions = [
@@ -255,33 +260,57 @@ export function AdminDashboard() {
         const data = await response.json()
         setStats(data)
 
-        // Convert recent activities to activity format
+        // Convert recent items and sort by true timestamps (newest first)
         const recentActivities: Activity[] = [
-          ...(data.recent?.students || []).map((student: any) => ({
-            id: student.id,
-            type: 'student',
-            title: 'New Student Enrolled',
-            description: `${student.name || 'Unknown'} (${student.studentId || 'No ID'})`,
-            time: new Date(student.createdAt).toLocaleDateString(),
-            status: 'success'
-          })),
-          ...(data.recent?.payments || []).map((payment: any) => ({
-            id: payment.id,
-            type: 'payment',
-            title: `Payment ${payment.status || 'Unknown'}`,
-            description: `${payment.student?.name || 'Unknown Student'} - ${payment.fee?.name || 'Unknown Fee'}`,
-            time: new Date(payment.paymentDate).toLocaleDateString(),
-            status: payment.status?.toLowerCase() === 'paid' ? 'success' : 'warning'
-          })),
-          ...(data.recent?.events || []).map((event: any) => ({
-            id: event.id,
-            type: 'event',
-            title: event.name || 'Untitled Event',
-            description: `${event.type || 'Unknown Type'} Event`,
-            time: new Date(event.date).toLocaleDateString(),
-            status: event.status?.toLowerCase() || 'pending'
-          }))
-        ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+          ...(data.recent?.students || []).map((student: any) => {
+            const ts = Date.parse(student.createdAt)
+            return {
+              id: student.id,
+              type: 'student',
+              title: 'New Student Enrolled',
+              description: `${student.name || 'Unknown'} (${student.studentId || 'No ID'})`,
+              time: isNaN(ts) ? 'Invalid Date' : new Date(ts).toLocaleString(),
+              status: 'success',
+              timestamp: isNaN(ts) ? 0 : ts,
+            }
+          }),
+          ...(data.recent?.payments || []).map((payment: any) => {
+            const ts = Date.parse(payment.paymentDate)
+            return {
+              id: payment.id,
+              type: 'payment',
+              title: `Payment ${payment.status || 'Unknown'}`,
+              description: `${payment.student?.name || 'Unknown Student'} - ${payment.fee?.name || 'Unknown Fee'}`,
+              time: isNaN(ts) ? 'Invalid Date' : new Date(ts).toLocaleString(),
+              status: payment.status?.toLowerCase() === 'paid' ? 'success' : 'warning',
+              timestamp: isNaN(ts) ? 0 : ts,
+            }
+          }),
+          ...(data.recent?.events || []).map((event: any) => {
+            const ts = Date.parse(event.date)
+            return {
+              id: event.id,
+              type: 'event',
+              title: event.name || 'Untitled Event',
+              description: `${event.type || 'Unknown Type'} Event`,
+              time: isNaN(ts) ? 'Invalid Date' : new Date(ts).toLocaleString(),
+              status: (event.status?.toLowerCase() || 'pending'),
+              timestamp: isNaN(ts) ? 0 : ts,
+            }
+          }),
+          ...(data.recent?.activities || []).map((log: any) => {
+            const ts = Date.parse(log.created_at)
+            return {
+              id: log.id,
+              type: 'system',
+              title: 'System Activity',
+              description: log.message || 'Activity occurred',
+              time: isNaN(ts) ? 'Invalid Date' : new Date(ts).toLocaleString(),
+              status: 'success',
+              timestamp: isNaN(ts) ? 0 : ts,
+            }
+          })
+        ].sort((a, b) => b.timestamp - a.timestamp)
 
         setActivities(recentActivities)
       } catch (error) {
@@ -351,7 +380,7 @@ export function AdminDashboard() {
         <StatCard
           title="Total Revenue"
           value={stats?.revenue.total || 0}
-          icon={DollarSign}
+          icon={CreditCard}
           growth={stats?.revenue.growthPercent || 0}
           growthLabel="vs last month"
           prefix="₱"

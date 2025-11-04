@@ -79,6 +79,7 @@ export async function GET(
         amount,
         status,
         payment_date,
+        reference,
         created_at,
         fee:fee_structures(
           id,
@@ -199,6 +200,32 @@ export async function PUT(
         .eq('id', id)
 
       return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
+    }
+
+    // Log system activity: student updated
+    try {
+      const now = new Date().toISOString()
+      const activityMessage = `Admin ${session.user.name || 'Unknown'} (${session.user.role}) updated student ${updatedStudent.name} (${updatedStudent.student_id || 'No ID'})`
+
+      await supabaseAdmin
+        .from('notifications')
+        .insert({
+          user_id: session.user.id,
+          student_id: updatedStudent.id,
+          type: 'SYSTEM_ACTIVITY',
+          title: 'Student Updated',
+          message: activityMessage,
+          data: {
+            action: 'STUDENT_UPDATED',
+            admin: { id: session.user.id, name: session.user.name, role: session.user.role },
+            student: { id: updatedStudent.id, name: updatedStudent.name, student_id: updatedStudent.student_id, email: updatedStudent.email },
+            occurred_at: now
+          },
+          is_read: false,
+          created_at: now
+        })
+    } catch (logError) {
+      console.error('Failed to log system activity for student update:', logError)
     }
 
     return NextResponse.json(updatedStudent)

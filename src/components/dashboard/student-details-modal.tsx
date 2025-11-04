@@ -28,7 +28,7 @@ import {
   Calendar, 
   CheckCircle2, 
   XCircle, 
-  DollarSign,
+  CreditCard,
   RefreshCw,
   Loader2
 } from "lucide-react"
@@ -76,6 +76,7 @@ interface StudentDetails {
       amount: number
       status: string
       payment_date: string
+      reference?: string
       fee: {
         id: string
         name: string
@@ -91,6 +92,7 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
   const [student, setStudent] = useState<StudentDetails | null>(null)
   const [loading, setLoading] = useState(false)
   const [updatingPayment, setUpdatingPayment] = useState<string | null>(null)
+  const [receiptModal, setReceiptModal] = useState<{ open: boolean; paymentId: string | null; receipt: string }>({ open: false, paymentId: null, receipt: "" })
 
   useEffect(() => {
     if (studentId && open) {
@@ -115,13 +117,13 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
     }
   }
 
-  const handleUpdatePaymentStatus = async (paymentId: string, newStatus: string) => {
+  const handleUpdatePaymentStatus = async (paymentId: string, newStatus: string, receiptNumber?: string) => {
     setUpdatingPayment(paymentId)
     try {
       const response = await fetch(`/api/payments/${paymentId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ status: newStatus, receiptNumber })
       })
 
       if (response.ok) {
@@ -133,6 +135,16 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
     } finally {
       setUpdatingPayment(null)
     }
+  }
+
+  const openReceiptPrompt = (paymentId: string) => {
+    setReceiptModal({ open: true, paymentId, receipt: "" })
+  }
+
+  const submitReceipt = async () => {
+    if (!receiptModal.paymentId || !receiptModal.receipt.trim()) return
+    await handleUpdatePaymentStatus(receiptModal.paymentId, 'PAID', receiptModal.receipt.trim())
+    setReceiptModal({ open: false, paymentId: null, receipt: "" })
   }
 
   const formatDate = (dateString: string) => {
@@ -371,18 +383,23 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
                                   {record.fee?.name || 'Unknown Fee'}
                                 </TableCell>
                                 <TableCell>
-                                  <span className="flex items-center gap-1">
-                                    <DollarSign className="h-3 w-3" />
-                                    {record.fee?.amount?.toFixed(2)}
-                                  </span>
+                                <span className="flex items-center gap-1">
+                                  <CreditCard className="h-3 w-3" />
+                                  {record.fee?.amount?.toFixed(2)}
+                                </span>
                                 </TableCell>
                                 <TableCell>{formatDate(record.fee?.due_date)}</TableCell>
                                 <TableCell>
                                   {record.status === 'PAID' ? (
-                                    <Badge className="bg-green-100 text-green-800">
-                                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                                      Paid
-                                    </Badge>
+                                    <div className="space-y-1">
+                                      <Badge className="bg-green-100 text-green-800">
+                                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                                        Paid
+                                      </Badge>
+                                      {record.reference && (
+                                        <div className="text-xs text-gray-600">Receipt No: <span className="font-medium">{record.reference}</span></div>
+                                      )}
+                                    </div>
                                   ) : (
                                     <Badge className="bg-red-100 text-red-800">
                                       <XCircle className="h-3 w-3 mr-1" />
@@ -391,23 +408,22 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
                                   )}
                                 </TableCell>
                                 <TableCell>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={updatingPayment === record.id}
-                                    onClick={() => 
-                                      handleUpdatePaymentStatus(
-                                        record.id, 
-                                        record.status === 'PAID' ? 'UNPAID' : 'PAID'
-                                      )
-                                    }
-                                  >
-                                    {updatingPayment === record.id ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                      <>Mark as {record.status === 'PAID' ? 'Unpaid' : 'Paid'}</>
-                                    )}
-                                  </Button>
+                                  {record.status !== 'PAID' ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={updatingPayment === record.id}
+                                      onClick={() => openReceiptPrompt(record.id)}
+                                    >
+                                      {updatingPayment === record.id ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <>Mark as Paid</>
+                                      )}
+                                    </Button>
+                                  ) : (
+                                    <span className="text-xs text-gray-500">Locked (contact super admin to modify)</span>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             ))}
@@ -426,6 +442,28 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
           </p>
         )}
       </DialogContent>
+      {receiptModal.open && (
+        <Dialog open={receiptModal.open} onOpenChange={() => setReceiptModal({ open: false, paymentId: null, receipt: "" })}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Enter Receipt Number</DialogTitle>
+              <DialogDescription>Receipt number is required to mark as Paid.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <input
+                className="w-full border rounded px-3 py-2 text-sm"
+                placeholder="Receipt Number"
+                value={receiptModal.receipt}
+                onChange={(e) => setReceiptModal({ ...receiptModal, receipt: e.target.value })}
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setReceiptModal({ open: false, paymentId: null, receipt: "" })}>Cancel</Button>
+                <Button size="sm" onClick={submitReceipt} disabled={!receiptModal.receipt.trim()}>Confirm Paid</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </Dialog>
   )
 }

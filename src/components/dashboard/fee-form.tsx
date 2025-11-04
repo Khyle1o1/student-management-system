@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Save, Loader2, DollarSign, Calendar, GraduationCap, Users, AlertTriangle } from "lucide-react"
+import { Save, Loader2, CreditCard, Calendar, GraduationCap, Users, AlertTriangle } from "lucide-react"
 import { COLLEGES, COURSES_BY_COLLEGE, EVENT_SCOPE_TYPES, EVENT_SCOPE_LABELS, EVENT_SCOPE_DESCRIPTIONS } from "@/lib/constants/academic-programs"
 
 interface FeeFormProps {
@@ -256,7 +256,7 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
     <Card className="max-w-4xl mx-auto">
       <CardHeader>
         <CardTitle className="text-2xl flex items-center space-x-2">
-          <DollarSign className="h-6 w-6" />
+          <CreditCard className="h-6 w-6" />
           <span>{isEditing ? "Edit Fee" : "Create New Fee"}</span>
         </CardTitle>
       </CardHeader>
@@ -407,7 +407,7 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
 
               <div className="space-y-2">
                 <Label htmlFor="amount" className="flex items-center space-x-1">
-                  <DollarSign className="h-4 w-4" />
+                  <CreditCard className="h-4 w-4" />
                   <span>Amount *</span>
                 </Label>
                 <Input

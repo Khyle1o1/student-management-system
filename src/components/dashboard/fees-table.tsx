@@ -23,7 +23,7 @@ import {
   Building,
   Globe,
   Calendar,
-  DollarSign
+  CreditCard
 } from "lucide-react"
 import Link from "next/link"
 
@@ -295,7 +295,7 @@ export function FeesTable() {
 
       {filteredFees.length === 0 && !loading && (
         <div className="text-center py-8">
-          <DollarSign className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+          <CreditCard className="h-8 w-8 text-gray-400 mx-auto mb-2" />
           <p className="text-gray-600">
             {searchTerm ? "No fees match your search." : "No fees found."}
           </p>

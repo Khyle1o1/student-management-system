@@ -17,7 +17,7 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  DollarSign,
+  CreditCard,
   TrendingUp,
   BookOpen,
   Users,
@@ -245,7 +245,7 @@ export default function StudentProfilePage() {
                   <p className="text-sm font-medium text-purple-600">Outstanding Balance</p>
                   <p className="text-3xl font-bold text-purple-700">₱{payments.stats.pending.toLocaleString()}</p>
                 </div>
-                <DollarSign className="h-10 w-10 text-purple-500" />
+                <CreditCard className="h-10 w-10 text-purple-500" />
               </div>
             </CardContent>
           </Card>
@@ -354,7 +354,7 @@ export default function StudentProfilePage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
+                  <CreditCard className="h-5 w-5" />
                   Payment Summary
                 </CardTitle>
               </CardHeader>

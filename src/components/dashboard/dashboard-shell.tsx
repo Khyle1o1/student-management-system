@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { 
   Users, 
   Calendar, 
-  DollarSign, 
+  CreditCard, 
   FileText, 
   Settings, 
   LogOut,
@@ -141,7 +141,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
     { 
       href: "/dashboard/fees", 
       label: "Fees", 
-      icon: DollarSign
+      icon: CreditCard
     },
     { href: "/dashboard/reports", label: "Reports", icon: FileText },
   ]
@@ -162,7 +162,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
     { href: "/dashboard", label: "Overview", icon: BarChart3 },
     { href: "/dashboard/profile", label: "My Profile", icon: User },
     { href: "/dashboard/attendance/student", label: "My Attendance", icon: Calendar },
-    { href: "/dashboard/fees/student", label: "My Fees", icon: DollarSign },
+    { href: "/dashboard/fees/student", label: "My Fees", icon: CreditCard },
     { href: "/dashboard/certificates", label: "My Certificates", icon: FileText },
   ]
 
