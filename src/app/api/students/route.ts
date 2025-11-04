@@ -34,7 +34,14 @@ const studentSchema = z.object({
 export async function GET(request: Request) {
   try {
     const session = await auth()
-    if (!session || session.user.role !== 'ADMIN') {
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const role = session.user.role
+    const isAdmin = role === 'ADMIN'
+    const isCollegeOrg = role === 'COLLEGE_ORG'
+    const isCourseOrg = role === 'COURSE_ORG'
+    if (!(isAdmin || isCollegeOrg || isCourseOrg)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     const { searchParams } = new URL(request.url)
@@ -72,6 +79,15 @@ export async function GET(request: Request) {
         )
       `)
       .ilike('name', `%${search}%`)
+
+    // Scope filters for org roles
+    if (isCollegeOrg) {
+      countQuery = countQuery.eq('college', session.user.assigned_college || '')
+      dataQuery = dataQuery.eq('college', session.user.assigned_college || '')
+    } else if (isCourseOrg) {
+      countQuery = countQuery.eq('college', session.user.assigned_college || '').eq('course', session.user.assigned_course || '')
+      dataQuery = dataQuery.eq('college', session.user.assigned_college || '').eq('course', session.user.assigned_course || '')
+    }
 
     // Apply filter
     if (filter === 'active') {

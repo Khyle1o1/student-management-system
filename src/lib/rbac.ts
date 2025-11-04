@@ -17,6 +17,7 @@ export interface UserPermissions {
   status: UserStatus;
   assigned_college?: string | null;
   assigned_course?: string | null;
+  assigned_courses?: string[] | null;
 }
 
 /**
@@ -113,13 +114,10 @@ export function hasCourseAccess(
     return true;
   }
   
-  // COURSE_ORG has access to their specific course
-  if (
-    user.role === 'COURSE_ORG' &&
-    user.assigned_college === targetCollege &&
-    user.assigned_course === targetCourse
-  ) {
-    return true;
+  // COURSE_ORG has access to their specific course(s)
+  if (user.role === 'COURSE_ORG' && user.assigned_college === targetCollege) {
+    if (user.assigned_course && user.assigned_course === targetCourse) return true;
+    if (Array.isArray(user.assigned_courses) && user.assigned_courses.includes(targetCourse)) return true;
   }
   
   return false;
@@ -254,11 +252,11 @@ export function getAccessFilter(user: UserPermissions | null): {
     };
   }
   
-  if (user.role === 'COURSE_ORG' && user.assigned_college && user.assigned_course) {
+  if (user.role === 'COURSE_ORG' && user.assigned_college && (user.assigned_course || (user.assigned_courses && user.assigned_courses.length > 0))) {
     return {
       type: 'COURSE',
       college: user.assigned_college,
-      course: user.assigned_course
+      course: user.assigned_course || (user.assigned_courses ? user.assigned_courses[0] : undefined),
     };
   }
   
@@ -328,7 +326,7 @@ export function validateUserAssignment(
   }
   
   if (role === 'COURSE_ORG') {
-    // Course Org must have both college and course
+    // Course Org must have both college and at least one course
     if (!assignedCollege) {
       return {
         valid: false,

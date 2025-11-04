@@ -81,12 +81,14 @@ export async function POST(
                        student.college === session.user.assigned_college
       }
     } else if (session.user.role === 'COURSE_ORG') {
-      // Course Org can only approve course-specific fees for their course
+      // Course Org can only approve course-specific fees for their assigned course(s)
       if (fee.scope_type === 'COURSE_SPECIFIC') {
+        const assignedCourses: string[] = (session.user as any).assigned_courses || (session.user.assigned_course ? [session.user.assigned_course] : []);
+        const inCourse = assignedCourses.includes(fee.scope_course)
         hasPermission = fee.scope_college === session.user.assigned_college &&
-                       fee.scope_course === session.user.assigned_course &&
+                       inCourse &&
                        student.college === session.user.assigned_college &&
-                       student.course === session.user.assigned_course
+                       assignedCourses.includes(student.course)
       }
     }
 
@@ -163,6 +165,35 @@ export async function POST(
     if (updateError) {
       console.error('Error updating payment:', updateError)
       return NextResponse.json({ error: 'Failed to update payment' }, { status: 500 })
+    }
+
+    // Log system activity for audit/recent activity purposes
+    try {
+      const student = (updatedPayment as any).student
+      const feeInfo = (updatedPayment as any).fee
+      const actorName = session.user.name || 'Unknown Admin'
+      const actionVerb = data.action === 'APPROVE' ? 'approved' : 'rejected'
+      const message = `${session.user.role} ${actorName} ${actionVerb} payment for ${feeInfo?.name} - ${student?.name} (${student?.student_id}).`
+      await supabaseAdmin
+        .from('notifications')
+        .insert({
+          user_id: session.user.id,
+          student_id: student?.id || null,
+          type: 'SYSTEM_ACTIVITY',
+          title: data.action === 'APPROVE' ? 'Payment Approved' : 'Payment Rejected',
+          message,
+          data: {
+            action: data.action,
+            fee_id: feeInfo?.id,
+            fee_name: feeInfo?.name,
+            amount: feeInfo?.amount,
+            admin_role: session.user.role,
+          },
+          is_read: true,
+          created_at: new Date().toISOString(),
+        })
+    } catch (e) {
+      console.warn('Failed to log approval notification:', e)
     }
 
     return NextResponse.json({

@@ -119,6 +119,9 @@ export function EventsTable() {
       case "upcoming": return "bg-blue-100 text-blue-800 border-blue-200"
       case "ongoing": return "bg-green-100 text-green-800 border-green-200"
       case "completed": return "bg-gray-100 text-gray-800 border-gray-200"
+      case "pending": return "bg-purple-100 text-purple-800 border-purple-200"
+      case "approved": return "bg-green-100 text-green-800 border-green-200"
+      case "rejected": return "bg-red-100 text-red-800 border-red-200"
       case "cancelled": return "bg-red-100 text-red-800 border-red-200"
       default: return "bg-gray-100 text-gray-800 border-gray-200"
     }
@@ -173,6 +176,38 @@ export function EventsTable() {
     }
   }
 
+  const approveEvent = async (id: string) => {
+    if (!confirm('Approve this event?')) return
+    try {
+      const res = await fetch(`/api/events/${id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'APPROVE' }) })
+      if (res.ok) {
+        await fetchEvents()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || 'Failed to approve event')
+      }
+    } catch (e) {
+      console.error('Approve failed', e)
+      alert('Approve failed')
+    }
+  }
+
+  const rejectEvent = async (id: string) => {
+    const reason = window.prompt('Enter rejection reason (optional):') || null
+    try {
+      const res = await fetch(`/api/events/${id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'REJECT', reason }) })
+      if (res.ok) {
+        await fetchEvents()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || 'Failed to reject event')
+      }
+    } catch (e) {
+      console.error('Reject failed', e)
+      alert('Reject failed')
+    }
+  }
+
   if (loading) {
     return (
       <Card>
@@ -223,9 +258,13 @@ export function EventsTable() {
         ) : (
           <>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredEvents.map((event) => (
-                <Link key={event.id} href={`/dashboard/attendance/${event.id}`}>
-                  <Card className="hover:shadow-md transition-shadow duration-200 cursor-pointer group">
+              {filteredEvents.map((event) => {
+                const isPending = String(event.status).toUpperCase() === 'PENDING'
+                const Wrapper: any = isPending ? 'div' : Link
+                const wrapperProps = isPending ? {} : { href: `/dashboard/attendance/${event.id}` }
+                return (
+                  <Wrapper key={event.id} {...wrapperProps}>
+                  <Card className={`${isPending ? 'opacity-90 cursor-not-allowed' : 'hover:shadow-md cursor-pointer group'} transition-shadow duration-200`}>
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
@@ -246,12 +285,31 @@ export function EventsTable() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/attendance/${event.id}`}>
-                                <UserCheck className="mr-2 h-4 w-4" />
-                                Manage Attendance
-                              </Link>
-                            </DropdownMenuItem>
+                            {!isPending && (
+                              <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/attendance/${event.id}`}>
+                                  <UserCheck className="mr-2 h-4 w-4" />
+                                  Manage Attendance
+                                </Link>
+                              </DropdownMenuItem>
+                            )}
+                            {/* Admin-only actions for pending events */}
+                            {typeof window !== 'undefined' && (window as any).__NEXT_DATA__ && (
+                              <>
+                              </>
+                            )}
+                            {/* Render Approve/Reject if event is pending; actual role gating is handled by API */}
+                            {String(event.status).toUpperCase() === 'PENDING' && (
+                              <>
+                                <DropdownMenuItem onClick={(e) => { e.preventDefault(); approveEvent(event.id) }}>
+                                  <span className="text-green-700">Approve</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => { e.preventDefault(); rejectEvent(event.id) }}>
+                                  <span className="text-red-700">Reject</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
                             <DropdownMenuItem asChild>
                               <Link href={`/dashboard/events/${event.id}`}>
                                 <Edit className="mr-2 h-4 w-4" />
@@ -367,10 +425,17 @@ export function EventsTable() {
                           {event.registeredCount}/{event.capacity || "∞"}
                         </div>
                       </div>
+
+                      {isPending && (
+                        <div className="text-xs text-gray-500">
+                          Awaiting System Administrator approval. Attendance and management are disabled until approval.
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
-                </Link>
-              ))}
+                </Wrapper>
+                )
+              })}
             </div>
             
             <div className="flex items-center justify-between space-x-2 py-4 mt-6 border-t">

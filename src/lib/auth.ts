@@ -258,6 +258,7 @@ export const authOptions: NextAuthOptions = {
             studentId: studentData?.student_id || null,
             assigned_college: (dbUser as any).assigned_college || null,
             assigned_course: (dbUser as any).assigned_course || null,
+            assigned_courses: (dbUser as any).assigned_courses || null,
             status: (dbUser as any).status || 'ACTIVE',
             isAdminUser: isAdminUser,
           }
@@ -316,6 +317,7 @@ export const authOptions: NextAuthOptions = {
         token.studentId = user.studentId
         token.assigned_college = user.assigned_college
         token.assigned_course = user.assigned_course
+        token.assigned_courses = user.assigned_courses
         token.status = user.status
         token.isAdminUser = user.isAdminUser
         return token
@@ -338,6 +340,7 @@ export const authOptions: NextAuthOptions = {
           token.name = dbUser.name
           token.assigned_college = (dbUser as any).assigned_college || null
           token.assigned_course = (dbUser as any).assigned_course || null
+          token.assigned_courses = (dbUser as any).assigned_courses || null
           token.status = (dbUser as any).status || 'ACTIVE'
           token.isAdminUser = isAdminUser
           
@@ -366,6 +369,7 @@ export const authOptions: NextAuthOptions = {
         session.user.studentId = token.studentId
         session.user.assigned_college = token.assigned_college
         session.user.assigned_course = token.assigned_course
+        session.user.assigned_courses = token.assigned_courses
         session.user.status = token.status
         session.user.isAdminUser = token.isAdminUser
       }

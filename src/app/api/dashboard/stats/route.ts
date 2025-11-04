@@ -12,7 +12,8 @@ export async function GET() {
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-    if (session.user.role !== 'ADMIN') {
+    // Allow all administrative roles to access dashboard stats
+    if (!['ADMIN','COLLEGE_ORG','COURSE_ORG'].includes(session.user.role as any)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

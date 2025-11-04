@@ -12,6 +12,7 @@ const createUserSchema = z.object({
   role: z.enum(['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG'] as const),
   assigned_college: z.string().optional().nullable(),
   assigned_course: z.string().optional().nullable(),
+  assigned_courses: z.array(z.string()).max(2).min(1).optional().nullable(),
 });
 
 // Validation schema for updating a user (ONLY administrative users)
@@ -20,6 +21,7 @@ const updateUserSchema = z.object({
   role: z.enum(['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG'] as const).optional(),
   assigned_college: z.string().optional().nullable(),
   assigned_course: z.string().optional().nullable(),
+  assigned_courses: z.array(z.string()).max(2).min(1).optional().nullable(),
   status: z.enum(['ACTIVE', 'ARCHIVED', 'SUSPENDED'] as const).optional(),
 });
 
@@ -37,7 +39,7 @@ export async function GET(request: NextRequest) {
     // Get current user's details for permission checking
     const { data: currentUser } = await supabaseAdmin
       .from('users')
-      .select('id, email, name, role, status, assigned_college, assigned_course')
+      .select('id, email, name, role, status, assigned_college, assigned_course, assigned_courses')
       .eq('id', session.user.id)
       .single();
 
@@ -148,7 +150,7 @@ export async function POST(request: NextRequest) {
     // Get current user's details for permission checking
     const { data: currentUser } = await supabaseAdmin
       .from('users')
-      .select('id, email, name, role, status, assigned_college, assigned_course')
+      .select('id, email, name, role, status, assigned_college, assigned_course, assigned_courses')
       .eq('id', session.user.id)
       .single();
 
@@ -166,8 +168,19 @@ export async function POST(request: NextRequest) {
     if (body.name) body.name = body.name.trim();
     if (body.email) body.email = body.email.trim().toLowerCase();
     // Normalize empty strings to null for optional fields
-    if (body.assigned_college === '') body.assigned_college = null;
-    if (body.assigned_course === '') body.assigned_course = null;
+  if (body.assigned_college === '') body.assigned_college = null;
+  if (body.assigned_course === '') body.assigned_course = null;
+  // Normalize assigned_courses to array of up to 2 unique strings
+  if (Array.isArray(body.assigned_courses)) {
+    body.assigned_courses = body.assigned_courses
+      .map((s: string) => (s || '').trim())
+      .filter((s: string) => !!s)
+      .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
+      .slice(0, 2)
+  } else if (typeof body.assigned_courses === 'string') {
+    const single = body.assigned_courses.trim()
+    body.assigned_courses = single ? [single] : null
+  }
     
     console.log('Creating user with data:', {
       email: body.email,
@@ -193,7 +206,9 @@ export async function POST(request: NextRequest) {
     const assignmentValidation = validateUserAssignment(
       validatedData.role,
       validatedData.assigned_college,
-      validatedData.assigned_course
+      (validatedData.assigned_courses && validatedData.assigned_courses.length > 0)
+        ? validatedData.assigned_courses[0]
+        : validatedData.assigned_course
     );
 
     if (!assignmentValidation.valid) {
@@ -240,11 +255,14 @@ export async function POST(request: NextRequest) {
           name: validatedData.name,
           role: validatedData.role,
           assigned_college: validatedData.assigned_college || null,
-          assigned_course: validatedData.assigned_course || null,
+          assigned_course: (validatedData.assigned_courses && validatedData.assigned_courses.length > 0)
+            ? validatedData.assigned_courses[0]
+            : (validatedData.assigned_course || null),
+          assigned_courses: validatedData.assigned_courses || null,
           status: 'ACTIVE',
         },
       ])
-      .select('id, email, name, role, status, assigned_college, assigned_course, created_at')
+      .select('id, email, name, role, status, assigned_college, assigned_course, assigned_courses, created_at')
       .single();
 
     if (createError) {
@@ -265,6 +283,7 @@ export async function POST(request: NextRequest) {
           role: newUser.role,
           assigned_college: newUser.assigned_college,
           assigned_course: newUser.assigned_course,
+          courses: newUser.assigned_courses,
         },
       },
     ]);

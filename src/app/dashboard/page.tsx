@@ -11,9 +11,11 @@ export default async function DashboardPage() {
     redirect("/auth/login")
   }
 
+  const isAdminUser = ['ADMIN','COLLEGE_ORG','COURSE_ORG'].includes(session.user.role as any)
+
   return (
     <DashboardShell>
-      {session.user.role === "ADMIN" ? (
+      {isAdminUser ? (
         <AdminDashboard />
       ) : (
         <StudentDashboard studentId={session.user.studentId} />

@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
+import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -38,6 +39,18 @@ interface EventFormProps {
 
 export function EventForm({ eventId, initialData }: EventFormProps) {
   const router = useRouter()
+  const { data: session } = useSession()
+  const userRole = session?.user?.role
+  const assignedCollege = (session?.user as any)?.assigned_college || null
+  const assignedCourse = (session?.user as any)?.assigned_course || null
+  const assignedCourses: string[] = useMemo(() => {
+    const arr = (session?.user as any)?.assigned_courses as string[] | undefined
+    if (arr && Array.isArray(arr) && arr.length > 0) return arr
+    return assignedCourse ? [assignedCourse] : []
+  }, [session?.user, assignedCourse])
+  const isAdmin = userRole === 'ADMIN'
+  const isCollegeOrg = userRole === 'COLLEGE_ORG'
+  const isCourseOrg = userRole === 'COURSE_ORG'
   const [loading, setLoading] = useState(false)
   const [migrationRequired, setMigrationRequired] = useState(false)
   const [studentCount, setStudentCount] = useState<number | null>(null)
@@ -84,6 +97,27 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
       })
     }
   }, [initialData])
+
+  // Initialize defaults based on role when creating
+  useEffect(() => {
+    if (!initialData && !eventId && (isCollegeOrg || isCourseOrg)) {
+      setFormData(prev => {
+        const desired = { ...prev }
+        if (isCollegeOrg) {
+          desired.scope_type = 'COLLEGE_WIDE'
+          desired.scope_college = assignedCollege || ""
+          desired.scope_course = ""
+        } else if (isCourseOrg) {
+          desired.scope_type = 'COURSE_SPECIFIC'
+          desired.scope_college = assignedCollege || ""
+          desired.scope_course = (assignedCourses && assignedCourses.length > 0) ? assignedCourses[0] : ""
+        }
+        const changed = desired.scope_type !== prev.scope_type || desired.scope_college !== prev.scope_college || desired.scope_course !== prev.scope_course
+        return changed ? desired : prev
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId, initialData, isCollegeOrg, isCourseOrg, assignedCollege, assignedCourses])
 
   useEffect(() => {
     // Load event data if editing
@@ -155,11 +189,13 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
     }
   }, [])
 
-  // Fetch evaluations and certificate templates when component mounts
+  // Fetch evaluations and (admin-only) certificate templates when component mounts
   useEffect(() => {
     fetchEvaluations()
-    fetchCertificateTemplates()
-  }, [fetchEvaluations, fetchCertificateTemplates])
+    if (isAdmin) {
+      fetchCertificateTemplates()
+    }
+  }, [fetchEvaluations, fetchCertificateTemplates, isAdmin])
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => {
@@ -190,6 +226,9 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
   }
 
   const getAvailableCourses = () => {
+    if (isCourseOrg) {
+      return assignedCourses || []
+    }
     if (!formData.scope_college || !COURSES_BY_COLLEGE[formData.scope_college as keyof typeof COURSES_BY_COLLEGE]) {
       return []
     }
@@ -236,6 +275,24 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
     }
   }, [formData.scope_type, formData.scope_college, formData.scope_course, fetchStudentCount])
 
+  // Enforce scope constraints on the client based on role
+  useEffect(() => {
+    setFormData(prev => {
+      const next = { ...prev }
+      let changed = false
+      if (isCollegeOrg) {
+        if (next.scope_type === 'UNIVERSITY_WIDE') { next.scope_type = 'COLLEGE_WIDE'; changed = true }
+        if (next.scope_college !== (assignedCollege || "")) { next.scope_college = assignedCollege || ""; changed = true }
+      } else if (isCourseOrg) {
+        if (next.scope_type !== 'COURSE_SPECIFIC') { next.scope_type = 'COURSE_SPECIFIC'; changed = true }
+        if (next.scope_college !== (assignedCollege || "")) { next.scope_college = assignedCollege || ""; changed = true }
+        const desiredCourse = (assignedCourses && assignedCourses.length > 0) ? assignedCourses[0] : ""
+        if (!next.scope_course || !assignedCourses.includes(next.scope_course)) { next.scope_course = desiredCourse; changed = true }
+      }
+      return changed ? next : prev
+    })
+  }, [isCollegeOrg, isCourseOrg, assignedCollege, assignedCourses])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -280,18 +337,27 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
         return
       }
 
+      // Final guardrails based on role
+      const enforcedScopeType = isAdmin ? formData.scope_type : (isCollegeOrg ? (formData.scope_type === 'COURSE_SPECIFIC' ? 'COURSE_SPECIFIC' : 'COLLEGE_WIDE') : 'COURSE_SPECIFIC')
+      const enforcedCollege = isAdmin ? (formData.scope_type !== "UNIVERSITY_WIDE" ? formData.scope_college : null) : (assignedCollege)
+      const enforcedCourse = isAdmin 
+        ? (formData.scope_type === "COURSE_SPECIFIC" ? formData.scope_course : null)
+        : (isCourseOrg ? ((assignedCourses && assignedCourses.length > 0) ? formData.scope_course : assignedCourse) : (formData.scope_type === 'COURSE_SPECIFIC' ? formData.scope_course : null))
+
+      const scopeTypeForApi = enforcedScopeType === 'COLLEGE_WIDE' ? 'COLLEGE' : (enforcedScopeType === 'COURSE_SPECIFIC' ? 'COURSE' : 'UNIVERSITY_WIDE')
+
       const payload = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         date: formData.eventDate,
-        startTime: formData.startTime || "09:00",
-        endTime: formData.endTime || "17:00",
+        start_time: formData.startTime || null,
+        end_time: formData.endTime || null,
         location: formData.location.trim(),
         type: formData.type,
         max_capacity: formData.max_capacity,
-        scope_type: formData.scope_type,
-        scope_college: formData.scope_type !== "UNIVERSITY_WIDE" ? formData.scope_college : null,
-        scope_course: formData.scope_type === "COURSE_SPECIFIC" ? formData.scope_course : null,
+        scope_type: scopeTypeForApi,
+        scope_college: enforcedScopeType !== "UNIVERSITY_WIDE" ? enforcedCollege : null,
+        scope_course: enforcedScopeType === "COURSE_SPECIFIC" ? enforcedCourse : null,
         require_evaluation: formData.require_evaluation,
         evaluation_id: formData.require_evaluation ? formData.evaluation_id : null,
         certificate_template_id: formData.certificate_template_id,
@@ -551,7 +617,8 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
             </div>
           </div>
 
-          {/* Certificate Template Selection */}
+          {/* Certificate Template Selection (Admin only) */}
+          {isAdmin && (
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Certificate Template</h3>
             <div className="space-y-4">
@@ -616,6 +683,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
               )}
             </div>
           </div>
+          )}
 
           {/* Event Scope Section */}
           <div className="space-y-4">
@@ -632,7 +700,12 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
                     <SelectValue placeholder="Select event scope" />
                   </SelectTrigger>
                   <SelectContent>
-                    {EVENT_SCOPE_TYPES.map((scope) => (
+                    {(isAdmin
+                      ? EVENT_SCOPE_TYPES
+                      : isCollegeOrg
+                        ? ["COLLEGE_WIDE","COURSE_SPECIFIC"]
+                        : ["COURSE_SPECIFIC"]
+                    ).map((scope) => (
                       <SelectItem key={scope} value={scope}>
                         {EVENT_SCOPE_LABELS[scope]}
                       </SelectItem>
@@ -652,12 +725,13 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
                       value={formData.scope_college || undefined}
                       onValueChange={(value) => handleInputChange("scope_college", value)}
                       required={formData.scope_type !== "UNIVERSITY_WIDE"}
+                      disabled={isCollegeOrg || isCourseOrg}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select college" />
                       </SelectTrigger>
                       <SelectContent>
-                        {COLLEGES.map((college) => (
+                        {(isAdmin ? COLLEGES : (assignedCollege ? [assignedCollege] : [])).map((college) => (
                           <SelectItem key={college} value={college}>
                             {college}
                           </SelectItem>
@@ -669,7 +743,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
                   {formData.scope_type === "COURSE_SPECIFIC" && (
                     <div className="space-y-2">
                       <Label htmlFor="scope_course">Course *</Label>
-                      <Select
+                        <Select
                         value={formData.scope_course || undefined}
                         onValueChange={(value) => handleInputChange("scope_course", value)}
                         required={formData.scope_type === "COURSE_SPECIFIC"}

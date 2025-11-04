@@ -67,7 +67,7 @@ interface NavigationItem {
 export function DashboardShell({ children }: DashboardShellProps) {
   const { data: session } = useSession()
   const pathname = usePathname()
-  const isAdmin = session?.user?.role === "ADMIN"
+  const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === 'COLLEGE_ORG' || session?.user?.role === 'COURSE_ORG'
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [dbConnectionError, setDbConnectionError] = useState<string | null>(null)

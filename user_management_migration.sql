@@ -31,9 +31,13 @@ BEGIN
 END $$;
 
 -- Add check constraint for valid roles (ONLY admin roles, no USER)
+-- Add constraint as NOT VALID to avoid failing on legacy rows; new writes are still enforced
 ALTER TABLE users 
 ADD CONSTRAINT users_role_check 
-CHECK (role IN ('ADMIN', 'COLLEGE_ORG', 'COURSE_ORG'));
+CHECK (role IN ('ADMIN', 'COLLEGE_ORG', 'COURSE_ORG')) NOT VALID;
+
+-- Optional (run after cleaning legacy data):
+-- ALTER TABLE users VALIDATE CONSTRAINT users_role_check;
 
 -- Add check constraint for valid statuses
 -- Drop existing constraint if it exists
@@ -235,3 +239,24 @@ COMMENT ON COLUMN users.assigned_course IS 'Assigned course for COURSE_ORG role'
 COMMENT ON COLUMN users.archived_at IS 'Timestamp when user was archived';
 COMMENT ON COLUMN users.deleted_at IS 'Timestamp when user was permanently deleted (soft delete)';
 
+-- Step 12: Add assigned_courses array to support up to two courses for COURSE_ORG
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'users' AND column_name = 'assigned_courses'
+  ) THEN
+    ALTER TABLE users ADD COLUMN assigned_courses TEXT[];
+
+    -- Backfill from legacy single assigned_course where present
+    UPDATE users
+    SET assigned_courses = CASE 
+      WHEN assigned_course IS NOT NULL AND assigned_course <> '' THEN ARRAY[assigned_course]
+      ELSE NULL
+    END
+    WHERE role = 'COURSE_ORG';
+
+    -- Index for fast lookups
+    CREATE INDEX IF NOT EXISTS idx_users_assigned_courses ON users USING GIN (assigned_courses);
+  END IF;
+END $$;

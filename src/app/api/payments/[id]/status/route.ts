@@ -15,8 +15,8 @@ export async function PATCH(
 ) {
   try {
     const session = await auth()
-    if (!session || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { id } = await params
@@ -28,8 +28,8 @@ export async function PATCH(
       .from('payments')
       .select(`
         *,
-        student:students(id, name, student_id),
-        fee:fee_structures(id, name, amount)
+        student:students(id, name, student_id, college, course),
+        fee:fee_structures(id, name, amount, scope_type, scope_college, scope_course)
       `)
       .eq('id', id)
       .single()
@@ -46,6 +46,34 @@ export async function PATCH(
     // Prevent reverting PAID -> UNPAID unless ADMIN (super admin)
     if (existing.status === 'PAID' && status !== 'PAID' && session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Only super admin can modify a paid record' }, { status: 403 })
+    }
+
+    // Role and scope checks for marking payments
+    const fee: any = (existing as any).fee
+    const student: any = (existing as any).student
+    let allowed = false
+
+    if (session.user.role === 'ADMIN') {
+      allowed = true
+    } else if (session.user.role === 'COLLEGE_ORG') {
+      // College Org: only within their college; cannot mark course-specific fees
+      const isCollegeWide = fee.scope_type === 'COLLEGE_WIDE'
+      allowed = isCollegeWide &&
+        fee.scope_college === session.user.assigned_college &&
+        student.college === session.user.assigned_college
+    } else if (session.user.role === 'COURSE_ORG') {
+      // Course Org: only course-specific within their assigned course(s)
+      if (fee.scope_type === 'COURSE_SPECIFIC') {
+        const assignedCourses: string[] = (session.user as any).assigned_courses || (session.user.assigned_course ? [session.user.assigned_course] : [])
+        allowed = fee.scope_college === session.user.assigned_college &&
+          assignedCourses.includes(fee.scope_course) &&
+          student.college === session.user.assigned_college &&
+          assignedCourses.includes(student.course)
+      }
+    }
+
+    if (!allowed) {
+      return NextResponse.json({ error: 'Forbidden: insufficient scope to mark this payment' }, { status: 403 })
     }
 
     // Prepare update
@@ -82,7 +110,7 @@ export async function PATCH(
       const student = (payment as any).student
       const fee = (payment as any).fee
       const adminName = session.user.name || 'Unknown Admin'
-      const message = `Admin ${adminName} marked ${fee?.name} fee for ${student?.name} (${student?.student_id}) as Paid (Receipt No: ${receiptNumber}).`
+      const message = `${session.user.role} ${adminName} marked ${fee?.name} fee for ${student?.name} (${student?.student_id}) as Paid (Receipt No: ${receiptNumber}).`
       await supabaseAdmin
         .from('notifications')
         .insert({

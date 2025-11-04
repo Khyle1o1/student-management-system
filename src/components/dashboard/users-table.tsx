@@ -36,6 +36,7 @@ interface User {
   status: UserStatus
   assigned_college?: string | null
   assigned_course?: string | null
+  assigned_courses?: string[] | null
   created_at: string
   updated_at: string
   archived_at?: string | null
@@ -74,6 +75,7 @@ export function UsersTable() {
     role: "COURSE_ORG" as UserRole, // Default to least privileged admin role
     assigned_college: "",
     assigned_course: "",
+    assigned_courses: [] as string[],
     status: "ACTIVE" as UserStatus,
   })
 
@@ -133,6 +135,7 @@ export function UsersTable() {
         role: user.role,
         assigned_college: user.assigned_college || "",
         assigned_course: user.assigned_course || "",
+        assigned_courses: (user as any).assigned_courses || (user.assigned_course ? [user.assigned_course] : []),
         status: user.status,
       })
     } else {
@@ -145,6 +148,7 @@ export function UsersTable() {
         role: "COURSE_ORG", // Default to least privileged admin role
         assigned_college: "",
         assigned_course: "",
+        assigned_courses: [],
         status: "ACTIVE",
       })
     }
@@ -185,8 +189,8 @@ export function UsersTable() {
     }
     
     if (formData.role === "COURSE_ORG") {
-      if (!formData.assigned_course || !formData.assigned_course.trim()) {
-        newErrors.assigned_course = "Course assignment is required for this role"
+      if (!formData.assigned_courses || formData.assigned_courses.length === 0) {
+        newErrors.assigned_course = "Select at least one course (max 2)"
       }
     }
     
@@ -207,6 +211,7 @@ export function UsersTable() {
         // Normalize empty strings to null
         assigned_college: formData.assigned_college && formData.assigned_college.trim() ? formData.assigned_college.trim() : null,
         assigned_course: formData.assigned_course && formData.assigned_course.trim() ? formData.assigned_course.trim() : null,
+        assigned_courses: formData.assigned_courses && formData.assigned_courses.length > 0 ? formData.assigned_courses : null,
       }
 
       if (isEditing) {
@@ -736,28 +741,29 @@ export function UsersTable() {
 
               {formData.role === "COURSE_ORG" && formData.assigned_college && (
                 <div className="space-y-2">
-                  <Label htmlFor="course">Assigned Course *</Label>
-                  <select
-                    id="course"
-                    value={formData.assigned_course}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        assigned_course: e.target.value,
-                      })
-                    }
-                    className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ${errors.assigned_course ? "border-red-500" : ""}`}
-                    required
-                  >
-                    <option value="">Select Course</option>
-                    {getCoursesByCollege(formData.assigned_college).map(
-                      (course) => (
-                        <option key={course} value={course}>
-                          {course}
-                        </option>
+                  <Label htmlFor="courses">Assigned Course(s) * (up to 2)</Label>
+                  <div className="grid grid-cols-1 gap-2 max-h-48 overflow-auto border rounded-md p-3">
+                    {getCoursesByCollege(formData.assigned_college).map((course) => {
+                      const checked = formData.assigned_courses.includes(course)
+                      return (
+                        <label key={course} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const next = checked
+                                ? formData.assigned_courses.filter((c) => c !== course)
+                                : (formData.assigned_courses.length < 2
+                                    ? [...formData.assigned_courses, course]
+                                    : formData.assigned_courses)
+                              setFormData({ ...formData, assigned_courses: next, assigned_course: next[0] || "" })
+                            }}
+                          />
+                          <span>{course}</span>
+                        </label>
                       )
-                    )}
-                  </select>
+                    })}
+                  </div>
                   {errors.assigned_course && (
                     <div className="text-sm text-red-500">{errors.assigned_course}</div>
                   )}

@@ -13,7 +13,7 @@ export default async function EventsPage() {
     redirect("/auth/login")
   }
 
-  if (session.user.role !== "ADMIN") {
+  if (!['ADMIN','COLLEGE_ORG','COURSE_ORG'].includes(session.user.role as any)) {
     redirect("/dashboard")
   }
 
@@ -27,12 +27,14 @@ export default async function EventsPage() {
               Manage school events and activities
             </p>
           </div>
-          <Link href="/dashboard/events/new">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Event
-            </Button>
-          </Link>
+          {(session.user.role === 'ADMIN' || session.user.role === 'COLLEGE_ORG') && (
+            <Link href="/dashboard/events/new">
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Event
+              </Button>
+            </Link>
+          )}
         </div>
         
         <EventsTable />

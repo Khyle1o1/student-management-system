@@ -16,6 +16,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    // Only ADMIN can view all fees; for now, keep GET restricted to ADMIN
     if (session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
@@ -92,7 +93,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (session.user.role !== "ADMIN") {
+    // Allow ADMIN, COLLEGE_ORG, COURSE_ORG to create
+    if (!['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG'].includes(session.user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -101,6 +103,29 @@ export async function POST(request: Request) {
 
     // Validate the data
     const validatedData = feeSchema.parse(body)
+
+    // Role-scoped constraints and pending approval behavior
+    const isAdmin = session.user.role === 'ADMIN'
+    const isCollegeOrg = session.user.role === 'COLLEGE_ORG'
+    const isCourseOrg = session.user.role === 'COURSE_ORG'
+
+    // Enforce scope for org users
+    if ((isCollegeOrg || isCourseOrg)) {
+      // College must match
+      if (validatedData.scope_college !== session.user.assigned_college) {
+        return NextResponse.json({ error: 'Scope college must match your assigned college' }, { status: 403 })
+      }
+      // Course Org can only create COURSE_SPECIFIC for their course(s)
+      if (isCourseOrg) {
+        if (validatedData.scope_type !== 'COURSE_SPECIFIC') {
+          return NextResponse.json({ error: 'Course Organization can only create course-specific fees' }, { status: 403 })
+        }
+        const assignedCourses: string[] = (session.user as any).assigned_courses || (session.user.assigned_course ? [session.user.assigned_course] : [])
+        if (!validatedData.scope_course || !assignedCourses.includes(validatedData.scope_course)) {
+          return NextResponse.json({ error: 'Scope course must be one of your assigned courses' }, { status: 403 })
+        }
+      }
+    }
 
     // Create the fee structure
     const { data: fee, error } = await supabaseAdmin
@@ -116,7 +141,8 @@ export async function POST(request: Request) {
         scope_type: validatedData.scope_type,
         scope_college: validatedData.scope_college || null,
         scope_course: validatedData.scope_course || null,
-        is_active: true,
+        // Admin-created fees go live immediately; org-created require approval (inactive)
+        is_active: isAdmin,
       }])
       .select()
       .single()
@@ -127,6 +153,26 @@ export async function POST(request: Request) {
     }
 
     console.log("Created fee:", fee)
+
+    // If created by org, log a pending approval notification for admins
+    if (!isAdmin) {
+      const actor = session.user
+      await supabaseAdmin.from('notifications').insert({
+        user_id: actor.id,
+        type: 'SYSTEM_ACTIVITY',
+        title: 'Fee awaiting approval',
+        message: `${actor.role} ${actor.name || ''} created a fee ("${(fee as any)?.name}") pending admin approval`,
+        data: {
+          action: 'FEE_CREATED_PENDING',
+          fee_id: (fee as any)?.id,
+          scope_type: (fee as any)?.scope_type,
+          scope_college: (fee as any)?.scope_college,
+          scope_course: (fee as any)?.scope_course,
+        },
+        is_read: true,
+        created_at: new Date().toISOString(),
+      })
+    }
 
     // Automatically assign fee to eligible students based on scope
     // Fetch ALL students using pagination (Supabase default limit is 1000)
@@ -173,7 +219,8 @@ export async function POST(request: Request) {
       }
     }
 
-    const eligibleStudents = allStudents
+    // Only assign payment records immediately if fee is active
+    const eligibleStudents = isAdmin ? allStudents : []
     const studentsError = null
     
     console.log(`Total students fetched: ${eligibleStudents.length}`)
