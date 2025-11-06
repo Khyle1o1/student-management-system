@@ -341,7 +341,7 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
                   <SelectContent>
                     {(isAdmin ? EVENT_SCOPE_TYPES : isCollegeOrg ? ["COLLEGE_WIDE","COURSE_SPECIFIC"] : ["COURSE_SPECIFIC"]).map((scopeType) => (
                       <SelectItem key={scopeType} value={scopeType}>
-                        {EVENT_SCOPE_LABELS[scopeType]}
+                        {EVENT_SCOPE_LABELS[scopeType as keyof typeof EVENT_SCOPE_LABELS]}
                       </SelectItem>
                     ))}
                   </SelectContent>

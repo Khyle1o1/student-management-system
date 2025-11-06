@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -56,11 +56,7 @@ export function CertificateTemplatesTable() {
   const [searchTerm, setSearchTerm] = useState("")
   const [activeOnly, setActiveOnly] = useState(false)
 
-  useEffect(() => {
-    fetchTemplates()
-  }, [searchTerm, activeOnly])
-
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -83,7 +79,11 @@ export function CertificateTemplatesTable() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [searchTerm, activeOnly])
+
+  useEffect(() => {
+    fetchTemplates()
+  }, [fetchTemplates])
 
   const handleToggleActive = async (templateId: string, isActive: boolean) => {
     try {

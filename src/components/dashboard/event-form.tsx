@@ -707,7 +707,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
                         : ["COURSE_SPECIFIC"]
                     ).map((scope) => (
                       <SelectItem key={scope} value={scope}>
-                        {EVENT_SCOPE_LABELS[scope]}
+                        {EVENT_SCOPE_LABELS[scope as keyof typeof EVENT_SCOPE_LABELS]}
                       </SelectItem>
                     ))}
                   </SelectContent>

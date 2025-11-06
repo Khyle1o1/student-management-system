@@ -65,6 +65,7 @@ declare module "next-auth" {
       studentId: string | null
       assigned_college?: string | null
       assigned_course?: string | null
+      assigned_courses?: string[] | null
       status?: string
       isAdminUser?: boolean // True if from users table (admin), false if student
     }
@@ -79,6 +80,7 @@ declare module "next-auth" {
     studentId: string | null
     assigned_college?: string | null
     assigned_course?: string | null
+    assigned_courses?: string[] | null
     status?: string
     isAdminUser?: boolean
   }
@@ -91,6 +93,7 @@ declare module "next-auth/jwt" {
     studentId: string | null
     assigned_college?: string | null
     assigned_course?: string | null
+    assigned_courses?: string[] | null
     status?: string
     isAdminUser?: boolean
   }

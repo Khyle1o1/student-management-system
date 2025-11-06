@@ -24,6 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
 
@@ -50,6 +51,10 @@ export function FeesCards() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filteredFees, setFilteredFees] = useState<Fee[]>([])
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportLoading, setReportLoading] = useState(false)
+  const [reportData, setReportData] = useState<{ feeId: string; paidStudentCount: number; totalPaid: number } | null>(null)
+  const [selectedFee, setSelectedFee] = useState<{ id: string; name: string } | null>(null)
 
   const fetchFees = async () => {
     try {
@@ -105,6 +110,30 @@ export function FeesCards() {
     } catch (error) {
       console.error("Error deleting fee:", error)
       alert("Error deleting fee")
+    }
+  }
+
+  const openReport = async (feeId: string, feeName?: string) => {
+    try {
+      setReportLoading(true)
+      setReportOpen(true)
+      setReportData(null)
+      setSelectedFee({ id: feeId, name: feeName || '' })
+      const res = await fetch(`/api/fees/${feeId}/report`)
+      if (res.ok) {
+        const data = await res.json()
+        setReportData(data)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || 'Failed to load report')
+        setReportOpen(false)
+      }
+    } catch (e) {
+      console.error('Error loading report', e)
+      alert('Error loading report')
+      setReportOpen(false)
+    } finally {
+      setReportLoading(false)
     }
   }
 
@@ -300,6 +329,10 @@ export function FeesCards() {
                           Edit
                         </Link>
                       </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openReport(fee.id, fee.name)}>
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Report
+                    </DropdownMenuItem>
                       {/* Admin approval actions for pending fees */}
                       {session?.user?.role === 'ADMIN' && fee.status === 'PENDING' && (
                         <>
@@ -373,6 +406,57 @@ export function FeesCards() {
           ))}
         </div>
       )}
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Fee Report{selectedFee?.name ? ` - ${selectedFee.name}` : ''}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {reportLoading && <p className="text-sm text-gray-600">Loading...</p>}
+            {!reportLoading && reportData && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-700">Students Paid</span>
+                  <span className="font-semibold">{reportData.paidStudentCount}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-700">Total Collected</span>
+                  <span className="font-semibold">{`₱${reportData.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}</span>
+                </div>
+                <div className="pt-2">
+                  <Button
+                    onClick={async () => {
+                      if (!selectedFee?.id) return
+                      try {
+                        const res = await fetch(`/api/fees/${selectedFee.id}/report/pdf`)
+                        if (!res.ok) {
+                          const data = await res.json().catch(() => ({}))
+                          alert(data.error || 'Failed to generate PDF')
+                          return
+                        }
+                        const blob = await res.blob()
+                        const url = window.URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = `fee-report-${(selectedFee.name || 'report').replace(/[^a-zA-Z0-9]/g, '-')}.pdf`
+                        document.body.appendChild(a)
+                        a.click()
+                        a.remove()
+                        window.URL.revokeObjectURL(url)
+                      } catch (e) {
+                        console.error('PDF download failed', e)
+                        alert('PDF download failed')
+                      }
+                    }}
+                  >
+                    Download PDF
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 

@@ -185,7 +185,10 @@ export async function GET(request: Request) {
       )
     } else if (isCourseOrg) {
       const course = session.user.assigned_course || ''
-      eventsQuery = eventsQuery.and('scope_type.eq.COURSE_SPECIFIC').eq('scope_college', session.user.assigned_college || '').eq('scope_course', course)
+      eventsQuery = eventsQuery
+        .eq('scope_type', 'COURSE_SPECIFIC')
+        .eq('scope_college', session.user.assigned_college || '')
+        .eq('scope_course', course)
     }
 
     const { data: events, error } = await eventsQuery

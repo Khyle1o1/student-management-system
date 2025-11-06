@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { supabase } from "@/lib/supabase"

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useParams } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,6 @@ import {
   ArrowLeft, 
   User, 
   Calendar, 
-  CreditCard, 
   AlertTriangle,
   CheckCircle,
   XCircle,
@@ -94,7 +93,7 @@ export default function StudentProfilePage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("overview")
 
-  const fetchStudentData = async () => {
+  const fetchStudentData = useCallback(async () => {
     try {
       setLoading(true)
       const response = await fetch(`/api/students/dashboard/${id}`)
@@ -116,13 +115,13 @@ export default function StudentProfilePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id, toast])
 
   useEffect(() => {
     if (id) {
       fetchStudentData()
     }
-  }, [id])
+  }, [id, fetchStudentData])
 
   if (loading) {
     return (

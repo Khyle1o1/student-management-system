@@ -22,7 +22,7 @@ import {
   XCircle,
   AlertTriangle,
   RefreshCw,
-  CreditCard,
+  DollarSign,
   FileText,
   Upload,
   Clock,

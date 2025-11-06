@@ -151,7 +151,7 @@ export default function EventAttendancePage() {
   }
 
   // Check event time status
-  const checkEventTimeStatus = (event: Event): EventTimeStatus => {
+  const checkEventTimeStatus = useCallback((event: Event): EventTimeStatus => {
     const now = new Date()
     const eventDate = parseEventDate(event.date)
     
@@ -220,7 +220,7 @@ export default function EventAttendancePage() {
       status: 'active',
       message: `Event is active until ${event.end_time}`
     }
-  }
+  }, [])
 
   // Fetch event details
   const fetchEvent = useCallback(async () => {
@@ -413,7 +413,7 @@ export default function EventAttendancePage() {
     } else {
       setEventTimeStatus(null)
     }
-  }, [event, fetchAttendanceStats, fetchCertificateStats])
+  }, [event, fetchAttendanceStats, fetchCertificateStats, checkEventTimeStatus])
 
   // Auto-generate certificates when students complete attendance
   useEffect(() => {
@@ -434,7 +434,7 @@ export default function EventAttendancePage() {
     }, 60000) // Update every minute
 
     return () => clearInterval(interval)
-  }, [event])
+  }, [event, checkEventTimeStatus])
 
   const handleBarcodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
