@@ -146,9 +146,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
     { href: "/dashboard/reports", label: "Reports", icon: FileText },
   ]
 
-  // Add Users menu item only for ADMIN and COLLEGE_ORG
+  // Add Users menu item only for ADMIN
   const usersNavItem: NavigationItem[] = 
-    session?.user?.role === 'ADMIN' || session?.user?.role === 'COLLEGE_ORG'
+    session?.user?.role === 'ADMIN'
       ? [{ href: "/dashboard/users", label: "Users", icon: UserCog }]
       : []
 

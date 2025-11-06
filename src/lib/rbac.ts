@@ -52,8 +52,8 @@ export function isCourseOrg(user: UserPermissions | null): boolean {
 export function canManageUsers(user: UserPermissions | null): boolean {
   if (!user || user.status !== 'ACTIVE') return false;
   
-  // Only ADMIN and COLLEGE_ORG can manage users
-  return user.role === 'ADMIN' || user.role === 'COLLEGE_ORG';
+  // Only ADMIN can manage users
+  return user.role === 'ADMIN';
 }
 
 /**
@@ -62,13 +62,8 @@ export function canManageUsers(user: UserPermissions | null): boolean {
 export function canCreateRole(user: UserPermissions | null, targetRole: UserRole): boolean {
   if (!user || user.status !== 'ACTIVE') return false;
   
-  // ADMIN can create any role
-  if (user.role === 'ADMIN') return true;
-  
-  // COLLEGE_ORG can only create COURSE_ORG under their college
-  if (user.role === 'COLLEGE_ORG' && targetRole === 'COURSE_ORG') return true;
-  
-  return false;
+  // Only ADMIN can create roles
+  return user.role === 'ADMIN';
 }
 
 /**
