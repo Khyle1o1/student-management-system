@@ -33,36 +33,20 @@ const reportStats = {
 
 const quickReports = [
   {
-    id: "student-list",
-    title: "Student List",
-    description: "Complete list of all enrolled students",
-    icon: Users,
-    type: "students",
-    estimatedTime: "2 min"
-  },
-  {
-    id: "attendance-summary",
-    title: "Attendance Summary",
-    description: "Monthly attendance overview by event",
+    id: "events-summary",
+    title: "Event Summary Report",
+    description: "Overview of attendance per event",
     icon: Calendar,
-    type: "attendance",
+    type: "events",
     estimatedTime: "3 min"
   },
   {
-    id: "payment-status",
-    title: "Payment Status",
-    description: "Current payment status for all students",
+    id: "fees-summary",
+    title: "Fees Summary Report",
+    description: "Summary of fees and payments",
     icon: CreditCard,
-    type: "payments",
-    estimatedTime: "2 min"
-  },
-  {
-    id: "financial-summary",
-    title: "Financial Summary",
-    description: "Revenue and payment analytics",
-    icon: BarChart3,
-    type: "financial",
-    estimatedTime: "4 min"
+    type: "fees",
+    estimatedTime: "3 min"
   }
 ]
 
@@ -72,11 +56,52 @@ export function ReportsManagement() {
 
   const handleGenerateQuickReport = async (reportId: string) => {
     setGeneratingReport(reportId)
-    // Simulate report generation
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    setGeneratingReport(null)
-    // In a real app, this would trigger the actual report generation
-    console.log(`Generated report: ${reportId}`)
+    
+    try {
+      if (reportId === 'events-summary') {
+        // Generate Events Summary Report PDF
+        const response = await fetch('/api/reports/events-summary/pdf')
+        if (response.ok) {
+          const blob = await response.blob()
+          const url = window.URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.style.display = 'none'
+          a.href = url
+          a.download = `event-summary-report-${new Date().toISOString().split('T')[0]}.pdf`
+          document.body.appendChild(a)
+          a.click()
+          window.URL.revokeObjectURL(url)
+          document.body.removeChild(a)
+        } else {
+          console.error('Failed to generate events summary report')
+        }
+      } else if (reportId === 'fees-summary') {
+        // Generate Fees Summary Report PDF
+        const response = await fetch('/api/reports/fees-summary/pdf')
+        if (response.ok) {
+          const blob = await response.blob()
+          const url = window.URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.style.display = 'none'
+          a.href = url
+          a.download = `fees-summary-report-${new Date().toISOString().split('T')[0]}.pdf`
+          document.body.appendChild(a)
+          a.click()
+          window.URL.revokeObjectURL(url)
+          document.body.removeChild(a)
+        } else {
+          console.error('Failed to generate fees summary report')
+        }
+      } else {
+        // Simulate report generation for other reports
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        console.log(`Generated report: ${reportId}`)
+      }
+    } catch (error) {
+      console.error('Error generating report:', error)
+    } finally {
+      setGeneratingReport(null)
+    }
   }
 
   return (

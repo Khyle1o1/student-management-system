@@ -57,7 +57,8 @@ const reportTypes = [
     templates: [
       { id: "attendance-summary", name: "Attendance Summary", description: "Overall attendance statistics" },
       { id: "event-attendance", name: "Event Attendance", description: "Attendance by specific events" },
-      { id: "student-attendance", name: "Student Attendance", description: "Individual student attendance records" }
+      { id: "student-attendance", name: "Student Attendance", description: "Individual student attendance records" },
+      { id: "events-summary", name: "Event Summary Report", description: "Comprehensive overview of all events with attendance statistics" }
     ]
   },
   {
@@ -68,7 +69,8 @@ const reportTypes = [
     templates: [
       { id: "payment-status", name: "Payment Status", description: "Current payment status overview" },
       { id: "revenue-report", name: "Revenue Report", description: "Financial summary and trends" },
-      { id: "outstanding-fees", name: "Outstanding Fees", description: "Unpaid fees by student" }
+      { id: "outstanding-fees", name: "Outstanding Fees", description: "Unpaid fees by student" },
+      { id: "fees-summary", name: "Fees Summary Report", description: "Consolidated summary of all fees and payments" }
     ]
   }
 ]
@@ -150,6 +152,47 @@ export function ReportGenerator() {
           a.click()
           window.URL.revokeObjectURL(url)
           document.body.removeChild(a)
+        }
+      } else if (selectedTemplate === "events-summary") {
+        // Generate Events Summary Report PDF
+        const params = new URLSearchParams()
+        if (dateRange.from) params.append('dateFrom', dateRange.from)
+        if (dateRange.to) params.append('dateTo', dateRange.to)
+        
+        const response = await fetch(`/api/reports/events-summary/pdf?${params.toString()}`)
+        if (response.ok) {
+          const blob = await response.blob()
+          const url = window.URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.style.display = 'none'
+          a.href = url
+          a.download = `event-summary-report-${new Date().toISOString().split('T')[0]}.pdf`
+          document.body.appendChild(a)
+          a.click()
+          window.URL.revokeObjectURL(url)
+          document.body.removeChild(a)
+        } else {
+          console.error('Failed to generate events summary report')
+        }
+      } else if (selectedTemplate === "fees-summary") {
+        // Generate Fees Summary Report PDF
+        const params = new URLSearchParams()
+        if (filters.semester) params.append('semester', filters.semester)
+        
+        const response = await fetch(`/api/reports/fees-summary/pdf?${params.toString()}`)
+        if (response.ok) {
+          const blob = await response.blob()
+          const url = window.URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.style.display = 'none'
+          a.href = url
+          a.download = `fees-summary-report-${new Date().toISOString().split('T')[0]}.pdf`
+          document.body.appendChild(a)
+          a.click()
+          window.URL.revokeObjectURL(url)
+          document.body.removeChild(a)
+        } else {
+          console.error('Failed to generate fees summary report')
         }
       } else {
         // For other report types, simulate report generation

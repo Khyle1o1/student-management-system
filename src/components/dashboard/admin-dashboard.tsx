@@ -93,43 +93,6 @@ interface Activity {
   timestamp: number
 }
 
-const quickActions = [
-  {
-    href: "/dashboard/students/new",
-    label: "Add Student",
-    icon: UserPlus,
-    description: "Enroll a new student",
-    color: "bg-blue-500 hover:bg-blue-600"
-  },
-  {
-    href: "/dashboard/events/new",
-    label: "Create Event",
-    icon: CalendarPlus,
-    description: "Schedule new event",
-    color: "bg-green-500 hover:bg-green-600"
-  },
-  {
-    href: "/dashboard/attendance",
-    label: "Manage Attendance",
-    icon: ClipboardCheck,
-    description: "Track event attendance",
-    color: "bg-indigo-500 hover:bg-indigo-600"
-  },
-  {
-    href: "/dashboard/fees/new",
-    label: "Add Fee",
-    icon: CreditCard,
-    description: "Create fee structure",
-    color: "bg-purple-500 hover:bg-purple-600"
-  },
-  {
-    href: "/dashboard/reports",
-    label: "Generate Report",
-    icon: BarChart3,
-    description: "Create analytics report",
-    color: "bg-orange-500 hover:bg-orange-600"
-  },
-]
 
 function StatCard({ 
   title, 
@@ -340,27 +303,8 @@ export function AdminDashboard() {
 
   return (
     <div className="space-y-8">
-      {/* Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {quickActions.map((action) => (
-          <Link key={action.href} href={action.href}>
-            <Card className={`${action.color} text-white cursor-pointer transition-all duration-200 hover:shadow-lg`}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {action.label}
-                </CardTitle>
-                <action.icon className="h-4 w-4" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm opacity-90">{action.description}</p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
-
       {/* Stats Overview */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <StatCard
           title="Total Students"
           value={stats?.students.total || 0}
@@ -370,7 +314,7 @@ export function AdminDashboard() {
           isLoading={loading}
         />
         <StatCard
-          title="Active Events"
+          title="Total Number of Events"
           value={stats?.events.total || 0}
           icon={Calendar}
           growth={stats?.events.growthPercent || 0}
@@ -378,20 +322,12 @@ export function AdminDashboard() {
           isLoading={loading}
         />
         <StatCard
-          title="Total Revenue"
+          title="Total Income from Fees"
           value={stats?.revenue.total || 0}
           icon={CreditCard}
           growth={stats?.revenue.growthPercent || 0}
           growthLabel="vs last month"
           prefix="₱"
-          isLoading={loading}
-        />
-        <StatCard
-          title="Pending Payments"
-          value={stats?.payments.pending || 0}
-          icon={FileText}
-          growth={stats?.payments.unpaidPercent || 0}
-          growthLabel="unpaid"
           isLoading={loading}
         />
       </div>
