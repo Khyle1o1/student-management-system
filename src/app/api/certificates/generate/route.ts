@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
 import { auth } from "@/lib/auth"
-import { generateCertificatesForEvent } from "../route"
+import { generateCertificatesForEvent } from "@/lib/certificate-utils"
 
 export async function POST(request: Request) {
   try {

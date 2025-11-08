@@ -79,53 +79,75 @@ export async function GET(request: Request) {
     // For each fee, get payment statistics
     const feesWithStats = await Promise.all(
       (fees || []).map(async (fee) => {
-        // Get all students required to pay based on fee scope
-        let studentsQuery = supabaseAdmin
-          .from('students')
-          .select('id', { count: 'exact', head: false })
+        // Get all students required to pay based on fee scope using pagination
+        let allRequiredStudents: any[] = []
+        let studentsPage = 0
+        const studentsPageSize = 1000
+        let hasMoreStudents = true
 
-        if (fee.scope_type === 'COLLEGE_WIDE' && fee.scope_college) {
-          studentsQuery = studentsQuery.eq('college', fee.scope_college)
-        } else if (fee.scope_type === 'COURSE_SPECIFIC' && fee.scope_course) {
-          studentsQuery = studentsQuery.eq('course', fee.scope_course)
-        }
+        while (hasMoreStudents) {
+          let studentsQuery = supabaseAdmin
+            .from('students')
+            .select('id')
+            .range(studentsPage * studentsPageSize, (studentsPage + 1) * studentsPageSize - 1)
 
-        const { data: requiredStudents, error: studentsError } = await studentsQuery
+          if (fee.scope_type === 'COLLEGE_WIDE' && fee.scope_college) {
+            studentsQuery = studentsQuery.eq('college', fee.scope_college)
+          } else if (fee.scope_type === 'COURSE_SPECIFIC' && fee.scope_course) {
+            studentsQuery = studentsQuery.eq('course', fee.scope_course)
+          }
 
-        if (studentsError) {
-          console.error('Error fetching students for fee:', studentsError)
-          return {
-            ...fee,
-            totalStudents: 0,
-            studentsPaid: 0,
-            totalCollected: 0
+          const { data: studentsData, error: studentsError } = await studentsQuery
+
+          if (studentsError) {
+            console.error('Error fetching students for fee:', studentsError)
+            break
+          }
+
+          if (studentsData && studentsData.length > 0) {
+            allRequiredStudents = allRequiredStudents.concat(studentsData)
+            hasMoreStudents = studentsData.length === studentsPageSize
+            studentsPage++
+          } else {
+            hasMoreStudents = false
           }
         }
 
-        const totalStudents = requiredStudents?.length || 0
+        const totalStudents = allRequiredStudents.length
 
-        // Get paid payments for this fee
-        const { data: payments, error: paymentsError } = await supabaseAdmin
-          .from('payments')
-          .select('id, student_id, amount, status')
-          .eq('fee_id', fee.id)
-          .eq('status', 'PAID')
-          .is('deleted_at', null)
+        // Get paid payments for this fee using pagination
+        let allPayments: any[] = []
+        let paymentsPage = 0
+        const paymentsPageSize = 1000
+        let hasMorePayments = true
 
-        if (paymentsError) {
-          console.error('Error fetching payments:', paymentsError)
-          return {
-            ...fee,
-            totalStudents,
-            studentsPaid: 0,
-            totalCollected: 0
+        while (hasMorePayments) {
+          const { data: paymentsData, error: paymentsError } = await supabaseAdmin
+            .from('payments')
+            .select('id, student_id, amount, status')
+            .eq('fee_id', fee.id)
+            .eq('status', 'PAID')
+            .is('deleted_at', null)
+            .range(paymentsPage * paymentsPageSize, (paymentsPage + 1) * paymentsPageSize - 1)
+
+          if (paymentsError) {
+            console.error('Error fetching payments:', paymentsError)
+            break
+          }
+
+          if (paymentsData && paymentsData.length > 0) {
+            allPayments = allPayments.concat(paymentsData)
+            hasMorePayments = paymentsData.length === paymentsPageSize
+            paymentsPage++
+          } else {
+            hasMorePayments = false
           }
         }
 
         // Count unique students who paid
         const uniqueStudentIds = new Set<string>()
         let totalCollected = 0
-        for (const payment of payments || []) {
+        for (const payment of allPayments) {
           if (payment.student_id) {
             uniqueStudentIds.add(payment.student_id as unknown as string)
           }

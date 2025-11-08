@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
-import { generateCertificatesForEvent } from "../../certificates/route"
+import { generateCertificatesForEvent } from "@/lib/certificate-utils"
 
 const barcodeScanSchema = z.object({
   studentId: z.string().min(1, "Student ID is required"),

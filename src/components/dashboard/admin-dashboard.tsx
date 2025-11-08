@@ -3,6 +3,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { 
   Users, 
   Calendar, 
@@ -19,7 +26,12 @@ import {
   AlertCircle,
   Activity,
   Loader2,
-  ClipboardCheck
+  ClipboardCheck,
+  Mail,
+  GraduationCap,
+  MapPin,
+  DollarSign,
+  User
 } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
@@ -91,6 +103,10 @@ interface Activity {
   time: string
   status: string
   timestamp: number
+  studentId?: string
+  feeId?: string
+  // Store original data for modal display
+  originalData?: any
 }
 
 
@@ -102,7 +118,8 @@ function StatCard({
   growthLabel,
   prefix = "",
   suffix = "",
-  isLoading = false
+  isLoading = false,
+  href
 }: {
   title: string
   value: number
@@ -112,33 +129,13 @@ function StatCard({
   prefix?: string
   suffix?: string
   isLoading?: boolean
+  href?: string
 }) {
   const isPositive = growth > 0
   const TrendIcon = isPositive ? TrendingUp : TrendingDown
 
-  if (isLoading) {
-    return (
-      <Card className="relative overflow-hidden transition-all duration-200 hover:shadow-md border-slate-200">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-gray-700">
-            {title}
-          </CardTitle>
-          <div className="p-2 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg">
-            <Icon className="h-4 w-4 text-blue-600" />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center space-x-2">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-            <span className="text-gray-400">Loading...</span>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  return (
-    <Card className="relative overflow-hidden transition-all duration-200 hover:shadow-md border-slate-200">
+  const cardContent = (
+    <Card className={`relative overflow-hidden transition-all duration-200 hover:shadow-md border-slate-200 ${href ? 'cursor-pointer hover:border-blue-300' : ''}`}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-gray-700">
           {title}
@@ -148,22 +145,41 @@ function StatCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold text-gray-900">
-          {prefix}{value.toLocaleString()}{suffix}
-        </div>
-        <div className="flex items-center space-x-1 mt-1">
-          <TrendIcon className={`h-3 w-3 ${isPositive ? 'text-green-600' : 'text-red-600'}`} />
-          <span className={`text-xs font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-            {Math.abs(growth)}% {growthLabel}
-          </span>
-        </div>
+        {isLoading ? (
+          <div className="flex items-center space-x-2">
+            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+            <span className="text-gray-400">Loading...</span>
+          </div>
+        ) : (
+          <>
+            <div className="text-2xl font-bold text-gray-900">
+              {prefix}{value.toLocaleString()}{suffix}
+            </div>
+            <div className="flex items-center space-x-1 mt-1">
+              <TrendIcon className={`h-3 w-3 ${isPositive ? 'text-green-600' : 'text-red-600'}`} />
+              <span className={`text-xs font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                {Math.abs(growth)}% {growthLabel}
+              </span>
+            </div>
+          </>
+        )}
       </CardContent>
       <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full -translate-y-6 translate-x-6"></div>
     </Card>
   )
+
+  if (href) {
+    return (
+      <Link href={href} className="block">
+        {cardContent}
+      </Link>
+    )
+  }
+
+  return cardContent
 }
 
-function ActivityItem({ activity }: { activity: Activity }) {
+function ActivityItem({ activity, onClick }: { activity: Activity; onClick: () => void }) {
   const getStatusIcon = () => {
     switch (activity.status?.toLowerCase()) {
       case "success":
@@ -191,7 +207,10 @@ function ActivityItem({ activity }: { activity: Activity }) {
   }
 
   return (
-    <div className={`p-3 border-l-4 rounded-r-lg ${getStatusColor()}`}>
+    <div 
+      className={`p-3 border-l-4 rounded-r-lg transition-all duration-200 ${getStatusColor()} cursor-pointer hover:shadow-md hover:scale-[1.01]`}
+      onClick={onClick}
+    >
       <div className="flex items-start justify-between">
         <div className="flex items-start space-x-3">
           {getStatusIcon()}
@@ -211,6 +230,9 @@ export function AdminDashboard() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
+  const [activityDetails, setActivityDetails] = useState<any>(null)
+  const [loadingDetails, setLoadingDetails] = useState(false)
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -235,6 +257,7 @@ export function AdminDashboard() {
               time: isNaN(ts) ? 'Invalid Date' : new Date(ts).toLocaleString(),
               status: 'success',
               timestamp: isNaN(ts) ? 0 : ts,
+              originalData: student, // Store original data for modal
             }
           }),
           ...(data.recent?.payments || []).map((payment: any) => {
@@ -247,6 +270,9 @@ export function AdminDashboard() {
               time: isNaN(ts) ? 'Invalid Date' : new Date(ts).toLocaleString(),
               status: payment.status?.toLowerCase() === 'paid' ? 'success' : 'warning',
               timestamp: isNaN(ts) ? 0 : ts,
+              studentId: payment.student?.id,
+              feeId: payment.fee?.id,
+              originalData: payment, // Store original data for modal
             }
           }),
           ...(data.recent?.events || []).map((event: any) => {
@@ -259,6 +285,7 @@ export function AdminDashboard() {
               time: isNaN(ts) ? 'Invalid Date' : new Date(ts).toLocaleString(),
               status: (event.status?.toLowerCase() || 'pending'),
               timestamp: isNaN(ts) ? 0 : ts,
+              originalData: event, // Store original data for modal
             }
           }),
           ...(data.recent?.activities || []).map((log: any) => {
@@ -271,6 +298,7 @@ export function AdminDashboard() {
               time: isNaN(ts) ? 'Invalid Date' : new Date(ts).toLocaleString(),
               status: 'success',
               timestamp: isNaN(ts) ? 0 : ts,
+              originalData: log, // Store original data for modal
             }
           })
         ].sort((a, b) => b.timestamp - a.timestamp)
@@ -286,6 +314,60 @@ export function AdminDashboard() {
 
     fetchStats()
   }, [])
+
+  const fetchActivityDetails = async (activity: Activity) => {
+    setLoadingDetails(true)
+    try {
+      let response
+      switch (activity.type) {
+        case 'student':
+          response = await fetch(`/api/students/${activity.id}`)
+          break
+        case 'event':
+          response = await fetch(`/api/events/${activity.id}`)
+          break
+        case 'payment':
+          // For payments, we might need a different endpoint or use the original data
+          // For now, we'll use the original data stored in the activity
+          setActivityDetails(activity.originalData)
+          setLoadingDetails(false)
+          return
+        case 'system':
+          // System activities might not have a detail endpoint
+          setActivityDetails(activity.originalData)
+          setLoadingDetails(false)
+          return
+        default:
+          setActivityDetails(activity.originalData)
+          setLoadingDetails(false)
+          return
+      }
+
+      if (response && response.ok) {
+        const data = await response.json()
+        setActivityDetails(data)
+      } else {
+        // Fallback to original data if API fails
+        setActivityDetails(activity.originalData)
+      }
+    } catch (error) {
+      console.error('Error fetching activity details:', error)
+      // Fallback to original data on error
+      setActivityDetails(activity.originalData)
+    } finally {
+      setLoadingDetails(false)
+    }
+  }
+
+  const handleActivityClick = (activity: Activity) => {
+    setSelectedActivity(activity)
+    fetchActivityDetails(activity)
+  }
+
+  const closeModal = () => {
+    setSelectedActivity(null)
+    setActivityDetails(null)
+  }
 
   if (error) {
     return (
@@ -312,6 +394,7 @@ export function AdminDashboard() {
           growth={stats?.students.growthPercent || 0}
           growthLabel="this month"
           isLoading={loading}
+          href="/dashboard/students"
         />
         <StatCard
           title="Total Number of Events"
@@ -320,15 +403,17 @@ export function AdminDashboard() {
           growth={stats?.events.growthPercent || 0}
           growthLabel="this month"
           isLoading={loading}
+          href="/dashboard/events"
         />
         <StatCard
-          title="Total Income from Fees"
+          title="Total Collected Fees"
           value={stats?.revenue.total || 0}
           icon={CreditCard}
           growth={stats?.revenue.growthPercent || 0}
           growthLabel="vs last month"
           prefix="₱"
           isLoading={loading}
+          href="/dashboard/fees"
         />
       </div>
 
@@ -347,12 +432,253 @@ export function AdminDashboard() {
               <p className="text-center text-gray-500 py-4">No recent activity</p>
             ) : (
               activities.map((activity) => (
-                <ActivityItem key={activity.id} activity={activity} />
+                <ActivityItem 
+                  key={activity.id} 
+                  activity={activity} 
+                  onClick={() => handleActivityClick(activity)}
+                />
               ))
             )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Activity Details Modal */}
+      <Dialog open={!!selectedActivity} onOpenChange={closeModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedActivity?.title || 'Activity Details'}</DialogTitle>
+            <DialogDescription>
+              View detailed information about this activity
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingDetails ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-6 w-6 animate-spin mr-2" />
+              <span>Loading details...</span>
+            </div>
+          ) : activityDetails ? (
+            <div className="space-y-4">
+              {selectedActivity?.type === 'student' && (
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <User className="h-5 w-5" />
+                        Student Information
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Name</p>
+                          <p className="text-sm">{activityDetails.name || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Student ID</p>
+                          <p className="text-sm">{activityDetails.student_id || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Email</p>
+                          <p className="text-sm flex items-center gap-1">
+                            <Mail className="h-3 w-3" />
+                            {activityDetails.email || 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">College</p>
+                          <p className="text-sm flex items-center gap-1">
+                            <GraduationCap className="h-3 w-3" />
+                            {activityDetails.college || 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Course</p>
+                          <p className="text-sm">{activityDetails.course || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Year Level</p>
+                          <p className="text-sm">Year {activityDetails.year_level || 'N/A'}</p>
+                        </div>
+                      </div>
+                      <div className="pt-2 border-t">
+                        <p className="text-sm font-medium text-gray-500">Enrolled Date</p>
+                        <p className="text-sm flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {selectedActivity?.time || 'N/A'}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {selectedActivity?.type === 'event' && (
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Calendar className="h-5 w-5" />
+                        Event Information
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Event Name</p>
+                        <p className="text-sm font-semibold">{activityDetails.title || activityDetails.name || 'N/A'}</p>
+                      </div>
+                      {activityDetails.description && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Description</p>
+                          <p className="text-sm">{activityDetails.description}</p>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Date</p>
+                          <p className="text-sm flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {activityDetails.date ? new Date(activityDetails.date).toLocaleDateString() : 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Type</p>
+                          <Badge variant="secondary">{activityDetails.type || 'N/A'}</Badge>
+                        </div>
+                        {activityDetails.location && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">Location</p>
+                            <p className="text-sm flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {activityDetails.location}
+                            </p>
+                          </div>
+                        )}
+                        {activityDetails.start_time && activityDetails.end_time && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">Time</p>
+                            <p className="text-sm flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {activityDetails.start_time} - {activityDetails.end_time}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="pt-2 border-t">
+                        <p className="text-sm font-medium text-gray-500">Status</p>
+                        <Badge 
+                          className={
+                            activityDetails.status?.toLowerCase() === 'completed' 
+                              ? 'bg-green-100 text-green-800' 
+                              : activityDetails.status?.toLowerCase() === 'cancelled'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                          }
+                        >
+                          {activityDetails.status || 'N/A'}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {selectedActivity?.type === 'payment' && (
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <CreditCard className="h-5 w-5" />
+                        Payment Information
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Amount</p>
+                          <p className="text-sm font-semibold flex items-center gap-1">
+                            <DollarSign className="h-3 w-3" />
+                            ₱{activityDetails.amount?.toLocaleString() || '0.00'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Status</p>
+                          <Badge 
+                            className={
+                              activityDetails.status?.toLowerCase() === 'paid' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-yellow-100 text-yellow-800'
+                            }
+                          >
+                            {activityDetails.status || 'N/A'}
+                          </Badge>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Student</p>
+                          <p className="text-sm">{activityDetails.student?.name || 'N/A'}</p>
+                          <p className="text-xs text-gray-500">{activityDetails.student?.studentId || ''}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Fee</p>
+                          <p className="text-sm">{activityDetails.fee?.name || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Payment Date</p>
+                          <p className="text-sm flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {selectedActivity?.time || 'N/A'}
+                          </p>
+                        </div>
+                        {activityDetails.payment_method && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">Payment Method</p>
+                            <p className="text-sm">{activityDetails.payment_method}</p>
+                          </div>
+                        )}
+                        {activityDetails.reference && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">Reference Number</p>
+                            <p className="text-sm font-mono">{activityDetails.reference}</p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {selectedActivity?.type === 'system' && (
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Activity className="h-5 w-5" />
+                        System Activity
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Message</p>
+                        <p className="text-sm">{activityDetails.message || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Timestamp</p>
+                        <p className="text-sm flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {selectedActivity?.time || 'N/A'}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-center text-gray-500 py-4">No details available</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 

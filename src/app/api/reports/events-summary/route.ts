@@ -78,49 +78,71 @@ export async function GET(request: Request) {
     // For each event, get attendance statistics
     const eventsWithStats = await Promise.all(
       (events || []).map(async (event) => {
-        // Get all students eligible for this event based on scope
-        let studentsQuery = supabaseAdmin
-          .from('students')
-          .select('id', { count: 'exact', head: false })
+        // Get all students eligible for this event based on scope using pagination
+        let allEligibleStudents: any[] = []
+        let studentsPage = 0
+        const studentsPageSize = 1000
+        let hasMoreStudents = true
 
-        if (event.scope_type === 'COLLEGE_WIDE' && event.scope_college) {
-          studentsQuery = studentsQuery.eq('college', event.scope_college)
-        } else if (event.scope_type === 'COURSE_SPECIFIC' && event.scope_course) {
-          studentsQuery = studentsQuery.eq('course', event.scope_course)
-        }
+        while (hasMoreStudents) {
+          let studentsQuery = supabaseAdmin
+            .from('students')
+            .select('id')
+            .range(studentsPage * studentsPageSize, (studentsPage + 1) * studentsPageSize - 1)
 
-        const { data: eligibleStudents, error: studentsError } = await studentsQuery
+          if (event.scope_type === 'COLLEGE_WIDE' && event.scope_college) {
+            studentsQuery = studentsQuery.eq('college', event.scope_college)
+          } else if (event.scope_type === 'COURSE_SPECIFIC' && event.scope_course) {
+            studentsQuery = studentsQuery.eq('course', event.scope_course)
+          }
 
-        if (studentsError) {
-          console.error('Error fetching students for event:', studentsError)
-          return {
-            ...event,
-            totalStudents: 0,
-            studentsAttended: 0,
-            attendanceRate: 0
+          const { data: studentsData, error: studentsError } = await studentsQuery
+
+          if (studentsError) {
+            console.error('Error fetching students for event:', studentsError)
+            break
+          }
+
+          if (studentsData && studentsData.length > 0) {
+            allEligibleStudents = allEligibleStudents.concat(studentsData)
+            hasMoreStudents = studentsData.length === studentsPageSize
+            studentsPage++
+          } else {
+            hasMoreStudents = false
           }
         }
 
-        const totalStudents = eligibleStudents?.length || 0
+        const totalStudents = allEligibleStudents.length
 
-        // Get attendance records for this event
-        const { data: attendance, error: attendanceError } = await supabaseAdmin
-          .from('attendance')
-          .select('id, student_id, status')
-          .eq('event_id', event.id)
-          .in('status', ['PRESENT', 'LATE'])
+        // Get attendance records for this event using pagination
+        let allAttendance: any[] = []
+        let attendancePage = 0
+        const attendancePageSize = 1000
+        let hasMoreAttendance = true
 
-        if (attendanceError) {
-          console.error('Error fetching attendance:', attendanceError)
-          return {
-            ...event,
-            totalStudents,
-            studentsAttended: 0,
-            attendanceRate: 0
+        while (hasMoreAttendance) {
+          const { data: attendanceData, error: attendanceError } = await supabaseAdmin
+            .from('attendance')
+            .select('id, student_id, status')
+            .eq('event_id', event.id)
+            .in('status', ['PRESENT', 'LATE'])
+            .range(attendancePage * attendancePageSize, (attendancePage + 1) * attendancePageSize - 1)
+
+          if (attendanceError) {
+            console.error('Error fetching attendance:', attendanceError)
+            break
+          }
+
+          if (attendanceData && attendanceData.length > 0) {
+            allAttendance = allAttendance.concat(attendanceData)
+            hasMoreAttendance = attendanceData.length === attendancePageSize
+            attendancePage++
+          } else {
+            hasMoreAttendance = false
           }
         }
 
-        const studentsAttended = attendance?.length || 0
+        const studentsAttended = allAttendance.length
         const attendanceRate = totalStudents > 0 ? (studentsAttended / totalStudents) * 100 : 0
 
         return {

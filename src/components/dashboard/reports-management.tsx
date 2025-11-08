@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -16,19 +16,40 @@ import {
   TrendingUp,
   TrendingDown,
   Clock,
-  CheckCircle
+  CheckCircle,
+  Loader2
 } from "lucide-react"
-import { ReportGenerator } from "./report-generator"
 import { ReportHistory } from "./report-history"
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { COLLEGES, getCoursesByCollege } from "@/lib/constants/academic-programs"
 
-// Mock data for report stats
-const reportStats = {
-  totalStudents: 248,
-  activeEvents: 12,
-  completedPayments: 186,
-  pendingPayments: 18,
-  attendanceRate: 87.5,
-  revenueThisMonth: 24500
+interface OverviewStats {
+  totalStudents: {
+    value: number
+    change: number
+    label: string
+  }
+  activeEvents: {
+    value: number
+    change: number
+    label: string
+  }
+  attendanceRate: {
+    value: number
+    change: number
+    label: string
+  }
+  monthlyRevenue: {
+    value: number
+    change: number
+    label: string
+  }
 }
 
 const quickReports = [
@@ -53,41 +74,99 @@ const quickReports = [
 export function ReportsManagement() {
   const [activeTab, setActiveTab] = useState("overview")
   const [generatingReport, setGeneratingReport] = useState<string | null>(null)
+  const [overviewStats, setOverviewStats] = useState<OverviewStats | null>(null)
+  const [loadingStats, setLoadingStats] = useState(true)
+  
+  // Filter states for reports
+  const [eventFilters, setEventFilters] = useState({
+    college: "all",
+    course: "all"
+  })
+  const [feeFilters, setFeeFilters] = useState({
+    college: "all",
+    course: "all"
+  })
+
+  // Fetch overview statistics
+  useEffect(() => {
+    const fetchOverviewStats = async () => {
+      try {
+        setLoadingStats(true)
+        const response = await fetch('/api/reports/overview')
+        if (response.ok) {
+          const data = await response.json()
+          setOverviewStats(data)
+        } else {
+          console.error('Failed to fetch overview stats')
+        }
+      } catch (error) {
+        console.error('Error fetching overview stats:', error)
+      } finally {
+        setLoadingStats(false)
+      }
+    }
+
+    fetchOverviewStats()
+  }, [])
 
   const handleGenerateQuickReport = async (reportId: string) => {
     setGeneratingReport(reportId)
     
     try {
       if (reportId === 'events-summary') {
-        // Generate Events Summary Report PDF
-        const response = await fetch('/api/reports/events-summary/pdf')
+        // Build query parameters for filters
+        const params = new URLSearchParams()
+        if (eventFilters.college && eventFilters.college !== 'all') params.append('college', eventFilters.college)
+        if (eventFilters.course && eventFilters.course !== 'all') params.append('course', eventFilters.course)
+        
+        const queryString = params.toString()
+        const url = `/api/reports/events-summary/pdf${queryString ? `?${queryString}` : ''}`
+        
+        // Generate Events Summary Report PDF with filters
+        const response = await fetch(url)
         if (response.ok) {
           const blob = await response.blob()
-          const url = window.URL.createObjectURL(blob)
+          const blobUrl = window.URL.createObjectURL(blob)
           const a = document.createElement('a')
           a.style.display = 'none'
-          a.href = url
-          a.download = `event-summary-report-${new Date().toISOString().split('T')[0]}.pdf`
+          a.href = blobUrl
+          const filterValue = eventFilters.college !== 'all' ? eventFilters.college : (eventFilters.course !== 'all' ? eventFilters.course : null)
+          const filterSuffix = filterValue 
+            ? `-${filterValue}`.replace(/\s+/g, '-').toLowerCase()
+            : ''
+          a.download = `event-summary-report${filterSuffix}-${new Date().toISOString().split('T')[0]}.pdf`
           document.body.appendChild(a)
           a.click()
-          window.URL.revokeObjectURL(url)
+          window.URL.revokeObjectURL(blobUrl)
           document.body.removeChild(a)
         } else {
           console.error('Failed to generate events summary report')
         }
       } else if (reportId === 'fees-summary') {
-        // Generate Fees Summary Report PDF
-        const response = await fetch('/api/reports/fees-summary/pdf')
+        // Build query parameters for filters
+        const params = new URLSearchParams()
+        if (feeFilters.college && feeFilters.college !== 'all') params.append('college', feeFilters.college)
+        if (feeFilters.course && feeFilters.course !== 'all') params.append('course', feeFilters.course)
+        
+        const queryString = params.toString()
+        const url = `/api/reports/fees-summary/pdf${queryString ? `?${queryString}` : ''}`
+        
+        // Generate Fees Summary Report PDF with filters
+        const response = await fetch(url)
         if (response.ok) {
           const blob = await response.blob()
-          const url = window.URL.createObjectURL(blob)
+          const blobUrl = window.URL.createObjectURL(blob)
           const a = document.createElement('a')
           a.style.display = 'none'
-          a.href = url
-          a.download = `fees-summary-report-${new Date().toISOString().split('T')[0]}.pdf`
+          a.href = blobUrl
+          const filterValue = feeFilters.college !== 'all' ? feeFilters.college : (feeFilters.course !== 'all' ? feeFilters.course : null)
+          const filterSuffix = filterValue 
+            ? `-${filterValue}`.replace(/\s+/g, '-').toLowerCase()
+            : ''
+          a.download = `fees-summary-report${filterSuffix}-${new Date().toISOString().split('T')[0]}.pdf`
           document.body.appendChild(a)
           a.click()
-          window.URL.revokeObjectURL(url)
+          window.URL.revokeObjectURL(blobUrl)
           document.body.removeChild(a)
         } else {
           console.error('Failed to generate fees summary report')
@@ -107,68 +186,127 @@ export function ReportsManagement() {
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="generate">Generate Reports</TabsTrigger>
           <TabsTrigger value="history">Report History</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
           {/* Stats Overview */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {/* Total Students */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Students</CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{reportStats.totalStudents}</div>
-                <p className="text-xs text-muted-foreground">
-                  <TrendingUp className="inline h-3 w-3 mr-1" />
-                  +12% from last month
-                </p>
+                {loadingStats ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{overviewStats?.totalStudents.value || 0}</div>
+                    <p className="text-xs text-muted-foreground">
+                      {overviewStats && overviewStats.totalStudents.change >= 0 ? (
+                        <TrendingUp className="inline h-3 w-3 mr-1" />
+                      ) : (
+                        <TrendingDown className="inline h-3 w-3 mr-1" />
+                      )}
+                      {overviewStats && Math.abs(overviewStats.totalStudents.change) > 0 
+                        ? `${overviewStats.totalStudents.change > 0 ? '+' : ''}${overviewStats.totalStudents.change}% ${overviewStats.totalStudents.label}`
+                        : overviewStats?.totalStudents.label || 'from last month'}
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
+            {/* Active Events */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Active Events</CardTitle>
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{reportStats.activeEvents}</div>
-                <p className="text-xs text-muted-foreground">
-                  <TrendingUp className="inline h-3 w-3 mr-1" />
-                  +3 new this month
-                </p>
+                {loadingStats ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{overviewStats?.activeEvents.value || 0}</div>
+                    <p className="text-xs text-muted-foreground">
+                      {overviewStats && overviewStats.activeEvents.change > 0 ? (
+                        <>
+                          <TrendingUp className="inline h-3 w-3 mr-1" />
+                          +{overviewStats.activeEvents.change} {overviewStats.activeEvents.label}
+                        </>
+                      ) : (
+                        overviewStats?.activeEvents.label || 'upcoming'
+                      )}
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
+            {/* Attendance Rate */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Attendance Rate</CardTitle>
                 <CheckCircle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{reportStats.attendanceRate}%</div>
-                <p className="text-xs text-muted-foreground">
-                  <TrendingDown className="inline h-3 w-3 mr-1" />
-                  -2.1% from last month
-                </p>
+                {loadingStats ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{overviewStats?.attendanceRate.value || 0}%</div>
+                    <p className="text-xs text-muted-foreground">
+                      {overviewStats && overviewStats.attendanceRate.change >= 0 ? (
+                        <TrendingUp className="inline h-3 w-3 mr-1" />
+                      ) : (
+                        <TrendingDown className="inline h-3 w-3 mr-1" />
+                      )}
+                      {overviewStats && overviewStats.attendanceRate.change !== 0 
+                        ? `${overviewStats.attendanceRate.change > 0 ? '+' : ''}${overviewStats.attendanceRate.change}% ${overviewStats.attendanceRate.label}`
+                        : overviewStats?.attendanceRate.label || 'from last month'}
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
+            {/* Monthly Revenue */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
                 <CreditCard className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">₱{reportStats.revenueThisMonth.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">
-                  <TrendingUp className="inline h-3 w-3 mr-1" />
-                  +8% from last month
-                </p>
+                {loadingStats ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">₱{(overviewStats?.monthlyRevenue.value || 0).toLocaleString()}</div>
+                    <p className="text-xs text-muted-foreground">
+                      {overviewStats && overviewStats.monthlyRevenue.change >= 0 ? (
+                        <TrendingUp className="inline h-3 w-3 mr-1" />
+                      ) : (
+                        <TrendingDown className="inline h-3 w-3 mr-1" />
+                      )}
+                      {overviewStats && overviewStats.monthlyRevenue.change !== 0 
+                        ? `${overviewStats.monthlyRevenue.change > 0 ? '+' : ''}${overviewStats.monthlyRevenue.change}% ${overviewStats.monthlyRevenue.label}`
+                        : overviewStats?.monthlyRevenue.label || 'from last month'}
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -178,7 +316,7 @@ export function ReportsManagement() {
             <CardHeader>
               <CardTitle>Quick Reports</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Generate commonly used reports with one click
+                Generate commonly used reports with optional filters
               </p>
             </CardHeader>
             <CardContent>
@@ -186,6 +324,13 @@ export function ReportsManagement() {
                 {quickReports.map((report) => {
                   const Icon = report.icon
                   const isGenerating = generatingReport === report.id
+                  const isEventReport = report.id === 'events-summary'
+                  const isFeeReport = report.id === 'fees-summary'
+                  const currentFilters = isEventReport ? eventFilters : feeFilters
+                  const setFilters = isEventReport ? setEventFilters : setFeeFilters
+                  const availableCourses = currentFilters.college && currentFilters.college !== 'all'
+                    ? getCoursesByCollege(currentFilters.college) 
+                    : []
                   
                   return (
                     <div key={report.id} className="border rounded-lg p-4 space-y-3">
@@ -209,7 +354,75 @@ export function ReportsManagement() {
                           </div>
                         </div>
                       </div>
+                      
                       <Separator />
+                      
+                      {/* Filter Options */}
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-gray-700">Filter Options (Optional)</p>
+                        
+                        {/* College Filter */}
+                        <Select
+                          value={currentFilters.college}
+                          onValueChange={(value) => {
+                            setFilters({
+                              college: value,
+                              course: "all" // Reset course when college changes
+                            })
+                          }}
+                        >
+                          <SelectTrigger className="w-full h-9 text-sm">
+                            <SelectValue placeholder="All Colleges" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Colleges</SelectItem>
+                            {COLLEGES.map((college) => (
+                              <SelectItem key={college} value={college}>
+                                {college}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        
+                        {/* Course Filter */}
+                        <Select
+                          value={currentFilters.course}
+                          onValueChange={(value) => {
+                            setFilters({
+                              ...currentFilters,
+                              course: value
+                            })
+                          }}
+                          disabled={!currentFilters.college || currentFilters.college === 'all'}
+                        >
+                          <SelectTrigger className="w-full h-9 text-sm">
+                            <SelectValue placeholder={currentFilters.college && currentFilters.college !== 'all' ? "All Courses" : "Select college first"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Courses</SelectItem>
+                            {availableCourses.map((course) => (
+                              <SelectItem key={course} value={course}>
+                                {course}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        
+                        {/* Clear Filters */}
+                        {(currentFilters.college !== 'all' || currentFilters.course !== 'all') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full h-7 text-xs"
+                            onClick={() => setFilters({ college: "all", course: "all" })}
+                          >
+                            Clear Filters
+                          </Button>
+                        )}
+                      </div>
+                      
+                      <Separator />
+                      
                       <Button 
                         onClick={() => handleGenerateQuickReport(report.id)}
                         disabled={isGenerating}
@@ -234,10 +447,6 @@ export function ReportsManagement() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="generate" className="space-y-6">
-          <ReportGenerator />
         </TabsContent>
 
         <TabsContent value="history" className="space-y-6">
