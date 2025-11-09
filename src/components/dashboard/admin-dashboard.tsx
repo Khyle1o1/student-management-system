@@ -280,7 +280,7 @@ export function AdminDashboard() {
             return {
               id: event.id,
               type: 'event',
-              title: event.name || 'Untitled Event',
+              title: event.title || 'Untitled Event',
               description: `${event.type || 'Unknown Type'} Event`,
               time: isNaN(ts) ? 'Invalid Date' : new Date(ts).toLocaleString(),
               status: (event.status?.toLowerCase() || 'pending'),

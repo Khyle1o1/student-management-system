@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,7 +27,9 @@ import {
   Target,
   Eye,
   UserCheck,
-  FileText
+  FileText,
+  CheckCircle,
+  AlertCircle
 } from "lucide-react"
 import Link from "next/link"
 import { EVENT_SCOPE_LABELS } from "@/lib/constants/academic-programs"
@@ -55,6 +58,7 @@ export function EventsTable() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filteredEvents, setFilteredEvents] = useState<Event[]>([])
+  const [activeTab, setActiveTab] = useState<string>("all")
 
   const fetchEvents = async () => {
     try {
@@ -80,7 +84,7 @@ export function EventsTable() {
   }, [])
 
   useEffect(() => {
-    const filtered = events.filter((event) => {
+    let filtered = events.filter((event) => {
       const searchLower = searchTerm.toLowerCase()
       
       return event.title.toLowerCase().includes(searchLower) ||
@@ -90,8 +94,20 @@ export function EventsTable() {
         (event.scope_college && event.scope_college.toLowerCase().includes(searchLower)) ||
         (event.scope_course && event.scope_course.toLowerCase().includes(searchLower))
     })
+
+    // Apply tab filter
+    if (activeTab === "pending") {
+      filtered = filtered.filter(event => String(event.status).toUpperCase() === 'PENDING')
+    } else if (activeTab === "active") {
+      filtered = filtered.filter(event => String(event.status).toUpperCase() !== 'PENDING')
+    }
+
     setFilteredEvents(filtered)
-  }, [searchTerm, events])
+  }, [searchTerm, events, activeTab])
+
+  // Count events by status
+  const pendingCount = events.filter(e => String(e.status).toUpperCase() === 'PENDING').length
+  const activeCount = events.filter(e => String(e.status).toUpperCase() !== 'PENDING').length
 
   const handleDeleteEvent = async (eventId: string) => {
     if (!confirm("Are you sure you want to delete this event? This action cannot be undone.")) {
@@ -221,44 +237,29 @@ export function EventsTable() {
     )
   }
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Events</CardTitle>
-        <div className="flex items-center space-x-2">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search events..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
-          </div>
-          <Button variant="outline" onClick={fetchEvents}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
+  const renderEventsList = () => (
+    <>
+      {filteredEvents.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {searchTerm ? "No events found" : activeTab === "pending" ? "No pending events" : activeTab === "active" ? "No active events" : "No events yet"}
+          </h3>
+          <p className="text-muted-foreground max-w-sm">
+            {searchTerm 
+              ? "Try adjusting your search terms to find what you're looking for." 
+              : activeTab === "pending" 
+              ? "There are no events awaiting approval."
+              : activeTab === "active"
+              ? "There are no active or approved events."
+              : "Create your first event to get started with event management."
+            }
+          </p>
         </div>
-      </CardHeader>
-      <CardContent>
-        {filteredEvents.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {searchTerm ? "No events found" : "No events yet"}
-            </h3>
-            <p className="text-muted-foreground max-w-sm">
-              {searchTerm 
-                ? "Try adjusting your search terms to find what you're looking for." 
-                : "Create your first event to get started with event management."
-              }
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredEvents.map((event) => {
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredEvents.map((event) => {
                 const isPending = String(event.status).toUpperCase() === 'PENDING'
                 const Wrapper: any = isPending ? 'div' : Link
                 const wrapperProps = isPending ? {} : { href: `/dashboard/attendance/${event.id}` }
@@ -427,13 +428,74 @@ export function EventsTable() {
               })}
             </div>
             
-            <div className="flex items-center justify-between space-x-2 py-4 mt-6 border-t">
-              <div className="text-sm text-muted-foreground">
-                Showing {filteredEvents.length} of {events.length} event(s)
-              </div>
+          <div className="flex items-center justify-between space-x-2 py-4 mt-6 border-t">
+            <div className="text-sm text-muted-foreground">
+              Showing {filteredEvents.length} of {events.length} event(s)
             </div>
-          </>
-        )}
+          </div>
+        </>
+      )}
+    </>
+  )
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Events</CardTitle>
+        <div className="flex items-center space-x-2">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search events..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+          <Button variant="outline" onClick={fetchEvents}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsTrigger value="all" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              All Events
+              <Badge variant="secondary" className="ml-1">
+                {events.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="pending" className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Pending
+              <Badge variant="secondary" className="ml-1 bg-purple-100 text-purple-800">
+                {pendingCount}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="active" className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4" />
+              Active/Approved
+              <Badge variant="secondary" className="ml-1 bg-green-100 text-green-800">
+                {activeCount}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="all" className="mt-0">
+            {renderEventsList()}
+          </TabsContent>
+
+          <TabsContent value="pending" className="mt-0">
+            {renderEventsList()}
+          </TabsContent>
+
+          <TabsContent value="active" className="mt-0">
+            {renderEventsList()}
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   )

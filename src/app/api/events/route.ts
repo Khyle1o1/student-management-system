@@ -89,23 +89,37 @@ export async function POST(request: NextRequest) {
     }
 
     if (!isAdmin) {
-      // Log pending approval for Admins to see
-      const actor = session.user
-      await supabaseAdmin.from('notifications').insert({
-        user_id: actor.id,
-        type: 'SYSTEM_ACTIVITY',
-        title: 'Event awaiting approval',
-        message: `${actor.role} ${actor.name || ''} created an event ("${(event as any)?.title}") pending admin approval`,
-        data: {
-          action: 'EVENT_CREATED_PENDING',
-          event_id: (event as any)?.id,
-          scope_type: (event as any)?.scope_type,
-          scope_college: (event as any)?.scope_college,
-          scope_course: (event as any)?.scope_course,
-        },
-        is_read: true,
-        created_at: new Date().toISOString(),
-      })
+      // Notify all admins about the pending event
+      try {
+        const { data: admins } = await supabaseAdmin
+          .from('users')
+          .select('id')
+          .eq('role', 'ADMIN')
+
+        if (admins && admins.length > 0) {
+          const adminNotifications = admins.map(admin => ({
+            user_id: admin.id,
+            type: 'EVENT_PENDING',
+            title: 'New Event Pending Approval',
+            message: `${session.user.name || session.user.role} created "${(event as any)?.title}" that requires your approval`,
+            data: {
+              action: 'EVENT_CREATED_PENDING',
+              event_id: (event as any)?.id,
+              event_title: (event as any)?.title,
+              created_by: session.user.name || session.user.role,
+              scope_type: (event as any)?.scope_type,
+              scope_college: (event as any)?.scope_college,
+              scope_course: (event as any)?.scope_course,
+            },
+            is_read: false,
+            created_at: new Date().toISOString(),
+          }))
+
+          await supabaseAdmin.from('notifications').insert(adminNotifications)
+        }
+      } catch (e) {
+        console.warn('Failed to notify admins about pending event:', e)
+      }
     }
 
     return NextResponse.json(event, { status: 201 })

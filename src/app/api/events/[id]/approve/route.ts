@@ -53,8 +53,32 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to update event' }, { status: 500 })
     }
 
-    // Log system activity
+    // Send notification to event creator if they're an organization
     try {
+      // Get the event creator information
+      const eventCreatorId = (event as any).created_by
+
+      if (eventCreatorId && eventCreatorId !== session.user.id) {
+        // Create notification for the event creator
+        await supabaseAdmin.from('notifications').insert({
+          user_id: eventCreatorId,
+          type: data.action === 'APPROVE' ? 'EVENT_APPROVED' : 'EVENT_REJECTED',
+          title: data.action === 'APPROVE' ? 'Event Approved ✅' : 'Event Rejected ❌',
+          message: data.action === 'APPROVE' 
+            ? `Your event "${(updated as any)?.title}" has been approved and is now live!`
+            : `Your event "${(updated as any)?.title}" has been rejected. ${data.reason ? 'Reason: ' + data.reason : ''}`,
+          data: {
+            action: data.action,
+            event_id: (updated as any)?.id,
+            event_title: (updated as any)?.title,
+            reason: data.reason || null,
+          },
+          is_read: false,
+          created_at: new Date().toISOString(),
+        })
+      }
+
+      // Log system activity for admin
       await supabaseAdmin.from('notifications').insert({
         user_id: session.user.id,
         type: 'SYSTEM_ACTIVITY',
@@ -69,7 +93,7 @@ export async function POST(
         created_at: new Date().toISOString(),
       })
     } catch (e) {
-      console.warn('Failed to log event approval activity:', e)
+      console.warn('Failed to create event approval notifications:', e)
     }
 
     return NextResponse.json({ success: true, event: updated })

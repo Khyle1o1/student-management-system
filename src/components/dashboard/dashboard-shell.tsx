@@ -33,6 +33,7 @@ import {
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { completeLogout } from "@/lib/google-oauth-utils"
+import NotificationBell from "@/components/notifications/NotificationBell"
 
 interface DashboardShellProps {
   children: ReactNode
@@ -136,7 +137,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
       icon: Calendar, 
       badge: stats?.events?.total?.toString() || "0"
     },
-    { href: "/dashboard/evaluations", label: "Evaluations", icon: ClipboardCheck },
+    { href: "/dashboard/forms", label: "Forms", icon: ClipboardCheck },
+    { href: "/dashboard/evaluations", label: "Event Evaluations", icon: ClipboardCheck },
     { href: "/dashboard/certificates/templates", label: "Certificates", icon: Award },
     { 
       href: "/dashboard/fees", 
@@ -240,12 +242,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
               </Button>
               
               {/* Notifications */}
-              <Button variant="ghost" size="sm" className="relative">
-                <Bell className="h-4 w-4" />
-                <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full text-xs flex items-center justify-center">
-                  <span className="w-1 h-1 bg-white rounded-full"></span>
-                </span>
-              </Button>
+              <NotificationBell />
 
               <Separator orientation="vertical" className="h-6" />
 

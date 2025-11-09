@@ -121,6 +121,14 @@ export default function NotificationBell() {
         return '📝'
       case 'CERTIFICATE_READY':
         return '🎉'
+      case 'EVENT_APPROVED':
+        return '✅'
+      case 'EVENT_REJECTED':
+        return '❌'
+      case 'EVENT_PENDING':
+        return '⏳'
+      case 'SYSTEM_ACTIVITY':
+        return '🔔'
       default:
         return '📢'
     }
