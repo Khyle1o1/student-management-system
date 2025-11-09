@@ -33,6 +33,7 @@ export interface Event {
   end_time: string
   location: string
   allow_multiple_entries: boolean
+  attendance_type: 'IN_ONLY' | 'IN_OUT'
 }
 
 export interface AttendanceRecord {

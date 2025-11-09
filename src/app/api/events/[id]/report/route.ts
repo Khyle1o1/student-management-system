@@ -5,7 +5,7 @@ import { jsPDF } from 'jspdf'
 import { format } from 'date-fns'
 
 // Event Report PDF generation
-async function generateEventReportPDF(event: any, attendanceData: any, stats: any): Promise<Buffer> {
+async function generateEventReportPDF(event: any, attendanceData: any, stats: any, eligibleStudents: any[]): Promise<Buffer> {
   try {
     console.log('=== Event Report PDF Generation ===')
     console.log('Event:', event.title)
@@ -96,138 +96,154 @@ async function generateEventReportPDF(event: any, attendanceData: any, stats: an
     currentY += 70
 
     // Attendance Statistics Summary Section
-    if (attendanceData && attendanceData.length > 0) {
-      checkPageBreak(100)
+    checkPageBreak(100)
+    
+    // Group eligible students by college and course
+    interface CollegeSummary {
+      eligible: number
+      attended: number
+      courses: { [course: string]: { eligible: number, attended: number } }
+    }
+    
+    const collegeSummary: { [college: string]: CollegeSummary } = {}
+    
+    // First, count eligible students by college/course
+    eligibleStudents.forEach((student: any) => {
+      const college = student.college || 'Unknown College'
+      const course = student.course || 'Unknown Course'
       
-      // Group attendance by college and course
-      interface CollegeSummary {
-        total: number
-        courses: { [course: string]: number }
+      if (!collegeSummary[college]) {
+        collegeSummary[college] = { eligible: 0, attended: 0, courses: {} }
       }
       
-      const collegeSummary: { [college: string]: CollegeSummary } = {}
+      collegeSummary[college].eligible++
       
-      attendanceData.forEach((record: any) => {
-        const college = record.student?.college || 'Unknown College'
-        const course = record.student?.course || 'Unknown Course'
-        
-        if (!collegeSummary[college]) {
-          collegeSummary[college] = { total: 0, courses: {} }
-        }
-        
-        collegeSummary[college].total++
-        
-        if (!collegeSummary[college].courses[course]) {
-          collegeSummary[college].courses[course] = 0
-        }
-        
-        collegeSummary[college].courses[course]++
-      })
+      if (!collegeSummary[college].courses[course]) {
+        collegeSummary[college].courses[course] = { eligible: 0, attended: 0 }
+      }
       
-      // Draw Statistics Summary Section
-      doc.setFontSize(16)
+      collegeSummary[college].courses[course].eligible++
+    })
+    
+    // Then, count attended students by college/course
+    attendanceData.forEach((record: any) => {
+      const college = record.student?.college || 'Unknown College'
+      const course = record.student?.course || 'Unknown Course'
+      
+      if (collegeSummary[college]) {
+        collegeSummary[college].attended++
+        
+        if (collegeSummary[college].courses[course]) {
+          collegeSummary[college].courses[course].attended++
+        }
+      }
+    })
+      
+    // Draw Statistics Summary Section
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Attendance Statistics Summary', margin, currentY)
+    currentY += 15
+    
+    // Overall statistics
+    const totalEligible = eligibleStudents.length
+    const totalAttended = attendanceData.length
+    const overallPercentage = totalEligible > 0 ? Math.round((totalAttended / totalEligible) * 100) : 0
+    
+    // Summary table with three columns
+    const summaryWidth = pageWidth - 2 * margin
+    const categoryColWidth = summaryWidth * 0.50 // 50% for category name
+    const attendedColWidth = summaryWidth * 0.15 // 15% for attended
+    const eligibleColWidth = summaryWidth * 0.35 // 35% for eligible/percentage
+    
+    // Header
+    doc.setFillColor(52, 73, 94)
+    doc.rect(margin, currentY, summaryWidth, 10, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Category', margin + 3, currentY + 7)
+    doc.text('Attended', margin + categoryColWidth + 3, currentY + 7)
+    doc.text('Out of Eligible (%)', margin + categoryColWidth + attendedColWidth + 3, currentY + 7)
+    currentY += 10
+      
+    // First row: Overall statistics
+    doc.setTextColor(0, 0, 0)
+    doc.setFont('helvetica', 'bold')
+    doc.setFillColor(240, 248, 255)
+    doc.rect(margin, currentY, summaryWidth, 8, 'F')
+    doc.setFontSize(11)
+    doc.text('Overall', margin + 3, currentY + 5.5)
+    doc.text(totalAttended.toString(), margin + categoryColWidth + 3, currentY + 5.5)
+    doc.text(`${totalAttended} / ${totalEligible} (${overallPercentage}%)`, margin + categoryColWidth + attendedColWidth + 3, currentY + 5.5)
+    currentY += 8
+    
+    // Add spacing
+    currentY += 3
+    
+    // Sort colleges alphabetically
+    const sortedColleges = Object.keys(collegeSummary).sort()
+    
+    doc.setFont('helvetica', 'normal')
+    let rowIndex = 1
+    
+    sortedColleges.forEach((college) => {
+      const data = collegeSummary[college]
+      
+      // Check for page break
+      const coursesCount = Object.keys(data.courses).length
+      const requiredHeight = (coursesCount + 1) * 8 + 10
+      checkPageBreak(requiredHeight)
+      
+      // College row
+      const collegePercentage = data.eligible > 0 ? Math.round((data.attended / data.eligible) * 100) : 0
+      
+      if (rowIndex % 2 === 0) {
+        doc.setFillColor(248, 249, 250)
+      } else {
+        doc.setFillColor(255, 255, 255)
+      }
+      doc.rect(margin, currentY, summaryWidth, 8, 'F')
+      
       doc.setFont('helvetica', 'bold')
-      doc.text('Attendance Statistics Summary', margin, currentY)
-      currentY += 15
-      
-      // Calculate total for "out of" calculations
-      const totalAttendance = attendanceData.length
-      
-      // Summary table with three columns
-      const summaryWidth = pageWidth - 2 * margin
-      const categoryColWidth = summaryWidth * 0.50 // 50% for category name
-      const countColWidth = summaryWidth * 0.20 // 20% for count
-      const outOfColWidth = summaryWidth * 0.30 // 30% for "out of" display
-      
-      // Header
-      doc.setFillColor(52, 73, 94)
-      doc.rect(margin, currentY, summaryWidth, 10, 'F')
-      doc.setTextColor(255, 255, 255)
       doc.setFontSize(10)
-      doc.setFont('helvetica', 'bold')
-      doc.text('Category', margin + 3, currentY + 7)
-      doc.text('Count', margin + categoryColWidth + 3, currentY + 7)
-      doc.text('Out of Total', margin + categoryColWidth + countColWidth + 3, currentY + 7)
-      currentY += 10
+      doc.text(college, margin + 3, currentY + 5.5)
+      doc.text(data.attended.toString(), margin + categoryColWidth + 3, currentY + 5.5)
+      doc.text(`${data.attended} / ${data.eligible} (${collegePercentage}%)`, margin + categoryColWidth + attendedColWidth + 3, currentY + 5.5)
       
-      // Sort colleges alphabetically
-      const sortedColleges = Object.keys(collegeSummary).sort()
+      currentY += 8
+      rowIndex++
       
-      doc.setTextColor(0, 0, 0)
+      // Sort courses alphabetically
+      const sortedCourses = Object.keys(data.courses).sort()
+      
+      // Course rows (indented)
       doc.setFont('helvetica', 'normal')
-      let rowIndex = 0
-      
-      sortedColleges.forEach((college) => {
-        const data = collegeSummary[college]
+      doc.setFontSize(9)
+      sortedCourses.forEach((course) => {
+        const courseData = data.courses[course]
+        const coursePercentage = courseData.eligible > 0 ? Math.round((courseData.attended / courseData.eligible) * 100) : 0
         
-        // Check for page break
-        const coursesCount = Object.keys(data.courses).length
-        const requiredHeight = (coursesCount + 1) * 8 + 10
-        checkPageBreak(requiredHeight)
-        
-        // College row
         if (rowIndex % 2 === 0) {
-          doc.setFillColor(240, 248, 255) // Light blue for college rows
-        } else {
           doc.setFillColor(248, 249, 250)
+        } else {
+          doc.setFillColor(255, 255, 255)
         }
         doc.rect(margin, currentY, summaryWidth, 8, 'F')
         
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(10)
-        doc.text(college, margin + 3, currentY + 5.5)
-        doc.text(data.total.toString(), margin + categoryColWidth + 3, currentY + 5.5)
-        
-        // Display "out of" count
-        doc.text(`${data.total} out of ${totalAttendance}`, margin + categoryColWidth + countColWidth + 3, currentY + 5.5)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`    ${course}`, margin + 3, currentY + 5.5)
+        doc.setTextColor(0, 0, 0)
+        doc.text(courseData.attended.toString(), margin + categoryColWidth + 3, currentY + 5.5)
+        doc.text(`${courseData.attended} / ${courseData.eligible} (${coursePercentage}%)`, margin + categoryColWidth + attendedColWidth + 3, currentY + 5.5)
         
         currentY += 8
         rowIndex++
-        
-        // Sort courses alphabetically
-        const sortedCourses = Object.keys(data.courses).sort()
-        
-        // Course rows (indented)
-        doc.setFont('helvetica', 'normal')
-        doc.setFontSize(9)
-        sortedCourses.forEach((course) => {
-          if (rowIndex % 2 === 0) {
-            doc.setFillColor(248, 249, 250)
-          } else {
-            doc.setFillColor(255, 255, 255)
-          }
-          doc.rect(margin, currentY, summaryWidth, 8, 'F')
-          
-          doc.setTextColor(100, 100, 100)
-          doc.text(`    ${course}`, margin + 3, currentY + 5.5)
-          doc.setTextColor(0, 0, 0)
-          doc.text(data.courses[course].toString(), margin + categoryColWidth + 3, currentY + 5.5)
-          
-          // Display "out of" count for course (out of college total, not overall total)
-          doc.text(`${data.courses[course]} out of ${data.total}`, margin + categoryColWidth + countColWidth + 3, currentY + 5.5)
-          
-          currentY += 8
-          rowIndex++
-        })
       })
-      
-      // Total summary row
-      doc.setDrawColor(52, 73, 94)
-      doc.setLineWidth(0.5)
-      doc.line(margin, currentY, pageWidth - margin, currentY)
-      currentY += 5
-      
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(11)
-      doc.setTextColor(0, 0, 0)
-      doc.text('Total Attendances:', margin + 3, currentY + 5)
-      doc.text(attendanceData.length.toString(), margin + categoryColWidth + 3, currentY + 5)
-      doc.text(`${totalAttendance} out of ${totalAttendance}`, margin + categoryColWidth + countColWidth + 3, currentY + 5)
-      currentY += 15
-      
-      // Add spacing before detailed records
-      currentY += 10
-    }
+    })
+    
+    // Add spacing before detailed records
+    currentY += 10
 
     // Attendance Records Section
     if (attendanceData && attendanceData.length > 0) {
@@ -249,14 +265,26 @@ async function generateEventReportPDF(event: any, attendanceData: any, stats: an
         maxContentLengths[i] = Math.max(maxContentLengths[i], header.length)
       })
       
+      // Determine status based on attendance type
+      const attendanceType = event.attendance_type || 'IN_ONLY'
+      
       // Check data lengths
       attendanceData.forEach((record: any) => {
+        let status = 'Incomplete'
+        if (attendanceType === 'IN_OUT') {
+          // For IN_OUT events, require both time_in and time_out
+          status = record.time_in && record.time_out ? 'Present' : 'Incomplete'
+        } else {
+          // For IN_ONLY events, only require time_in
+          status = record.time_in ? 'Present' : 'Incomplete'
+        }
+        
         const rowData = [
           (attendanceData.indexOf(record) + 1).toString(),
           record.student?.student_id || 'N/A',
           record.student?.name || 'N/A',
           record.student?.college || 'N/A',
-          record.time_in && record.time_out ? 'Present' : 'Incomplete'
+          status
         ]
         
         rowData.forEach((data, i) => {
@@ -342,12 +370,22 @@ async function generateEventReportPDF(event: any, attendanceData: any, stats: an
         }
         
         // Calculate row height based on content
+        // Determine status based on attendance type
+        let status = 'Incomplete'
+        if (attendanceType === 'IN_OUT') {
+          // For IN_OUT events, require both time_in and time_out
+          status = record.time_in && record.time_out ? 'Present' : 'Incomplete'
+        } else {
+          // For IN_ONLY events, only require time_in
+          status = record.time_in ? 'Present' : 'Incomplete'
+        }
+        
         const rowData = [
           (index + 1).toString(),
           record.student?.student_id || 'N/A',
           record.student?.name || 'N/A',
           record.student?.college || 'N/A',
-          record.time_in && record.time_out ? 'Present' : 'Incomplete'
+          status
         ]
         
         // Find maximum lines needed for this row
@@ -552,11 +590,63 @@ export async function GET(
     const uniqueStudentRecords = Array.from(studentRecords.values())
     console.log('Found', uniqueStudentRecords.length, 'unique student records for event')
 
+    // Fetch eligible students based on event scope using pagination
+    let allEligibleStudents: any[] = []
+    let studentPage = 0
+    const studentPageSize = 1000
+    let hasMoreStudents = true
+    
+    while (hasMoreStudents) {
+      const from = studentPage * studentPageSize
+      const to = from + studentPageSize - 1
+      
+      let eligibleStudentsQuery = supabaseAdmin
+        .from('students')
+        .select('id, student_id, name, college, course, year_level')
+        .range(from, to)
+      
+      if (event.scope_type === 'COLLEGE_WIDE' && event.scope_college) {
+        eligibleStudentsQuery = eligibleStudentsQuery.eq('college', event.scope_college)
+      } else if (event.scope_type === 'COURSE_SPECIFIC' && event.scope_course) {
+        eligibleStudentsQuery = eligibleStudentsQuery.eq('course', event.scope_course)
+      }
+      
+      const { data: pageStudents, error: eligibleError } = await eligibleStudentsQuery
+      
+      if (eligibleError) {
+        console.error('Error fetching eligible students:', eligibleError)
+        return NextResponse.json({ error: 'Failed to fetch eligible students' }, { status: 500 })
+      }
+      
+      if (pageStudents && pageStudents.length > 0) {
+        allEligibleStudents = allEligibleStudents.concat(pageStudents)
+        hasMoreStudents = pageStudents.length === studentPageSize
+        studentPage++
+        console.log(`Fetched student page ${studentPage} - Got ${pageStudents.length} students, Total so far: ${allEligibleStudents.length}`)
+      } else {
+        hasMoreStudents = false
+      }
+    }
+    
+    const eligibleStudents = allEligibleStudents
+    console.log('✅ Found', eligibleStudents?.length || 0, 'eligible students for event scope')
+
     // Fallback stats calculation if API call fails
+    const attendanceType = event.attendance_type || 'IN_ONLY'
+    let attended: number
+    
+    if (attendanceType === 'IN_OUT') {
+      // For IN_OUT events, require both time_in and time_out
+      attended = uniqueStudentRecords.filter(r => r.time_in && r.time_out).length
+    } else {
+      // For IN_ONLY events, only require time_in
+      attended = uniqueStudentRecords.filter(r => r.time_in).length
+    }
+    
     let stats = statsResponse || {
-      total_eligible: 0,
-      attended: uniqueStudentRecords.filter(r => r.time_in && r.time_out).length,
-      percentage: 0,
+      total_eligible: eligibleStudents?.length || 0,
+      attended: attended,
+      percentage: eligibleStudents?.length > 0 ? Math.round((attended / eligibleStudents.length) * 100) : 0,
       scope_type: event.scope_type || 'UNIVERSITY_WIDE',
       scope_details: {
         college: event.scope_college,
@@ -567,7 +657,7 @@ export async function GET(
     // Generate PDF
     try {
       console.log('🎯 Generating PDF with', uniqueStudentRecords?.length || 0, 'unique student records')
-      const pdfBuffer = await generateEventReportPDF(event, uniqueStudentRecords || [], stats)
+      const pdfBuffer = await generateEventReportPDF(event, uniqueStudentRecords || [], stats, eligibleStudents || [])
 
       // Set response headers
       const filename = `event-report-${event.title.replace(/[^a-zA-Z0-9]/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.pdf`

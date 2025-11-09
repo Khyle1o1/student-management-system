@@ -564,6 +564,14 @@ export function AdminDashboard() {
                             </p>
                           </div>
                         )}
+                        {activityDetails.attendance_type && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">Attendance Type</p>
+                            <Badge variant={activityDetails.attendance_type === 'IN_OUT' ? 'default' : 'secondary'}>
+                              {activityDetails.attendance_type === 'IN_OUT' ? 'In & Out' : 'In only'}
+                            </Badge>
+                          </div>
+                        )}
                       </div>
                       <div className="pt-2 border-t">
                         <p className="text-sm font-medium text-gray-500">Status</p>

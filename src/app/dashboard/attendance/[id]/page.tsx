@@ -60,6 +60,7 @@ interface Event {
   scope_college: string | null
   scope_course: string | null
   require_evaluation: boolean
+  attendance_type: string
 }
 
 interface AttendanceRecord {
@@ -72,8 +73,8 @@ interface AttendanceRecord {
 }
 
 interface AttendanceStats {
-  totalPresent: number        // Students who completed full attendance (signed in + out)
-  signedInOnly: number       // Students who signed in but haven't signed out yet  
+  totalPresent: number        // Students who completed attendance (IN_ONLY: signed in, IN_OUT: signed in + out)
+  signedInOnly: number       // Students who signed in but haven't signed out yet (only for IN_OUT events)
   totalSignedIn: number      // Total students who have signed in
   totalRecords: number
 }
@@ -774,6 +775,15 @@ export default function EventAttendancePage() {
                   {scopeDisplay.label}
                 </Badge>
               </div>
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="h-4 w-4 text-indigo-500" />
+                <span className="font-medium">
+                  {event.attendance_type === 'IN_OUT' ? 'In & Out' : 'In only'}
+                </span>
+                <span className="text-gray-500 text-xs">
+                  ({event.attendance_type === 'IN_OUT' ? 'Requires check-in and check-out' : 'Check-in only'})
+                </span>
+              </div>
             </div>
 
             {/* Event Time Status */}
@@ -845,8 +855,12 @@ export default function EventAttendancePage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-blue-600">Fully Present</p>
-                  <p className="text-sm text-blue-500 mb-1">(Signed In + Out)</p>
+                  <p className="text-sm font-medium text-blue-600">
+                    {event?.attendance_type === 'IN_OUT' ? 'Fully Present' : 'Present'}
+                  </p>
+                  <p className="text-sm text-blue-500 mb-1">
+                    {event?.attendance_type === 'IN_OUT' ? '(Signed In + Out)' : '(Signed In)'}
+                  </p>
                   <p className="text-3xl font-bold text-blue-700">{stats.totalPresent}</p>
                 </div>
                 <Users className="h-10 w-10 text-blue-500" />
@@ -854,18 +868,20 @@ export default function EventAttendancePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-yellow-200 bg-gradient-to-br from-yellow-50 to-yellow-100">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-yellow-600">Still Signed In</p>
-                  <p className="text-sm text-yellow-500 mb-1">(Not signed out yet)</p>
-                  <p className="text-3xl font-bold text-yellow-700">{stats.signedInOnly}</p>
+          {event?.attendance_type === 'IN_OUT' && (
+            <Card className="border-yellow-200 bg-gradient-to-br from-yellow-50 to-yellow-100">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-yellow-600">Still Signed In</p>
+                    <p className="text-sm text-yellow-500 mb-1">(Not signed out yet)</p>
+                    <p className="text-3xl font-bold text-yellow-700">{stats.signedInOnly}</p>
+                  </div>
+                  <Clock className="h-10 w-10 text-yellow-500" />
                 </div>
-                <Clock className="h-10 w-10 text-yellow-500" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100">
             <CardContent className="p-6">
@@ -957,7 +973,8 @@ export default function EventAttendancePage() {
             {stats.totalPresent === 0 && (
               <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
                 <p className="text-sm text-gray-600">
-                  Certificates can only be generated after students have fully attended the event (signed in and out).
+                  Certificates can only be generated after students have fully attended the event 
+                  {event?.attendance_type === 'IN_OUT' ? ' (signed in and out)' : ' (signed in)'}.
                 </p>
               </div>
             )}
@@ -988,20 +1005,22 @@ export default function EventAttendancePage() {
                   Sign In
                 </Label>
               </div>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  id="sign-out"
-                  name="mode"
-                  value="SIGN_OUT"
-                  checked={mode === 'SIGN_OUT'}
-                  onChange={(e) => setMode(e.target.value as 'SIGN_IN' | 'SIGN_OUT')}
-                  className="h-4 w-4"
-                />
-                <Label htmlFor="sign-out" className="text-sm font-medium">
-                  Sign Out
-                </Label>
-              </div>
+              {event?.attendance_type === 'IN_OUT' && (
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id="sign-out"
+                    name="mode"
+                    value="SIGN_OUT"
+                    checked={mode === 'SIGN_OUT'}
+                    onChange={(e) => setMode(e.target.value as 'SIGN_IN' | 'SIGN_OUT')}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="sign-out" className="text-sm font-medium">
+                    Sign Out
+                  </Label>
+                </div>
+              )}
             </div>
 
             <div className="space-y-4">
@@ -1102,22 +1121,6 @@ export default function EventAttendancePage() {
                 </div>
               )}
 
-              {/* Instructions */}
-              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-start space-x-3">
-                  <Zap className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <h4 className="text-sm font-semibold text-blue-800 mb-1">Quick Instructions</h4>
-                    <ul className="text-sm text-blue-700 space-y-1">
-                      <li>• Scan barcode or manually enter the student ID</li>
-                      <li>• <strong>NEW:</strong> Use bulk input to process multiple student IDs at once</li>
-                      <li>• Select Sign In/Sign Out mode based on student status</li>
-                      <li>• System validates student eligibility automatically</li>
-                      <li>• Certificates are auto-generated when students sign out</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -1132,7 +1135,9 @@ export default function EventAttendancePage() {
               <TabsList>
                 <TabsTrigger value="all">All ({attendanceRecords.length})</TabsTrigger>
                 <TabsTrigger value="present">Present ({attendanceRecords.filter(r => r.status === "PRESENT").length})</TabsTrigger>
-                <TabsTrigger value="signed-in-only">Signed In Only ({attendanceRecords.filter(r => r.status === "SIGNED_IN_ONLY").length})</TabsTrigger>
+                {event?.attendance_type === 'IN_OUT' && (
+                  <TabsTrigger value="signed-in-only">Signed In Only ({attendanceRecords.filter(r => r.status === "SIGNED_IN_ONLY").length})</TabsTrigger>
+                )}
                 <TabsTrigger value="incomplete">Incomplete ({attendanceRecords.filter(r => r.status === "INCOMPLETE").length})</TabsTrigger>
               </TabsList>
               <TabsContent value={activeTab}>
@@ -1142,14 +1147,14 @@ export default function EventAttendancePage() {
                       <TableHead>Student ID</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Time In</TableHead>
-                      <TableHead>Time Out</TableHead>
+                      {event?.attendance_type === 'IN_OUT' && <TableHead>Time Out</TableHead>}
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredRecords.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                        <TableCell colSpan={event?.attendance_type === 'IN_OUT' ? 5 : 4} className="text-center py-8 text-gray-500">
                           No attendance records found
                         </TableCell>
                       </TableRow>
@@ -1159,11 +1164,13 @@ export default function EventAttendancePage() {
                           <TableCell className="font-medium">{record.studentId}</TableCell>
                           <TableCell>{record.studentName}</TableCell>
                           <TableCell>{format(new Date(record.timeIn), "HH:mm")}</TableCell>
-                          <TableCell>
-                            {record.timeOut
-                              ? format(new Date(record.timeOut), "HH:mm")
-                              : "-"}
-                          </TableCell>
+                          {event?.attendance_type === 'IN_OUT' && (
+                            <TableCell>
+                              {record.timeOut
+                                ? format(new Date(record.timeOut), "HH:mm")
+                                : "-"}
+                            </TableCell>
+                          )}
                           <TableCell>
                             <Badge
                               className={

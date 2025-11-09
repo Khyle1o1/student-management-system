@@ -48,6 +48,7 @@ export async function GET(
       scope_college: event.scope_college || null,
       scope_course: event.scope_course || null,
       require_evaluation: event.require_evaluation || false,
+      attendance_type: event.attendance_type || 'IN_ONLY',
       created_at: event.created_at,
       updated_at: event.updated_at
     }
@@ -88,6 +89,7 @@ export async function PUT(
       scope_college: body.scope_college || null,
       scope_course: body.scope_course || null,
       require_evaluation: body.require_evaluation || false,
+      attendance_type: body.attendance_type || 'IN_ONLY',
       updated_at: new Date().toISOString()
     }
 

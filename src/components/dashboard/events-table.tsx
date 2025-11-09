@@ -415,17 +415,6 @@ export function EventsTable() {
                         </div>
                       </div>
 
-                      {/* Capacity */}
-                      <div className="flex items-center justify-between text-sm pt-2 border-t">
-                        <div className="flex items-center space-x-2">
-                          <Users className="h-4 w-4 text-green-500" />
-                          <span className="text-muted-foreground">Capacity</span>
-                        </div>
-                        <div className="font-medium">
-                          {event.registeredCount}/{event.capacity || "∞"}
-                        </div>
-                      </div>
-
                       {isPending && (
                         <div className="text-xs text-gray-500">
                           Awaiting System Administrator approval. Attendance and management are disabled until approval.

@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Save, Loader2, Calendar, Clock, MapPin, AlertTriangle, CheckSquare } from "lucide-react"
+import { Save, Loader2, Calendar, Clock, MapPin, AlertTriangle, CheckSquare, ClipboardCheck } from "lucide-react"
 import { COLLEGES, COURSES_BY_COLLEGE, EVENT_SCOPE_TYPES, EVENT_SCOPE_LABELS, EVENT_SCOPE_DESCRIPTIONS } from "@/lib/constants/academic-programs"
 
 interface Evaluation {
@@ -73,6 +73,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
     require_evaluation: false,
     evaluation_id: "",
     certificate_template_id: "",
+    attendance_type: "IN_ONLY",
   })
 
   const isEditing = !!eventId
@@ -94,6 +95,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
         require_evaluation: initialData.require_evaluation || false,
         evaluation_id: initialData.evaluation?.id || "",
         certificate_template_id: initialData.certificate_template?.id || "",
+        attendance_type: initialData.attendance_type || "IN_ONLY",
       })
     }
   }, [initialData])
@@ -142,6 +144,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
               require_evaluation: data.require_evaluation || false,
               evaluation_id: data.evaluation?.id || "",
               certificate_template_id: data.certificate_template?.id || "",
+              attendance_type: data.attendance_type || "IN_ONLY",
             })
           } else {
             console.error('Failed to load event data')
@@ -361,6 +364,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
         require_evaluation: formData.require_evaluation,
         evaluation_id: formData.require_evaluation ? formData.evaluation_id : null,
         certificate_template_id: formData.certificate_template_id,
+        attendance_type: formData.attendance_type,
       }
 
       console.log('Submitting event payload:', payload)
@@ -550,6 +554,48 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
                   onChange={(e) => handleInputChange("location", e.target.value)}
                   placeholder="e.g., Main Auditorium, Gym, Online"
                 />
+              </div>
+
+              <div className="space-y-3 lg:col-span-3">
+                <Label className="flex items-center space-x-1">
+                  <ClipboardCheck className="h-4 w-4" />
+                  <span>Attendance Type</span>
+                </Label>
+                <div className="space-y-3">
+                  <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+                    <input
+                      type="radio"
+                      id="attendance_in_only"
+                      name="attendance_type"
+                      value="IN_ONLY"
+                      checked={formData.attendance_type === "IN_ONLY"}
+                      onChange={(e) => handleInputChange("attendance_type", e.target.value)}
+                      className="mt-1 h-4 w-4 text-blue-600"
+                    />
+                    <label htmlFor="attendance_in_only" className="flex-1 cursor-pointer">
+                      <div className="font-medium text-gray-900">In only</div>
+                      <div className="text-sm text-gray-600">Simple attendance tracking - records check-in time only</div>
+                    </label>
+                  </div>
+                  <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+                    <input
+                      type="radio"
+                      id="attendance_in_out"
+                      name="attendance_type"
+                      value="IN_OUT"
+                      checked={formData.attendance_type === "IN_OUT"}
+                      onChange={(e) => handleInputChange("attendance_type", e.target.value)}
+                      className="mt-1 h-4 w-4 text-blue-600"
+                    />
+                    <label htmlFor="attendance_in_out" className="flex-1 cursor-pointer">
+                      <div className="font-medium text-gray-900">In & Out</div>
+                      <div className="text-sm text-gray-600">Requires both entry and exit time - tracks full participation</div>
+                    </label>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  This setting determines how attendance will be recorded and validated for this event.
+                </p>
               </div>
             </div>
           </div>

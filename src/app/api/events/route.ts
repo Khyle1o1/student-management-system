@@ -16,6 +16,7 @@ const eventSchema = z.object({
   scope_type: z.enum(['UNIVERSITY_WIDE','COLLEGE','COURSE','COLLEGE_WIDE','COURSE_SPECIFIC']),
   scope_college: z.string().optional().nullable(),
   scope_course: z.string().optional().nullable(),
+  attendance_type: z.enum(['IN_ONLY', 'IN_OUT']).optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {
@@ -76,6 +77,7 @@ export async function POST(request: NextRequest) {
         scope_type: normalizedScope,
         scope_college: data.scope_college || null,
         scope_course: data.scope_course || null,
+        attendance_type: data.attendance_type || 'IN_ONLY',
         status,
       }])
       .select('*')
@@ -162,6 +164,7 @@ export async function GET(request: Request) {
         scope_course,
         status,
         require_evaluation,
+        attendance_type,
         created_at,
         updated_at,
         event_evaluation:event_evaluations(
@@ -236,11 +239,19 @@ export async function GET(request: Request) {
           }
         })
 
-        // Count students with complete attendance (both time_in and time_out)
+        // Count students with complete attendance based on attendance_type
         const uniqueStudentRecords = Array.from(studentRecords.values())
-        const totalPresent = uniqueStudentRecords.filter(record => 
-          record.time_in !== null && record.time_out !== null
-        ).length
+        const attendanceType = event.attendance_type || 'IN_ONLY'
+        
+        const totalPresent = uniqueStudentRecords.filter(record => {
+          if (attendanceType === 'IN_OUT') {
+            // For IN_OUT events, require both time_in and time_out
+            return record.time_in !== null && record.time_out !== null
+          } else {
+            // For IN_ONLY events, only require time_in
+            return record.time_in !== null
+          }
+        }).length
 
         const attendanceRate = totalEligible && totalEligible > 0 
           ? Math.round((totalPresent / totalEligible) * 100) 
@@ -268,7 +279,7 @@ export async function GET(request: Request) {
         max_capacity: event.max_capacity || 100,
         eventType: event.type || "ACADEMIC",
         capacity: event.max_capacity || 100,
-        registeredCount: 0, // TODO: Calculate actual count
+        registeredCount: attendanceStats?.total_present || 0,
         status: event.status || (() => {
           try {
             let eventDate: Date
@@ -293,6 +304,7 @@ export async function GET(request: Request) {
         scope_course: event.scope_course || "",
         require_evaluation: event.require_evaluation || false,
         evaluation: event.event_evaluation?.[0]?.evaluation || null,
+        attendance_type: event.attendance_type || "IN_ONLY",
         attendance_stats: attendanceStats,
         createdAt: event.created_at,
         updatedAt: event.updated_at

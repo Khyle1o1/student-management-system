@@ -15,10 +15,10 @@ export async function GET(
 
     const { eventId } = await params
 
-    // Check if event exists
+    // Check if event exists and get attendance_type
     const { data: event, error: eventError } = await supabaseAdmin
       .from('events')
-      .select('id, title')
+      .select('id, title, attendance_type')
       .eq('id', eventId)
       .single()
 
@@ -81,17 +81,27 @@ export async function GET(
     console.log('Fetched attendance records for display (with pagination):', attendanceRecords?.length || 0)
 
     // Transform the data to match the expected format
+    const attendanceType = event.attendance_type || 'IN_ONLY'
+    
     const transformedRecords = attendanceRecords?.map(record => {
       // Handle the student data properly - it should be a single object
       const student = record.student
       
-      // Determine status based on time_in and time_out
-      // Student is only considered PRESENT if they have both signed in AND signed out
+      // Determine status based on attendance_type
       let recordStatus = "INCOMPLETE"
-      if (record.time_in && record.time_out) {
-        recordStatus = "PRESENT"
-      } else if (record.time_in && !record.time_out) {
-        recordStatus = "SIGNED_IN_ONLY"
+      
+      if (attendanceType === 'IN_OUT') {
+        // For IN_OUT events, require both time_in and time_out
+        if (record.time_in && record.time_out) {
+          recordStatus = "PRESENT"
+        } else if (record.time_in && !record.time_out) {
+          recordStatus = "SIGNED_IN_ONLY"
+        }
+      } else {
+        // For IN_ONLY events, only time_in is required
+        if (record.time_in) {
+          recordStatus = "PRESENT"
+        }
       }
 
       return {

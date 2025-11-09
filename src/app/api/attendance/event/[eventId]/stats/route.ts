@@ -16,10 +16,10 @@ export async function GET(
     const { eventId } = await params
     console.log('🔥🔥🔥 STATS API CALLED FOR EVENT:', eventId)
 
-    // Check if event exists
+    // Check if event exists and get attendance_type
     const { data: event, error: eventError } = await supabaseAdmin
       .from('events')
-      .select('id')
+      .select('id, attendance_type')
       .eq('id', eventId)
       .single()
 
@@ -79,20 +79,35 @@ export async function GET(
 
     // Calculate statistics based on unique students (latest record per student)
     const uniqueStudentRecords = Array.from(studentRecords.values())
+    const attendanceType = event.attendance_type || 'IN_ONLY'
     
-    const totalPresent = uniqueStudentRecords.filter(record => 
-      record.time_in !== null && record.time_out !== null
-    ).length
+    let totalPresent: number
+    let signedInOnly: number
     
-    const signedInOnly = uniqueStudentRecords.filter(record => 
-      record.time_in !== null && record.time_out === null
-    ).length
+    if (attendanceType === 'IN_OUT') {
+      // For IN_OUT events, require both time_in and time_out
+      totalPresent = uniqueStudentRecords.filter(record => 
+        record.time_in !== null && record.time_out !== null
+      ).length
+      
+      signedInOnly = uniqueStudentRecords.filter(record => 
+        record.time_in !== null && record.time_out === null
+      ).length
+    } else {
+      // For IN_ONLY events, only time_in is required
+      totalPresent = uniqueStudentRecords.filter(record => 
+        record.time_in !== null
+      ).length
+      
+      // No "signed in only" category for IN_ONLY events since check-in is enough
+      signedInOnly = 0
+    }
     
     const totalSignedIn = uniqueStudentRecords.filter(record => record.time_in !== null).length
 
     const result = {
-      totalPresent,        // Students who completed full attendance (signed in + out)
-      signedInOnly,       // Students who signed in but haven't signed out yet
+      totalPresent,        // Students who completed attendance (IN_ONLY: signed in, IN_OUT: signed in + out)
+      signedInOnly,       // Students who signed in but haven't signed out yet (only for IN_OUT events)
       totalSignedIn,      // Total students who have signed in
       totalRecords: attendanceRecords?.length || 0
     }

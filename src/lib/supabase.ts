@@ -100,6 +100,7 @@ export type Database = {
           scope_college: string | null
           scope_course: string | null
           require_evaluation: boolean | null
+          attendance_type: string | null
           created_at: string
           updated_at: string
         }
@@ -113,6 +114,7 @@ export type Database = {
           scope_college?: string | null
           scope_course?: string | null
           require_evaluation?: boolean | null
+          attendance_type?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -126,6 +128,7 @@ export type Database = {
           scope_college?: string | null
           scope_course?: string | null
           require_evaluation?: boolean | null
+          attendance_type?: string | null
           created_at?: string
           updated_at?: string
         }

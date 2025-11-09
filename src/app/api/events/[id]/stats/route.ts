@@ -80,11 +80,19 @@ export async function GET(
       }
     })
 
-    // Count students with complete attendance (both time_in and time_out)
+    // Count students with complete attendance based on attendance_type
     const uniqueStudentRecords = Array.from(studentRecords.values())
-    const attended = uniqueStudentRecords.filter(record => 
-      record.time_in !== null && record.time_out !== null
-    ).length
+    const attendanceType = event.attendance_type || 'IN_ONLY'
+    
+    const attended = uniqueStudentRecords.filter(record => {
+      if (attendanceType === 'IN_OUT') {
+        // For IN_OUT events, require both time_in and time_out
+        return record.time_in !== null && record.time_out !== null
+      } else {
+        // For IN_ONLY events, only require time_in
+        return record.time_in !== null
+      }
+    }).length
 
     return NextResponse.json({
       total_eligible: totalEligible || 0,
