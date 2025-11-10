@@ -35,41 +35,21 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    // Fetch all responses
-    const { data: responses, error: responsesError } = await supabaseAdmin
-      .from('form_responses')
-      .select(`
-        id,
-        answers,
-        respondent_email,
-        respondent_name,
-        submitted_at,
-        respondent:users!form_responses_respondent_id_fkey(
-          name,
-          email
-        )
-      `)
-      .eq('form_id', formId)
-      .order('submitted_at', { ascending: false })
-
-    if (responsesError) {
-      console.error('Error fetching responses:', responsesError)
-      return NextResponse.json({ error: 'Failed to fetch responses' }, { status: 500 })
-    }
+    const responses = await fetchAllResponses(formId)
 
     if (format === 'csv') {
-      return exportToCSV(form, responses || [])
+      return exportToCSV(form, responses)
     } else if (format === 'json') {
-      return exportToJSON(form, responses || [])
+      return exportToJSON(form, responses)
     } else if (format === 'pdf') {
       // For PDF, we need statistics data - calculate it directly
       // Map responses to match statistics route structure (just answers and submitted_at)
-      const statsResponses = (responses || []).map(r => ({
+      const statsResponses = responses.map(r => ({
         answers: r.answers,
         submitted_at: r.submitted_at
       }))
       const statistics = await calculateStatistics(form, statsResponses)
-      return exportToPDF(form, responses || [], statistics)
+      return exportToPDF(form, responses, statistics)
     } else {
       return NextResponse.json({ error: 'Unsupported format' }, { status: 400 })
     }
@@ -498,5 +478,49 @@ async function exportToPDF(form: any, responses: any[], statistics: any): Promis
     console.error('Error generating PDF:', error)
     return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 500 })
   }
+}
+
+async function fetchAllResponses(formId: string) {
+  const pageSize = 1000
+  let from = 0
+  const all: any[] = []
+
+  while (true) {
+    const to = from + pageSize - 1
+
+    const { data, error } = await supabaseAdmin
+      .from('form_responses')
+      .select(`
+        id,
+        answers,
+        respondent_email,
+        respondent_name,
+        submitted_at,
+        respondent:users!form_responses_respondent_id_fkey(
+          name,
+          email
+        )
+      `)
+      .eq('form_id', formId)
+      .order('submitted_at', { ascending: false })
+      .range(from, to)
+
+    if (error) {
+      console.error('Error fetching responses batch:', error)
+      throw new Error('Failed to fetch responses')
+    }
+
+    if (data && data.length > 0) {
+      all.push(...data)
+    }
+
+    if (!data || data.length < pageSize) {
+      break
+    }
+
+    from += pageSize
+  }
+
+  return all
 }
 

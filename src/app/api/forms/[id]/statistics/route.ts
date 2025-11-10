@@ -39,16 +39,7 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    // Fetch all responses
-    const { data: responses, error: responsesError } = await supabaseAdmin
-      .from('form_responses')
-      .select('answers, submitted_at')
-      .eq('form_id', formId)
-
-    if (responsesError) {
-      console.error('Error fetching responses:', responsesError)
-      return NextResponse.json({ error: 'Failed to fetch responses' }, { status: 500 })
-    }
+    const responses = await fetchAllResponses(formId)
 
     const totalResponses = responses?.length || 0
     const questions = form.questions || []
@@ -220,5 +211,38 @@ function calculateAverageDailyResponses(responses: any[]): number {
   const uniqueDates = new Set(dates)
   
   return responses.length / uniqueDates.size
+}
+
+async function fetchAllResponses(formId: string) {
+  const pageSize = 1000
+  let from = 0
+  const all: Array<{ answers: Record<string, any>; submitted_at: string }> = []
+
+  while (true) {
+    const to = from + pageSize - 1
+    const { data, error } = await supabaseAdmin
+      .from('form_responses')
+      .select('answers, submitted_at')
+      .eq('form_id', formId)
+      .order('submitted_at', { ascending: true })
+      .range(from, to)
+
+    if (error) {
+      console.error('Error fetching responses batch:', error)
+      throw new Error('Failed to fetch responses')
+    }
+
+    if (data && data.length > 0) {
+      all.push(...data)
+    }
+
+    if (!data || data.length < pageSize) {
+      break
+    }
+
+    from += pageSize
+  }
+
+  return all
 }
 

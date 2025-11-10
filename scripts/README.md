@@ -40,6 +40,48 @@ node scripts/test-upload.js
 
 ---
 
+### Forms & Evaluations
+
+#### `seed-form-responses.ts`
+**Purpose**: Generate realistic sample responses for a published evaluation form so you can preview statistics and charts.
+
+**Usage**:
+```bash
+npx tsx scripts/seed-form-responses.ts --form=b7d64efa-9105-4177-a30b-5775d9c08520 --count=30
+```
+
+**Options**:
+- `--form=<uuid>` — Target form ID (required)
+- `--count=<number>` — Number of synthetic responses to create (default: 25)
+- `--base=<url>` — API base URL (default: `http://localhost:3000`)
+- `--dry-run` — Print generated payloads without submitting them
+- `--delay=<ms>` — Delay between submissions (default: 120ms, set to 0 for faster seeding)
+
+> ℹ️ Make sure the form status is **Published** and the dev server (`npm run dev`) is running before executing the script.
+
+---
+
+#### `seed-event-with-data.ts`
+**Purpose**: Stand up a full dummy event with thousands of attendance records and (optionally) evaluation form responses for load-testing dashboards.
+
+**Usage**:
+```bash
+npx tsx scripts/seed-event-with-data.ts --form=b7d64efa-9105-4177-a30b-5775d9c08520 --attendees=2000 --responses=2000
+```
+
+**Options**:
+- `--form=<uuid>` — Link responses to this evaluation form (optional but recommended)
+- `--event=<uuid>` — Use an existing event instead of creating a new one
+- `--title="Dummy Event"` — Custom title when creating a new event
+- `--attendees=<number>` — Attendance rows to generate (default: 500)
+- `--responses=<number>` — Form responses to generate (default: equals attendees)
+- `--students=<number>` — Ensure the student pool has at least this many records (default: max(attendees, responses))
+- `--dry-run` — Preview the work without touching the database
+
+> 🛡️ Requires `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in your environment. The script uses direct Supabase inserts, so you don’t need the dev server running.
+
+---
+
 ### Database Maintenance Scripts
 
 #### `clear-sample-data-safe.sql`
