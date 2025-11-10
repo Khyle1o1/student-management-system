@@ -85,19 +85,24 @@ const QUESTION_TYPES = [
   { value: 'email', label: 'Email' },
 ]
 
+const DEFAULT_SETTINGS: FormSettings = {
+  allow_multiple_submissions: false,
+  show_progress_bar: true,
+  shuffle_questions: false,
+  collect_email: true,
+  require_login: false,
+  send_confirmation: false,
+}
+
 export function FormBuilder({ formId, initialData, onSave, onCancel }: FormBuilderProps) {
   const router = useRouter()
   const [title, setTitle] = useState(initialData?.title || '')
   const [description, setDescription] = useState(initialData?.description || '')
   const [sections, setSections] = useState<Section[]>(initialData?.sections || [])
   const [questions, setQuestions] = useState<Question[]>(initialData?.questions || [])
-  const [settings, setSettings] = useState<FormSettings>(initialData?.settings || {
-    allow_multiple_submissions: false,
-    show_progress_bar: true,
-    shuffle_questions: false,
-    collect_email: true,
-    require_login: false,
-    send_confirmation: false,
+  const [settings, setSettings] = useState<FormSettings>({
+    ...DEFAULT_SETTINGS,
+    ...(initialData?.settings || {}),
   })
   const [status, setStatus] = useState<'DRAFT' | 'PUBLISHED' | 'CLOSED'>(initialData?.status || 'DRAFT')
   const [showSettings, setShowSettings] = useState(false)
@@ -105,6 +110,69 @@ export function FormBuilder({ formId, initialData, onSave, onCancel }: FormBuild
   const [saving, setSaving] = useState(false)
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null)
   const [expandedSection, setExpandedSection] = useState<string | null>(null)
+
+  // Update state when initialData changes (for edit mode)
+  useEffect(() => {
+    if (initialData) {
+      const normalizedSections: Section[] = Array.isArray(initialData.sections)
+        ? [...initialData.sections]
+            .map((section, index) => ({
+              ...section,
+              id: section.id || `s_${index}`,
+              title: section.title || '',
+              description: section.description || '',
+              order: typeof section.order === 'number' ? section.order : index,
+            }))
+            .sort((a, b) => a.order - b.order)
+        : []
+
+      const validSectionIds = new Set(normalizedSections.map(section => section.id))
+
+      const normalizedQuestions: Question[] = Array.isArray(initialData.questions)
+        ? [...initialData.questions]
+            .map((question, index) => {
+              const rawOptions = (question as any).options
+              const normalizedOptions = Array.isArray(rawOptions)
+                ? rawOptions
+                : rawOptions && typeof rawOptions === 'object'
+                ? Object.values(rawOptions as Record<string, string>)
+                : undefined
+
+              const rawSectionId = (question as any).sectionId ?? (question as any).section_id
+              const normalizedSectionId =
+                rawSectionId && validSectionIds.has(rawSectionId) ? rawSectionId : undefined
+
+              return {
+                ...(question as Question),
+                id: question.id || `q_${index}`,
+                sectionId: normalizedSectionId,
+                options: normalizedOptions,
+                required: typeof question.required === 'boolean' ? question.required : Boolean(question.required),
+                order: typeof question.order === 'number' ? question.order : index,
+                min_value:
+                  question.min_value !== undefined && question.min_value !== null
+                    ? Number(question.min_value)
+                    : question.min_value,
+                max_value:
+                  question.max_value !== undefined && question.max_value !== null
+                    ? Number(question.max_value)
+                    : question.max_value,
+              }
+            })
+            .sort((a, b) => a.order - b.order)
+        : []
+
+      setTitle(initialData.title || '')
+      setDescription(initialData.description || '')
+      setSections(normalizedSections)
+      setQuestions(normalizedQuestions)
+      setSettings({
+        ...DEFAULT_SETTINGS,
+        ...(initialData.settings || {}),
+      })
+      setStatus(initialData.status || 'DRAFT')
+    }
+  }, [initialData])
 
   // Section management functions
   const addSection = () => {

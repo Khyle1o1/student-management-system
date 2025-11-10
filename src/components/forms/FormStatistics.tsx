@@ -88,7 +88,7 @@ export function FormStatistics({ formId }: FormStatisticsProps) {
     }
   }
 
-  const handleExport = async (format: 'csv' | 'json') => {
+  const handleExport = async (format: 'csv' | 'json' | 'pdf') => {
     setExporting(true)
     try {
       const response = await fetch(`/api/forms/${formId}/export?format=${format}`)
@@ -98,7 +98,10 @@ export function FormStatistics({ formId }: FormStatisticsProps) {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `form_responses_${formId}.${format}`
+      const extension = format === 'pdf' ? 'pdf' : format
+      a.download = format === 'pdf' 
+        ? `form_statistics_${formId}.${extension}`
+        : `form_responses_${formId}.${extension}`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -581,6 +584,10 @@ export function FormStatistics({ formId }: FormStatisticsProps) {
           <Button variant="outline" onClick={() => handleExport('json')} disabled={exporting}>
             <Download className="h-4 w-4 mr-2" />
             Export JSON
+          </Button>
+          <Button variant="outline" onClick={() => handleExport('pdf')} disabled={exporting}>
+            <Download className="h-4 w-4 mr-2" />
+            Export PDF
           </Button>
         </div>
       </div>

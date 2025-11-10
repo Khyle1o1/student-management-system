@@ -132,17 +132,17 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
             setFormData({
               title: data.title || "",
               description: data.description || "",
-              eventDate: data.eventDate || "",
-              startTime: data.startTime || "09:00",
-              endTime: data.endTime || "17:00",
+              eventDate: data.date || data.eventDate || "",
+              startTime: data.start_time || data.startTime || "09:00",
+              endTime: data.end_time || data.endTime || "17:00",
               location: data.location || "",
-              type: data.eventType || "ACADEMIC",
-              max_capacity: data.capacity || 100,
+              type: data.type || data.eventType || "ACADEMIC",
+              max_capacity: data.max_capacity || data.capacity || 100,
               scope_type: data.scope_type || "UNIVERSITY_WIDE",
               scope_college: data.scope_college || "",
               scope_course: data.scope_course || "",
               require_evaluation: data.require_evaluation || false,
-              evaluation_id: data.evaluation?.id || "",
+              evaluation_id: data.evaluation_id || data.evaluation?.id || "",
               certificate_template_id: data.certificate_template?.id || "",
               attendance_type: data.attendance_type || "IN_ONLY",
             })
@@ -159,24 +159,73 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
   }, [eventId])
 
   // Load evaluation forms from new forms system
+  // Excludes forms that are already used in other events (except current event when editing)
   const fetchEvaluations = useCallback(async () => {
     setLoadingEvaluations(true)
     try {
-      const response = await fetch('/api/forms?status=PUBLISHED&limit=100')
-      if (response.ok) {
-        const data = await response.json()
-        setEvaluations(data.forms || [])
-      } else {
+      // Fetch all published forms
+      const formsResponse = await fetch('/api/forms?status=PUBLISHED&limit=100')
+      if (!formsResponse.ok) {
         console.error('Failed to fetch forms')
         setEvaluations([])
+        return
       }
+      
+      const formsData = await formsResponse.json()
+      const allForms = formsData.forms || []
+      
+      // Get current evaluation ID (from formData or by fetching event if editing)
+      let currentEvaluationId: string | null = formData.evaluation_id || null
+      if (isEditing && eventId && !currentEvaluationId) {
+        try {
+          const eventResponse = await fetch(`/api/events/${eventId}`)
+          if (eventResponse.ok) {
+            const eventData = await eventResponse.json()
+            currentEvaluationId = eventData.evaluation_id || null
+          }
+        } catch (error) {
+          console.error('Error fetching current event:', error)
+        }
+      }
+      
+      // Fetch all events to get used evaluation IDs
+      const eventsResponse = await fetch('/api/events?limit=1000')
+      let usedEvaluationIds: string[] = []
+      
+      if (eventsResponse.ok) {
+        const eventsData = await eventsResponse.json()
+        // Extract all evaluation_ids that are not null, excluding current event's evaluation
+        usedEvaluationIds = (eventsData.events || [])
+          .map((event: any) => event.evaluation_id)
+          .filter((id: string | null) => id && id !== currentEvaluationId) // Exclude current event's evaluation
+      }
+      
+      // Filter out forms that are already used in other events
+      // Always include the currently selected form if editing
+      const availableForms = allForms.filter((form: Evaluation) => {
+        // If editing and this is the current evaluation, always include it
+        if (isEditing && form.id === currentEvaluationId) {
+          return true
+        }
+        // Otherwise, only include if it's not used in another event
+        return !usedEvaluationIds.includes(form.id)
+      })
+      
+      setEvaluations(availableForms)
     } catch (error) {
       console.error('Error fetching forms:', error)
       setEvaluations([])
     } finally {
       setLoadingEvaluations(false)
     }
-  }, [])
+  }, [isEditing, eventId, formData.evaluation_id])
+
+  // Refresh evaluations list when evaluation_id changes (for edit mode)
+  useEffect(() => {
+    if (isEditing && formData.evaluation_id) {
+      fetchEvaluations()
+    }
+  }, [isEditing, formData.evaluation_id, fetchEvaluations])
 
   const fetchCertificateTemplates = useCallback(async () => {
     try {
@@ -680,6 +729,12 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
                   <p className="text-xs text-gray-600">
                     Students will need to complete this evaluation to unlock their certificates.
                   </p>
+                  
+                  {evaluations.length > 0 && (
+                    <p className="text-xs text-amber-600 mt-2">
+                      Note: Forms that are already assigned to other events are not shown. Each form can only be used once.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

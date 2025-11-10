@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
+import { jsPDF } from 'jspdf'
+import { format } from 'date-fns'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,6 +61,15 @@ export async function GET(
       return exportToCSV(form, responses || [])
     } else if (format === 'json') {
       return exportToJSON(form, responses || [])
+    } else if (format === 'pdf') {
+      // For PDF, we need statistics data - calculate it directly
+      // Map responses to match statistics route structure (just answers and submitted_at)
+      const statsResponses = (responses || []).map(r => ({
+        answers: r.answers,
+        submitted_at: r.submitted_at
+      }))
+      const statistics = await calculateStatistics(form, statsResponses)
+      return exportToPDF(form, responses || [], statistics)
     } else {
       return NextResponse.json({ error: 'Unsupported format' }, { status: 400 })
     }
@@ -149,5 +160,343 @@ function sanitizeFilename(filename: string): string {
     .replace(/[^a-z0-9]/gi, '_')
     .toLowerCase()
     .substring(0, 50)
+}
+
+async function calculateStatistics(form: any, responses: any[]) {
+  const totalResponses = responses?.length || 0
+  const questions = form.questions || []
+
+  // Calculate statistics for each question
+  const questionStatistics = questions.map((question: any) => {
+    const questionId = question.id
+    const questionType = question.type
+    const answers = responses?.map(r => r.answers[questionId]).filter(a => a !== undefined && a !== null && a !== '') || []
+    
+    let statistics: any = {
+      response_count: answers.length,
+      response_rate: totalResponses > 0 ? (answers.length / totalResponses * 100).toFixed(2) : 0,
+    }
+
+    switch (questionType) {
+      case 'multiple_choice':
+      case 'dropdown':
+        const optionCounts: Record<string, number> = {}
+        answers.forEach(answer => {
+          if (answer) {
+            optionCounts[answer] = (optionCounts[answer] || 0) + 1
+          }
+        })
+        const optionStats = Object.entries(optionCounts).map(([option, count]) => ({
+          option,
+          count,
+          percentage: answers.length > 0 ? ((count / answers.length) * 100).toFixed(2) : 0,
+        }))
+        statistics = {
+          ...statistics,
+          options: optionStats,
+          mode: optionStats.length > 0 ? optionStats.sort((a, b) => b.count - a.count)[0].option : null,
+        }
+        break
+
+      case 'checkbox':
+        const checkboxCounts: Record<string, number> = {}
+        answers.forEach(answer => {
+          if (Array.isArray(answer)) {
+            answer.forEach(option => {
+              checkboxCounts[option] = (checkboxCounts[option] || 0) + 1
+            })
+          }
+        })
+        const checkboxStats = Object.entries(checkboxCounts).map(([option, count]) => ({
+          option,
+          count,
+          percentage: totalResponses > 0 ? ((count / totalResponses) * 100).toFixed(2) : 0,
+        }))
+        statistics = {
+          ...statistics,
+          options: checkboxStats,
+        }
+        break
+
+      case 'linear_scale':
+      case 'rating':
+        const numericAnswers = answers.map(a => Number(a)).filter(n => !isNaN(n))
+        if (numericAnswers.length > 0) {
+          const sum = numericAnswers.reduce((acc, val) => acc + val, 0)
+          const average = sum / numericAnswers.length
+          const distribution: Record<number, number> = {}
+          numericAnswers.forEach(value => {
+            distribution[value] = (distribution[value] || 0) + 1
+          })
+          const sorted = [...numericAnswers].sort((a, b) => a - b)
+          const median = sorted.length % 2 === 0
+            ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+            : sorted[Math.floor(sorted.length / 2)]
+          const mode = Object.entries(distribution)
+            .sort((a, b) => b[1] - a[1])[0]?.[0]
+          statistics = {
+            ...statistics,
+            average: average.toFixed(2),
+            median: median.toFixed(2),
+            mode: mode ? Number(mode) : null,
+            distribution: Object.entries(distribution).map(([value, count]) => ({
+              value: Number(value),
+              count,
+              percentage: ((count / numericAnswers.length) * 100).toFixed(2),
+            })),
+            min: Math.min(...numericAnswers),
+            max: Math.max(...numericAnswers),
+          }
+        }
+        break
+
+      case 'short_answer':
+      case 'paragraph':
+      case 'email':
+        statistics = {
+          ...statistics,
+          responses: answers,
+          word_count_avg: answers.length > 0 
+            ? (answers.reduce((sum, ans) => sum + String(ans).split(/\s+/).length, 0) / answers.length).toFixed(2)
+            : 0,
+        }
+        break
+
+      case 'date':
+      case 'time':
+        statistics = {
+          ...statistics,
+          responses: answers,
+        }
+        break
+    }
+
+    return {
+      question_id: questionId,
+      question_type: questionType,
+      question_text: question.question,
+      total_responses: answers.length,
+      statistics,
+    }
+  })
+
+  // Calculate time-based statistics
+  const submissionTimes = responses?.map(r => new Date(r.submitted_at).getTime()) || []
+  const timeStats = submissionTimes.length > 1 ? {
+    first_response: new Date(Math.min(...submissionTimes)).toISOString(),
+    latest_response: new Date(Math.max(...submissionTimes)).toISOString(),
+    average_daily_responses: calculateAverageDailyResponses(responses || []),
+  } : null
+
+  return {
+    form_id: form.id,
+    form_title: form.title,
+    total_responses: totalResponses,
+    completion_rate: 100,
+    question_statistics: questionStatistics,
+    time_statistics: timeStats,
+    generated_at: new Date().toISOString(),
+  }
+}
+
+function calculateAverageDailyResponses(responses: any[]): number {
+  if (responses.length === 0) return 0
+  const dates = responses.map(r => new Date(r.submitted_at).toDateString())
+  const uniqueDates = new Set(dates)
+  return responses.length / uniqueDates.size
+}
+
+async function exportToPDF(form: any, responses: any[], statistics: any): Promise<NextResponse> {
+  try {
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    })
+
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 20
+    let currentY = margin
+
+    // Helper function to add new page if needed
+    const checkPageBreak = (requiredHeight: number) => {
+      if (currentY + requiredHeight > pageHeight - margin) {
+        doc.addPage()
+        currentY = margin
+        return true
+      }
+      return false
+    }
+
+    // Header with branding
+    doc.setFillColor(41, 128, 185)
+    doc.rect(0, 0, pageWidth, 40, 'F')
+    
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(18)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Bukidnon State University', pageWidth / 2, 15, { align: 'center' })
+    
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Student Management System', pageWidth / 2, 25, { align: 'center' })
+    
+    doc.setFontSize(12)
+    doc.text('Form Statistics Report', pageWidth / 2, 35, { align: 'center' })
+
+    currentY = 60
+
+    // Form Information
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Form Information', margin, currentY)
+    currentY += 10
+
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Title: ${form.title}`, margin, currentY)
+    currentY += 7
+
+    if (form.description) {
+      const descriptionLines = doc.splitTextToSize(`Description: ${form.description}`, pageWidth - 2 * margin)
+      doc.text(descriptionLines, margin, currentY)
+      currentY += descriptionLines.length * 7
+    }
+
+    currentY += 5
+
+    // Summary Statistics
+    checkPageBreak(30)
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Summary Statistics', margin, currentY)
+    currentY += 10
+
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Total Responses: ${statistics.total_responses}`, margin, currentY)
+    currentY += 7
+    doc.text(`Completion Rate: ${statistics.completion_rate}%`, margin, currentY)
+    currentY += 7
+
+    if (statistics.time_statistics) {
+      doc.text(`First Response: ${format(new Date(statistics.time_statistics.first_response), 'MMM dd, yyyy HH:mm')}`, margin, currentY)
+      currentY += 7
+      doc.text(`Latest Response: ${format(new Date(statistics.time_statistics.latest_response), 'MMM dd, yyyy HH:mm')}`, margin, currentY)
+      currentY += 7
+      doc.text(`Average Daily Responses: ${statistics.time_statistics.average_daily_responses.toFixed(2)}`, margin, currentY)
+      currentY += 7
+    }
+
+    currentY += 10
+
+    // Question Statistics
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Question-by-Question Analysis', margin, currentY)
+    currentY += 10
+
+    statistics.question_statistics.forEach((qStat: any, index: number) => {
+      checkPageBreak(50)
+      
+      // Question header
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'bold')
+      const questionText = `Q${index + 1}: ${qStat.question_text}`
+      const questionLines = doc.splitTextToSize(questionText, pageWidth - 2 * margin)
+      doc.text(questionLines, margin, currentY)
+      currentY += questionLines.length * 6 + 3
+
+      // Question details
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Type: ${qStat.question_type}`, margin, currentY)
+      currentY += 6
+      doc.text(`Responses: ${qStat.total_responses} (${qStat.statistics.response_rate}% response rate)`, margin, currentY)
+      currentY += 6
+
+      // Statistics based on question type
+      if (qStat.question_type === 'multiple_choice' || qStat.question_type === 'dropdown') {
+        if (qStat.statistics.options && qStat.statistics.options.length > 0) {
+          doc.text('Distribution:', margin, currentY)
+          currentY += 6
+          qStat.statistics.options.forEach((opt: any) => {
+            doc.text(`  • ${opt.option}: ${opt.count} (${opt.percentage}%)`, margin + 5, currentY)
+            currentY += 5
+            checkPageBreak(10)
+          })
+        }
+      } else if (qStat.question_type === 'checkbox') {
+        if (qStat.statistics.options && qStat.statistics.options.length > 0) {
+          doc.text('Distribution:', margin, currentY)
+          currentY += 6
+          qStat.statistics.options.forEach((opt: any) => {
+            doc.text(`  • ${opt.option}: ${opt.count} (${opt.percentage}%)`, margin + 5, currentY)
+            currentY += 5
+            checkPageBreak(10)
+          })
+        }
+      } else if (qStat.question_type === 'linear_scale' || qStat.question_type === 'rating') {
+        if (qStat.statistics.average) {
+          doc.text(`Average: ${qStat.statistics.average}`, margin, currentY)
+          currentY += 6
+          doc.text(`Median: ${qStat.statistics.median}`, margin, currentY)
+          currentY += 6
+          if (qStat.statistics.mode) {
+            doc.text(`Mode: ${qStat.statistics.mode}`, margin, currentY)
+            currentY += 6
+          }
+          doc.text(`Range: ${qStat.statistics.min} - ${qStat.statistics.max}`, margin, currentY)
+          currentY += 6
+        }
+      } else if (qStat.question_type === 'short_answer' || qStat.question_type === 'paragraph' || qStat.question_type === 'email') {
+        if (qStat.statistics.word_count_avg) {
+          doc.text(`Average Word Count: ${qStat.statistics.word_count_avg}`, margin, currentY)
+          currentY += 6
+        }
+        if (qStat.statistics.responses && qStat.statistics.responses.length > 0) {
+          doc.text(`Sample Responses (showing first 3):`, margin, currentY)
+          currentY += 6
+          qStat.statistics.responses.slice(0, 3).forEach((response: string) => {
+            const responseLines = doc.splitTextToSize(`  • ${response}`, pageWidth - 2 * margin - 5)
+            doc.text(responseLines, margin + 5, currentY)
+            currentY += responseLines.length * 5
+            checkPageBreak(15)
+          })
+        }
+      }
+
+      currentY += 8
+    })
+
+    // Footer
+    const totalPages = doc.getNumberOfPages()
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i)
+      doc.setFontSize(8)
+      doc.setTextColor(128, 128, 128)
+      doc.text(
+        `Page ${i} of ${totalPages} | Generated on ${format(new Date(), 'MMM dd, yyyy HH:mm')}`,
+        pageWidth / 2,
+        pageHeight - 10,
+        { align: 'center' }
+      )
+    }
+
+    // Convert to buffer
+    const pdfBuffer = Buffer.from(doc.output('arraybuffer'))
+
+    return new NextResponse(pdfBuffer, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${sanitizeFilename(form.title)}_statistics.pdf"`,
+      },
+    })
+  } catch (error) {
+    console.error('Error generating PDF:', error)
+    return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 500 })
+  }
 }
 

@@ -49,10 +49,18 @@ const formSettingsSchema = z.object({
   redirect_url: z.string().optional(),
 })
 
+const sectionSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  order: z.number(),
+})
+
 const updateFormSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),
   questions: z.array(formQuestionSchema).optional(),
+  sections: z.array(sectionSchema).optional(),
   settings: formSettingsSchema.optional(),
   status: z.enum(['DRAFT', 'PUBLISHED', 'CLOSED']).optional(),
   closes_at: z.string().optional(),
@@ -138,6 +146,10 @@ export async function PUT(
     if (data.questions) {
       // Sort questions by order
       updateData.questions = [...data.questions].sort((a, b) => a.order - b.order)
+    }
+    if (data.sections) {
+      // Sort sections by order
+      updateData.sections = [...data.sections].sort((a, b) => a.order - b.order)
     }
     if (data.settings) updateData.settings = data.settings
     if (data.status) {
