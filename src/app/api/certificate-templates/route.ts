@@ -120,10 +120,52 @@ export async function POST(request: Request) {
     const body = await request.json()
     const data = createCertificateTemplateSchema.parse(body)
 
+    // Auto-add predefined fields for image-based templates if no dynamic_fields provided
+    let dynamicFields = data.dynamic_fields
+    if (data.background_design?.design_type === 'image' && 
+        (!dynamicFields || dynamicFields.length === 0) &&
+        data.background_design?.certificate_background) {
+      // Add predefined fields with fixed positions
+      dynamicFields = [
+        {
+          id: 'student_name',
+          type: 'student_name',
+          label: 'Student Name',
+          position: {
+            x: 1000,
+            y: 650
+          },
+          style: {
+            font_family: 'Poppins',
+            font_size: 80,
+            font_weight: 'bold',
+            color: '#000000',
+            text_align: 'center'
+          }
+        },
+        {
+          id: 'certificate_number',
+          type: 'certificate_number',
+          label: 'Certificate Number',
+          position: {
+            x: 550,
+            y: 200
+          },
+          style: {
+            font_family: 'Poppins',
+            font_size: 30,
+            font_weight: 'normal',
+            color: '#000000',
+            text_align: 'center'
+          }
+        }
+      ]
+    }
+
     // Generate default template HTML if not provided
     let templateHtml = data.template_html
     if (!templateHtml) {
-      templateHtml = generateDefaultTemplateHtml(data)
+      templateHtml = generateDefaultTemplateHtml({ ...data, dynamic_fields: dynamicFields })
     }
 
     // Generate default template CSS if not provided
@@ -139,7 +181,7 @@ export async function POST(request: Request) {
         title: data.title,
         description: data.description,
         background_design: data.background_design,
-        dynamic_fields: data.dynamic_fields,
+        dynamic_fields: dynamicFields,
         template_html: templateHtml,
         template_css: templateCss,
         is_active: data.is_active,

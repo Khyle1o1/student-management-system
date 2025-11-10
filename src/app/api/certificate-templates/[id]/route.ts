@@ -121,6 +121,49 @@ export async function PUT(
       return NextResponse.json({ error: 'Failed to fetch template' }, { status: 500 })
     }
 
+    // Auto-add predefined fields for image-based templates if no dynamic_fields provided
+    let dynamicFields = data.dynamic_fields
+    const bgDesign = data.background_design || existingTemplate.background_design
+    if (bgDesign?.design_type === 'image' && 
+        (!dynamicFields || dynamicFields.length === 0) &&
+        bgDesign?.certificate_background) {
+      // Add predefined fields with fixed positions
+      dynamicFields = [
+        {
+          id: 'student_name',
+          type: 'student_name',
+          label: 'Student Name',
+          position: {
+            x: 1000,
+            y: 650
+          },
+          style: {
+            font_family: 'Poppins',
+            font_size: 80,
+            font_weight: 'bold',
+            color: '#000000',
+            text_align: 'center'
+          }
+        },
+        {
+          id: 'certificate_number',
+          type: 'certificate_number',
+          label: 'Certificate Number',
+          position: {
+            x: 550,
+            y: 200
+          },
+          style: {
+            font_family: 'Poppins',
+            font_size: 30,
+            font_weight: 'normal',
+            color: '#000000',
+            text_align: 'center'
+          }
+        }
+      ]
+    }
+
     // Prepare update data
     const updateData: any = {
       updated_at: new Date().toISOString()
@@ -129,16 +172,16 @@ export async function PUT(
     if (data.title !== undefined) updateData.title = data.title
     if (data.description !== undefined) updateData.description = data.description
     if (data.background_design !== undefined) updateData.background_design = data.background_design
-    if (data.dynamic_fields !== undefined) updateData.dynamic_fields = data.dynamic_fields
+    if (dynamicFields !== undefined) updateData.dynamic_fields = dynamicFields
     if (data.is_active !== undefined) updateData.is_active = data.is_active
 
     // Regenerate HTML/CSS if design or fields changed
     if (data.template_html !== undefined) {
       updateData.template_html = data.template_html
-    } else if (data.background_design !== undefined || data.dynamic_fields !== undefined) {
+    } else if (data.background_design !== undefined || dynamicFields !== undefined) {
       updateData.template_html = generateDefaultTemplateHtml({
         background_design: data.background_design || existingTemplate.background_design,
-        dynamic_fields: data.dynamic_fields || existingTemplate.dynamic_fields
+        dynamic_fields: dynamicFields || existingTemplate.dynamic_fields
       })
     }
 

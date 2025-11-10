@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { Bell, X, Check, CheckCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,6 +22,7 @@ interface Notification {
 }
 
 export default function NotificationBell() {
+  const { data: session } = useSession()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -147,11 +149,21 @@ export default function NotificationBell() {
 
   useEffect(() => {
     // Check for pending notifications (evaluations, certificates) on mount
+    // Only for students (USER role) - admins don't need this check
     const checkPendingNotifications = async () => {
+      // Only check if user is a student
+      if (session?.user?.role !== 'USER') {
+        return
+      }
+      
       try {
-        await fetch('/api/notifications/check-pending', {
+        const response = await fetch('/api/notifications/check-pending', {
           method: 'POST'
         })
+        if (!response.ok && response.status !== 403) {
+          // Only log non-403 errors (403 is expected for non-students)
+          console.error('Error checking pending notifications:', response.statusText)
+        }
       } catch (error) {
         console.error('Error checking pending notifications:', error)
       }
@@ -171,7 +183,7 @@ export default function NotificationBell() {
     }, 30000)
 
     return () => clearInterval(interval)
-  }, [open])
+  }, [open, session])
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>

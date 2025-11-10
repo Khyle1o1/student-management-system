@@ -63,11 +63,11 @@ export default async function CertificateTemplatePage({ params }: CertificateTem
 
   const getFieldPreviewValue = (field: any) => {
     switch (field.type) {
-      case "student_name": return "John Doe"
-      case "event_name": return "Annual Conference"
-      case "event_date": return "December 15, 2024"
+      case "student_name": return "BOGART THE DOG"
+      case "event_name": return "2ND GENERAL ASSEMBLY"
+      case "event_date": return "January 16, 2016"
       case "certificate_number": return "CERT-2024-001"
-      case "institution_name": return "Your Institution"
+      case "institution_name": return "Bukidnon State University"
       case "custom_text": return field.custom_text || "Custom Text"
       default: return field.label
     }

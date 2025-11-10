@@ -4,7 +4,7 @@
  */
 
 const LAST_ACTIVITY_KEY = 'app_last_activity_timestamp'
-const SESSION_TIMEOUT_MS = 60 * 1000 // 1 minute in milliseconds
+const SESSION_TIMEOUT_MS = 15 * 60 * 1000 // 1 minute in milliseconds
 
 /**
  * Get the last activity timestamp from sessionStorage

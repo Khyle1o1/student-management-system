@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
-import { CertificateTemplateForm } from "@/components/dashboard/certificate-template-form"
+import { CertificateTemplateCreatorSimple } from "@/components/dashboard/certificate-template-creator-simple"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
@@ -31,13 +31,13 @@ export default async function NewCertificateTemplatePage() {
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Create Certificate Template</h1>
               <p className="text-muted-foreground">
-                Design a new certificate template with custom fields and styling
+                Upload your certificate background image. Name and certificate number are automatically positioned.
               </p>
             </div>
           </div>
         </div>
         
-        <CertificateTemplateForm />
+        <CertificateTemplateCreatorSimple />
       </div>
     </DashboardShell>
   )

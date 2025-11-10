@@ -130,61 +130,84 @@ async function generateSampleCertificatePDF(template: any): Promise<Buffer> {
             console.log('Adding dynamic fields on top of background image')
             console.log('Dynamic fields count:', template.dynamic_fields.length)
             
-            // Hardcoded positions for image-based certificates
-            const hardcodedPositions = {
-              student_name: { x: 148.5, y: 95 }, // Center of A4 landscape
-              certificate_number: { x: 50, y: 180 } // Bottom left area
-            }
+            // Scale positions from template preview dimensions (2000x1414) to PDF dimensions (297x210mm)
+            // Template preview uses 2000x1414px canvas, PDF uses 297x210mm
+            const scaleX = 297 / 2000  // PDF width / template width
+            const scaleY = 210 / 1414  // PDF height / template height
             
             template.dynamic_fields.forEach((field: any, index: number) => {
               console.log(`Image-based field ${index}:`, field)
               const value = getSampleFieldValue(field)
               console.log(`Image-based field ${index} value:`, value)
               
-              // Use hardcoded positions for student name and certificate number
-              let x, y
-              if (field.type === 'student_name') {
-                x = hardcodedPositions.student_name.x
-                y = hardcodedPositions.student_name.y
-                console.log(`Using hardcoded position for student name: (${x}, ${y})`)
-              } else if (field.type === 'certificate_number') {
-                x = hardcodedPositions.certificate_number.x
-                y = hardcodedPositions.certificate_number.y
-                console.log(`Using hardcoded position for certificate number: (${x}, ${y})`)
-              } else {
-                // For other fields, use template positioning but scale properly
-                x = field.position.x * (297 / 800) // Scale from effective preview width
-                y = field.position.y * (210 / 565.6) // Scale from effective preview height
-                console.log(`Using scaled position for ${field.type}: (${x}, ${y})`)
-              }
+              // Use template positions with proper scaling (same as preview)
+              const x = field.position.x * scaleX
+              const y = field.position.y * scaleY
               
-              console.log(`Image-based field ${index} position - Original: (${field.position.x}, ${field.position.y}), Final: (${x}, ${y})`)
+              console.log(`Image-based field ${index} position - Original: (${field.position.x}, ${field.position.y}), Scaled: (${x}, ${y})`)
               
-              // Set font properties - use standard fonts to avoid font errors
-              const fontSize = field.type === 'student_name' ? 24 : 12 // Hardcoded font sizes
-              console.log(`Image-based field ${index} font size: ${fontSize}`)
+              // Use font properties from template
+              const fontSize = Math.max(8, Math.min(36, (field.style?.font_size || 16) * scaleX))
+              console.log(`Image-based field ${index} font size - Original: ${field.style?.font_size || 16}, Scaled: ${fontSize}`)
               
               doc.setFontSize(fontSize)
               
-              // Use standard fonts to avoid font errors
-              const fontFamily = 'helvetica'
-              const fontWeight = field.type === 'student_name' ? 'bold' : 'normal'
+              // Use font family and weight from template
+              const fontFamily = (field.style?.font_family || 'helvetica').toLowerCase()
+              const fontWeight = field.style?.font_weight || 'normal'
               
-              doc.setFont(fontFamily, fontWeight)
+              try {
+                if (fontWeight === 'bold') {
+                  doc.setFont(fontFamily, 'bold')
+                } else {
+                  doc.setFont(fontFamily, 'normal')
+                }
+              } catch (fontError) {
+                // Fallback to helvetica if font not available
+                doc.setFont('helvetica', fontWeight === 'bold' ? 'bold' : 'normal')
+              }
               
-              // Set text color - use black for better visibility
-              doc.setTextColor(0, 0, 0) // Black color
+              // Set text color from template
+              if (field.style?.color) {
+                const color = field.style.color
+                if (color.startsWith('#')) {
+                  const hex = color.substring(1)
+                  const r = parseInt(hex.substring(0, 2), 16)
+                  const g = parseInt(hex.substring(2, 4), 16)
+                  const b = parseInt(hex.substring(4, 6), 16)
+                  doc.setTextColor(r, g, b)
+                } else {
+                  doc.setTextColor(0, 0, 0)
+                }
+              } else {
+                doc.setTextColor(0, 0, 0)
+              }
               
               // Add text with shadow for better visibility on background images
               console.log(`Adding image-based text "${value}" at position (${x}, ${y})`)
               
               // Add white shadow for better visibility
               doc.setTextColor(255, 255, 255) // White shadow
-              doc.text(value, x + 1, y + 1, { align: 'center' })
+              doc.text(value, x + 1, y + 1, { 
+                align: field.style?.text_align || 'center',
+                maxWidth: 200
+              })
               
               // Add main text
-              doc.setTextColor(0, 0, 0) // Black text
-              doc.text(value, x, y, { align: 'center' })
+              const textColor = field.style?.color || '#000000'
+              if (textColor.startsWith('#')) {
+                const hex = textColor.substring(1)
+                const r = parseInt(hex.substring(0, 2), 16)
+                const g = parseInt(hex.substring(2, 4), 16)
+                const b = parseInt(hex.substring(4, 6), 16)
+                doc.setTextColor(r, g, b)
+              } else {
+                doc.setTextColor(0, 0, 0)
+              }
+              doc.text(value, x, y, { 
+                align: field.style?.text_align || 'center',
+                maxWidth: 200
+              })
             })
           } else {
             console.log('No dynamic fields found for image-based certificate')
@@ -296,21 +319,25 @@ async function generateSampleCertificatePDF(template: any): Promise<Buffer> {
     
     if (hasDynamicFields) {
       console.log('Processing dynamic fields...')
+      
+      // Scale positions from template preview dimensions (2000x1414) to PDF dimensions (297x210mm)
+      // Template preview uses 2000x1414px canvas, PDF uses 297x210mm
+      const scaleX = 297 / 2000  // PDF width / template width
+      const scaleY = 210 / 1414  // PDF height / template height
+      
       template.dynamic_fields.forEach((field: any, index: number) => {
         console.log(`Field ${index}:`, field)
         const value = getSampleFieldValue(field)
         console.log(`Field ${index} value:`, value)
         
-        // Match the template preview scaling exactly (same as image-based certificates)
-        // Template preview uses 2000x1414 with 0.4 scale = 800x565.6 effective size
-        // PDF uses 297x210 mm, so scale accordingly
-        const x = field.position.x * (297 / 800) // Scale from effective preview width
-        const y = field.position.y * (210 / 565.6) // Scale from effective preview height
+        // Use template positions with proper scaling (same as preview and image-based certificates)
+        const x = field.position.x * scaleX
+        const y = field.position.y * scaleY
         
         console.log(`Field ${index} position - Original: (${field.position.x}, ${field.position.y}), Scaled: (${x}, ${y})`)
         
-        // Set font properties - match the preview scaling
-        const fontSize = Math.max(8, Math.min(36, (field.style?.font_size || 16) * (297 / 800))) // Scale font size proportionally
+        // Set font properties - scale font size proportionally
+        const fontSize = Math.max(8, Math.min(36, (field.style?.font_size || 16) * scaleX))
         console.log(`Field ${index} font size - Original: ${field.style?.font_size || 16}, Scaled: ${fontSize}`)
         
         doc.setFontSize(fontSize)
@@ -339,15 +366,18 @@ async function generateSampleCertificatePDF(template: any): Promise<Buffer> {
             const b = parseInt(hex.substring(4, 6), 16)
             doc.setTextColor(r, g, b)
           } else {
-            doc.setTextColor('#000000')
+            doc.setTextColor(0, 0, 0)
           }
         } else {
-          doc.setTextColor('#000000')
+          doc.setTextColor(0, 0, 0)
         }
         
         // Add text with proper positioning
         console.log(`Adding text "${value}" at position (${x}, ${y})`)
-        doc.text(value, x, y, { align: field.style?.text_align || 'center' })
+        doc.text(value, x, y, { 
+          align: field.style?.text_align || 'center',
+          maxWidth: 200
+        })
       })
       console.log('Finished processing dynamic fields')
     } else {

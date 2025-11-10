@@ -160,26 +160,34 @@ async function generateCertificatePDF(certificate: any, template: any): Promise<
         const value = getFieldValue(field)
         
         // Precise coordinate scaling calculation
-        const scaleX = 297 / 2000  // PDF width / template width
-        const scaleY = 210 / 1414  // PDF height / template height
+        // Template coordinates are based on 2000x1414px canvas
+        // PDF is A4 landscape: 297mm x 210mm
+        const scaleX = 297 / 2000  // PDF width (mm) / template width (px)
+        const scaleY = 210 / 1414  // PDF height (mm) / template height (px)
         
         const scaledX = field.position.x * scaleX
         const scaledY = field.position.y * scaleY
         
-        // Adjust font size scaling
-        const fontSize = Math.max(8, Math.min(36, (field.style?.font_size || 16) * 0.35)) // Scale font size
+        // Adjust font size scaling (convert px to mm, roughly 1px = 0.264583mm at 96 DPI)
+        // For better scaling, use a factor that maintains readability
+        const fontSize = Math.max(8, Math.min(36, (field.style?.font_size || 35) * 0.264583))
         
         // Set font and styling
         doc.setFontSize(fontSize)
         
-        const fontFamily = field.style?.font_family || 'helvetica'
+        // Handle Poppins font - jsPDF doesn't support it natively, use helvetica as fallback
+        // Poppins is similar to helvetica in appearance
+        const fontFamily = field.style?.font_family?.toLowerCase() || 'helvetica'
         const fontWeight = field.style?.font_weight || 'normal'
+        
+        // Map Poppins to helvetica (closest match in jsPDF)
+        const pdfFont = fontFamily === 'poppins' ? 'helvetica' : fontFamily
         
         try {
           if (fontWeight === 'bold') {
-            doc.setFont(fontFamily.toLowerCase(), 'bold')
+            doc.setFont(pdfFont, 'bold')
           } else {
-            doc.setFont(fontFamily.toLowerCase(), 'normal')
+            doc.setFont(pdfFont, 'normal')
           }
         } catch (fontError) {
           // Fallback to helvetica if font not available
@@ -202,26 +210,15 @@ async function generateCertificatePDF(certificate: any, template: any): Promise<
           doc.setTextColor('#000000')
         }
         
-        // Special handling for student name to match template preview
-        if (field.type === 'student_name') {
-          // Precise positioning for student name
-          const studentNameX = 148.5  // Center of A4 landscape
-          const studentNameY = 82  // Vertical position from top
-          
-          // Set font to match template exactly
-          doc.setFont('helvetica', 'bold')
-          doc.setFontSize(24)  // Matches the template's font size
-          doc.setTextColor(0, 0, 0)  // Black color
-          
-          // Add text with exact centering
-          doc.text(value.toUpperCase(), studentNameX, studentNameY, { 
-            align: 'center',
-            maxWidth: 200  // Limit text width to prevent overflow
-          })
-        } else {
-          // For other fields, use original positioning
-          doc.text(value, scaledX, scaledY)
-        }
+        // Handle text alignment
+        const textAlign = field.style?.text_align || 'center'
+        const alignment = textAlign === 'left' ? 'left' : textAlign === 'right' ? 'right' : 'center'
+        
+        // Use the scaled positions with proper alignment
+        doc.text(value, scaledX, scaledY, { 
+          align: alignment,
+          maxWidth: 200  // Limit text width to prevent overflow
+        })
       })
     } else {
       // Fallback to default layout when no dynamic fields

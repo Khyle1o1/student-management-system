@@ -82,11 +82,16 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
 
       // Fetch evaluation statuses for attended events that require evaluation
       const attendedEvents = records.filter((r: AttendanceRecord) => 
-        r.status === 'PRESENT' && r.event.require_evaluation
+        r.status === 'PRESENT' && r.event.require_evaluation && r.event.evaluation_id
       )
 
       if (attendedEvents.length > 0) {
         const statuses: Record<string, boolean> = {}
+        
+        // Initialize all to false first
+        attendedEvents.forEach((record) => {
+          statuses[record.event.id] = false
+        })
         
         // Check evaluation completion for each event
         for (const record of attendedEvents) {
@@ -98,22 +103,36 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
               if (evalResponse.ok) {
                 const evalData = await evalResponse.json()
                 // Check if there are any responses (the API filters by student_id)
-                const hasSubmitted = evalData.responses && evalData.responses.length > 0
+                // Make sure we're checking the response array properly
+                const hasSubmitted = Array.isArray(evalData.responses) && evalData.responses.length > 0
                 statuses[record.event.id] = hasSubmitted
-                console.log(`Evaluation status for event ${record.event.id}: ${hasSubmitted ? 'COMPLETED' : 'NOT COMPLETED'}`)
+                console.log(`Evaluation status for event ${record.event.id}: ${hasSubmitted ? 'COMPLETED' : 'NOT COMPLETED'}`, {
+                  eventId: record.event.id,
+                  evaluationId: record.event.evaluation_id,
+                  studentId: studentId,
+                  responseCount: evalData.responses?.length || 0,
+                  hasSubmitted
+                })
               } else {
+                // If API call fails, assume not completed
                 statuses[record.event.id] = false
+                console.log(`Evaluation check failed for event ${record.event.id}:`, evalResponse.status)
               }
             } else {
+              // No evaluation_id means no evaluation required
               statuses[record.event.id] = false
             }
           } catch (error) {
             console.error(`Error checking evaluation for event ${record.event.id}:`, error)
+            // On error, assume not completed
             statuses[record.event.id] = false
           }
         }
         
         setEvaluationStatuses(statuses)
+      } else {
+        // If no events require evaluation, clear the statuses
+        setEvaluationStatuses({})
       }
     } catch (error: any) {
       console.error("Error fetching attendance data:", error)
@@ -155,7 +174,9 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
 
     // Check if event requires evaluation
     if (record.event.require_evaluation) {
-      const hasCompleted = evaluationStatuses[record.event.id]
+      // Explicitly check if the evaluation status exists and is true
+      // Default to false if not found (safer approach)
+      const hasCompleted = evaluationStatuses[record.event.id] === true
       
       if (hasCompleted) {
         return (

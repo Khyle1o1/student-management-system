@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
-import { CertificateTemplateForm } from "@/components/dashboard/certificate-template-form"
+import { CertificateTemplateCreatorSimple } from "@/components/dashboard/certificate-template-creator-simple"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
@@ -66,7 +66,7 @@ export default async function EditCertificateTemplatePage({ params }: Readonly<E
           </div>
         </div>
         
-        <CertificateTemplateForm 
+        <CertificateTemplateCreatorSimple 
           templateId={template.id} 
           initialData={template}
         />
