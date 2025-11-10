@@ -452,7 +452,7 @@ export function CertificateTemplateCreatorSimple({ templateId, initialData }: Ce
                 </div>
                 <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                   <p className="text-sm text-blue-800">
-                    <strong>Sample Data:</strong> Name: "Juan Dela Cruz", Certificate Number: "CERT-0001"
+                    <strong>Sample Data:</strong> Name: &quot;Juan Dela Cruz&quot;, Certificate Number: &quot;CERT-0001&quot;
                   </p>
                   <p className="text-xs text-blue-600 mt-1">
                     Text positions are fixed: Name at (1000px, 650px) - 80px bold, Certificate Number at (1000px, 1300px) - 30px normal

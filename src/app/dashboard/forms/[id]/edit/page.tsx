@@ -3,13 +3,7 @@ import { redirect } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import FormEditClient from "./form-edit-client"
 
-interface EditFormPageProps {
-  params: {
-    id: string
-  }
-}
-
-export default async function EditFormPage({ params }: EditFormPageProps) {
+export default async function EditFormPage({ params }: any) {
   const session = await auth()
 
   if (!session) {

@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { BatchStudentImport } from "@/components/dashboard/batch-student-import"
+import { SystemBackupCard } from "@/components/dashboard/system-backup-card"
 
 export default async function SettingsPage() {
   const session = await auth()
@@ -26,7 +27,10 @@ export default async function SettingsPage() {
           </div>
         </div>
         
-        <BatchStudentImport />
+        <div className="grid gap-6">
+          <SystemBackupCard />
+          <BatchStudentImport />
+        </div>
       </div>
     </DashboardShell>
   )

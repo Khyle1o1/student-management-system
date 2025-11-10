@@ -31,6 +31,7 @@ interface AttendanceRecord {
     description: string
     date: string
     require_evaluation?: boolean
+    evaluation_id?: string | null
   }
   evaluation_completed?: boolean
 }
@@ -89,7 +90,7 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
         const statuses: Record<string, boolean> = {}
         
         // Initialize all to false first
-        attendedEvents.forEach((record) => {
+        attendedEvents.forEach((record: AttendanceRecord) => {
           statuses[record.event.id] = false
         })
         
