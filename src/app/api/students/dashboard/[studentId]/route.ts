@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
-import { buildFeesScopeFilter } from "@/lib/fee-scope-utils"
+import { buildFeesScopeFilter, filterFeesForStudent } from "@/lib/fee-scope-utils"
 
 export async function GET(
   request: Request,
@@ -51,12 +51,17 @@ export async function GET(
     }
 
     // Get fees that apply to this student based on scope
+    // Filter by current school year to match fees page logic
+    const currentYear = new Date().getFullYear()
     const scopeFilter = buildFeesScopeFilter(student)
+    
+    // First get fees for current year with scope filter
     const { data: fees, error: feesError } = await supabaseAdmin
       .from('fee_structures')
       .select('*')
       .eq('is_active', true)
       .is('deleted_at', null)
+      .eq('school_year', currentYear.toString())
       .or(scopeFilter)
       .order('due_date', { ascending: false })
 
@@ -64,6 +69,10 @@ export async function GET(
       console.error('Error fetching fees:', feesError)
       return NextResponse.json({ error: 'Failed to fetch fees' }, { status: 500 })
     }
+
+    // Filter fees to ensure they match the student's scope and current school year (post-filter for safety)
+    const filteredFees = fees ? filterFeesForStudent(fees, student)
+      .filter(fee => fee.school_year === currentYear.toString()) : []
 
     // Get student's payments
     const { data: payments, error: paymentsError } = await supabaseAdmin
@@ -78,6 +87,7 @@ export async function GET(
         )
       `)
       .eq('student_id', student.id)
+      .is('deleted_at', null)
       .order('payment_date', { ascending: false })
 
     if (paymentsError) {
@@ -85,12 +95,48 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch payments' }, { status: 500 })
     }
 
+    // Include fees that student has payments for (from past years) - matching fees API logic
+    const paidFeeIds = new Set()
+    payments?.forEach((payment: any) => {
+      paidFeeIds.add(payment.fee_id)
+    })
+
+    // Fetch any additional fees that student has payments for (from past years)
+    const additionalFeeIds = Array.from(paidFeeIds).filter(feeId => 
+      !filteredFees?.some(fee => fee.id === feeId)
+    )
+
+    let additionalFees: any[] = []
+    if (additionalFeeIds.length > 0) {
+      const { data: extraFees, error: extraFeesError } = await supabaseAdmin
+        .from('fee_structures')
+        .select('*')
+        .in('id', additionalFeeIds)
+
+      if (!extraFeesError && extraFees) {
+        additionalFees = extraFees
+      }
+    }
+
+    // Combine current and additional fees
+    const allFees = [...(filteredFees || []), ...additionalFees]
+
     // Calculate payment statistics
-    const totalFees = fees.reduce((sum, fee) => sum + fee.amount, 0)
+    // Calculate balance for each fee individually
+    const feeBalances = allFees.map(fee => {
+      const feePayments = payments
+        .filter(p => p.fee_id === fee.id && p.status === 'PAID')
+      const paidAmount = feePayments.reduce((sum, payment) => sum + payment.amount, 0)
+      const balance = fee.amount - paidAmount
+      return { feeId: fee.id, balance: Math.max(balance, 0) }
+    })
+    
+    const totalFees = allFees.reduce((sum, fee) => sum + fee.amount, 0)
     const totalPaid = payments
       .filter(p => p.status === 'PAID')
       .reduce((sum, payment) => sum + payment.amount, 0)
-    const totalPending = totalFees - totalPaid
+    // Sum only positive balances (unpaid amounts) for each fee
+    const totalPending = feeBalances.reduce((sum, fb) => sum + fb.balance, 0)
 
     // Get upcoming events
     const now = new Date()

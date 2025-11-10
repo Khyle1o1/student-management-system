@@ -1,10 +1,23 @@
+import { auth } from "@/lib/auth"
+import { redirect } from "next/navigation"
+import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { FormsTable } from "@/components/forms/FormsTable"
 
-export default function FormsPage() {
+export default async function FormsPage() {
+  const session = await auth()
+
+  if (!session) {
+    redirect("/auth/login")
+  }
+
+  if (!['ADMIN','COLLEGE_ORG','COURSE_ORG'].includes(session.user.role as any)) {
+    redirect("/dashboard")
+  }
+
   return (
-    <div className="container mx-auto py-6">
+    <DashboardShell>
       <FormsTable />
-    </div>
+    </DashboardShell>
   )
 }
 

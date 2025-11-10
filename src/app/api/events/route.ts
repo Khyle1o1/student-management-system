@@ -17,6 +17,9 @@ const eventSchema = z.object({
   scope_college: z.string().optional().nullable(),
   scope_course: z.string().optional().nullable(),
   attendance_type: z.enum(['IN_ONLY', 'IN_OUT']).optional().nullable(),
+  certificate_template_id: z.string().optional().nullable(),
+  require_evaluation: z.boolean().optional(),
+  evaluation_id: z.string().optional().nullable(),
 })
 
 export async function POST(request: NextRequest) {
@@ -78,6 +81,8 @@ export async function POST(request: NextRequest) {
         scope_college: data.scope_college || null,
         scope_course: data.scope_course || null,
         attendance_type: data.attendance_type || 'IN_ONLY',
+        require_evaluation: data.require_evaluation || false,
+        evaluation_id: data.evaluation_id || null,
         status,
       }])
       .select('*')
@@ -86,6 +91,23 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Error creating event:', error)
       return NextResponse.json({ error: 'Failed to create event' }, { status: 500 })
+    }
+
+    // Link certificate template to event if provided
+    if (data.certificate_template_id) {
+      const { error: templateLinkError } = await supabaseAdmin
+        .from('event_certificate_templates')
+        .insert([{
+          event_id: event.id,
+          certificate_template_id: data.certificate_template_id
+        }])
+
+      if (templateLinkError) {
+        console.error('Error linking certificate template to event:', templateLinkError)
+        // Don't fail the event creation if template linking fails
+      } else {
+        console.log(`✅ Linked certificate template ${data.certificate_template_id} to event ${event.id}`)
+      }
     }
 
     if (!isAdmin) {
@@ -178,18 +200,10 @@ export async function GET(request: Request) {
         scope_course,
         status,
         require_evaluation,
+        evaluation_id,
         attendance_type,
         created_at,
-        updated_at,
-        event_evaluation:event_evaluations(
-          id,
-          is_required,
-          evaluation:evaluations(
-            id,
-            title,
-            description
-          )
-        )
+        updated_at
       `)
       .ilike('title', `%${search}%`)
       .range(offset, offset + limit - 1)
@@ -217,6 +231,21 @@ export async function GET(request: Request) {
 
     // Transform events to match expected format with defaults for missing fields
     const transformedEvents = await Promise.all(events?.map(async (event) => {
+      // Fetch evaluation form if event has one
+      let evaluation = null
+      if (event.evaluation_id) {
+        try {
+          const { data: evalForm } = await supabaseAdmin
+            .from('evaluation_forms')
+            .select('id, title, description')
+            .eq('id', event.evaluation_id)
+            .single()
+          evaluation = evalForm
+        } catch (error) {
+          console.error('Error fetching evaluation form for event:', event.id, error)
+        }
+      }
+
       // Fetch attendance statistics for this event
       let attendanceStats = null
       try {
@@ -317,7 +346,8 @@ export async function GET(request: Request) {
         scope_college: event.scope_college || "",
         scope_course: event.scope_course || "",
         require_evaluation: event.require_evaluation || false,
-        evaluation: event.event_evaluation?.[0]?.evaluation || null,
+        evaluation_id: event.evaluation_id || null,
+        evaluation: evaluation,
         attendance_type: event.attendance_type || "IN_ONLY",
         attendance_stats: attendanceStats,
         createdAt: event.created_at,

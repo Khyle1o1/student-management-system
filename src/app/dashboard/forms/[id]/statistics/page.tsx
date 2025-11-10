@@ -8,9 +8,7 @@ export default function FormStatisticsPage() {
   const formId = params.id as string
 
   return (
-    <div className="container mx-auto py-6">
-      <FormStatistics formId={formId} />
-    </div>
+    <FormStatistics formId={formId} />
   )
 }
 

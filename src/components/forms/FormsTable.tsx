@@ -162,11 +162,11 @@ export function FormsTable() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Evaluation Forms</h2>
+          <h1 className="text-3xl font-bold tracking-tight">Forms & Evaluations</h1>
           <p className="text-muted-foreground">
             Create and manage evaluation forms similar to Google Forms
           </p>

@@ -174,14 +174,18 @@ export type Database = {
           updated_at?: string
         }
       }
-      evaluations: {
+      evaluation_forms: {
         Row: {
           id: string
           title: string
           description: string | null
+          sections: any // JSONB
           questions: any // JSONB
-          is_template: boolean | null
+          settings: any // JSONB
+          status: string
           created_by: string | null
+          published_at: string | null
+          closes_at: string | null
           created_at: string
           updated_at: string
         }
@@ -189,9 +193,13 @@ export type Database = {
           id?: string
           title: string
           description?: string | null
-          questions: any // JSONB
-          is_template?: boolean | null
+          sections?: any
+          questions: any
+          settings?: any
+          status?: string
           created_by?: string | null
+          published_at?: string | null
+          closes_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -199,60 +207,50 @@ export type Database = {
           id?: string
           title?: string
           description?: string | null
-          questions?: any // JSONB
-          is_template?: boolean | null
+          sections?: any
+          questions?: any
+          settings?: any
+          status?: string
           created_by?: string | null
+          published_at?: string | null
+          closes_at?: string | null
           created_at?: string
           updated_at?: string
         }
       }
-      event_evaluations: {
+      form_responses: {
         Row: {
           id: string
-          event_id: string
-          evaluation_id: string
-          is_required: boolean | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          event_id: string
-          evaluation_id: string
-          is_required?: boolean | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          event_id?: string
-          evaluation_id?: string
-          is_required?: boolean | null
-          created_at?: string
-        }
-      }
-      student_evaluation_responses: {
-        Row: {
-          id: string
-          event_id: string
-          student_id: string
-          evaluation_id: string
-          responses: any // JSONB
+          form_id: string
+          respondent_id: string | null
+          respondent_email: string | null
+          respondent_name: string | null
+          answers: any // JSONB
           submitted_at: string
+          ip_address: string | null
+          user_agent: string | null
         }
         Insert: {
           id?: string
-          event_id: string
-          student_id: string
-          evaluation_id: string
-          responses: any // JSONB
+          form_id: string
+          respondent_id?: string | null
+          respondent_email?: string | null
+          respondent_name?: string | null
+          answers: any
           submitted_at?: string
+          ip_address?: string | null
+          user_agent?: string | null
         }
         Update: {
           id?: string
-          event_id?: string
-          student_id?: string
-          evaluation_id?: string
-          responses?: any // JSONB
+          form_id?: string
+          respondent_id?: string | null
+          respondent_email?: string | null
+          respondent_name?: string | null
+          answers?: any
           submitted_at?: string
+          ip_address?: string | null
+          user_agent?: string | null
         }
       }
       certificates: {

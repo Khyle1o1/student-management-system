@@ -368,7 +368,8 @@ export async function GET(
           title,
           date,
           location,
-          require_evaluation
+          require_evaluation,
+          evaluation_id
         ),
         student:students(
           id,
@@ -436,15 +437,57 @@ export async function GET(
         requires_evaluation: certificate.event.require_evaluation
       })
       
-      if (!certificate.is_accessible) {
-        console.log('Certificate not accessible:', {
+      // If certificate is not accessible but evaluation is required, check if evaluation was completed
+      if (!certificate.is_accessible && certificate.event.require_evaluation) {
+        // Double-check if evaluation was actually completed
+        if (certificate.event.evaluation_id) {
+          const { data: evalResponse } = await supabaseAdmin
+            .from('form_responses')
+            .select('id')
+            .eq('form_id', certificate.event.evaluation_id)
+            .eq('student_id', studentRecord.id)
+            .single()
+          
+          if (evalResponse) {
+            // Evaluation is completed, update certificate and allow access
+            console.log('🔔 [CERTIFICATE] Evaluation completed but certificate not marked accessible, updating...')
+            await supabaseAdmin
+              .from('certificates')
+              .update({ is_accessible: true })
+              .eq('id', id)
+            
+            // Update the certificate object
+            certificate.is_accessible = true
+            console.log('🔔 [CERTIFICATE] Certificate updated to accessible')
+          } else {
+            console.log('Certificate not accessible - evaluation not completed:', {
+              certificateId: id,
+              isAccessible: certificate.is_accessible,
+              requiresEvaluation: certificate.event.require_evaluation,
+              evaluationId: certificate.event.evaluation_id
+            })
+            return NextResponse.json({ 
+              error: 'Certificate not yet accessible. Please complete the event evaluation first.',
+              requires_evaluation: certificate.event.require_evaluation,
+              certificate_id: id
+            }, { status: 403 })
+          }
+        } else {
+          console.log('Certificate not accessible - no evaluation_id found')
+          return NextResponse.json({ 
+            error: 'Certificate not yet accessible. Please complete the event evaluation first.',
+            requires_evaluation: certificate.event.require_evaluation,
+            certificate_id: id
+          }, { status: 403 })
+        }
+      } else if (!certificate.is_accessible) {
+        // Certificate not accessible and no evaluation required - shouldn't happen but handle it
+        console.log('Certificate not accessible (no evaluation required):', {
           certificateId: id,
-          isAccessible: certificate.is_accessible,
-          requiresEvaluation: certificate.event.require_evaluation
+          isAccessible: certificate.is_accessible
         })
         return NextResponse.json({ 
-          error: 'Certificate not yet accessible. Please complete the event evaluation first.',
-          requires_evaluation: certificate.event.require_evaluation,
+          error: 'Certificate not yet accessible.',
           certificate_id: id
         }, { status: 403 })
       }

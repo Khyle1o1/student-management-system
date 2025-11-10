@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
+import { generateCertificatesForEvent } from "@/lib/certificate-utils"
 
 const bulkScanSchema = z.object({
   studentIds: z.array(z.string().min(1)).min(1, "At least one student ID is required"),
@@ -200,6 +201,23 @@ export async function POST(request: Request) {
     // Update summary
     results.summary.successful = results.success.length
     results.summary.failed = results.failed.length
+
+    // Auto-generate certificates after bulk attendance recording
+    // For IN_ONLY events, certificates should be generated after sign-in
+    // For IN_OUT events, certificates should be generated after sign-out
+    if (results.summary.successful > 0) {
+      const shouldGenerateCerts = (mode === 'SIGN_IN' && event.attendance_type === 'IN_ONLY') || 
+                                  (mode === 'SIGN_OUT' && event.attendance_type === 'IN_OUT')
+      
+      if (shouldGenerateCerts) {
+        try {
+          await generateCertificatesForEvent(eventId)
+        } catch (certificateError) {
+          console.error('Error auto-generating certificates in bulk-scan:', certificateError)
+          // Don't fail the bulk attendance operation if certificate generation fails
+        }
+      }
+    }
 
     return NextResponse.json({
       success: true,

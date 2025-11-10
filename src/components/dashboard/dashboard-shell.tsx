@@ -137,8 +137,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
       icon: Calendar, 
       badge: stats?.events?.total?.toString() || "0"
     },
-    { href: "/dashboard/forms", label: "Forms", icon: ClipboardCheck },
-    { href: "/dashboard/evaluations", label: "Event Evaluations", icon: ClipboardCheck },
+    { href: "/dashboard/forms", label: "Forms & Evaluations", icon: ClipboardCheck },
     { href: "/dashboard/certificates/templates", label: "Certificates", icon: Award },
     { 
       href: "/dashboard/fees", 

@@ -12,6 +12,7 @@ BEGIN
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             title VARCHAR(255) NOT NULL,
             description TEXT,
+            sections JSONB DEFAULT '[]', -- Array of section objects with title and description
             questions JSONB NOT NULL DEFAULT '[]', -- Array of question objects
             settings JSONB DEFAULT '{}', -- Form settings (deadline, allow multiple submissions, etc.)
             status VARCHAR(50) DEFAULT 'DRAFT', -- DRAFT, PUBLISHED, CLOSED
@@ -192,7 +193,8 @@ COMMENT ON TABLE form_responses IS 'User responses to evaluation forms';
 COMMENT ON TABLE form_analytics IS 'Cached analytics and statistics for forms';
 COMMENT ON TABLE form_sections IS 'Sections to organize form questions';
 
-COMMENT ON COLUMN evaluation_forms.questions IS 'JSONB array of question objects with type, text, options, required, etc.';
+COMMENT ON COLUMN evaluation_forms.sections IS 'JSONB array of section objects with id, title, description, and order';
+COMMENT ON COLUMN evaluation_forms.questions IS 'JSONB array of question objects with type, text, options, required, sectionId, etc.';
 COMMENT ON COLUMN evaluation_forms.settings IS 'JSONB object for form settings like deadline, allow_multiple_submissions, require_login, etc.';
 COMMENT ON COLUMN evaluation_forms.status IS 'Form status: DRAFT, PUBLISHED, or CLOSED';
 COMMENT ON COLUMN form_responses.answers IS 'JSONB object with question IDs as keys and user answers as values';

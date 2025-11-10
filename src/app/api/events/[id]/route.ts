@@ -48,6 +48,7 @@ export async function GET(
       scope_college: event.scope_college || null,
       scope_course: event.scope_course || null,
       require_evaluation: event.require_evaluation || false,
+      evaluation_id: event.evaluation_id || null,
       attendance_type: event.attendance_type || 'IN_ONLY',
       created_at: event.created_at,
       updated_at: event.updated_at
@@ -89,6 +90,7 @@ export async function PUT(
       scope_college: body.scope_college || null,
       scope_course: body.scope_course || null,
       require_evaluation: body.require_evaluation || false,
+      evaluation_id: body.evaluation_id || null,
       attendance_type: body.attendance_type || 'IN_ONLY',
       updated_at: new Date().toISOString()
     }
@@ -104,6 +106,32 @@ export async function PUT(
     if (error) {
       console.error('Error updating event:', error)
       return NextResponse.json({ error: 'Failed to update event' }, { status: 500 })
+    }
+
+    // Update certificate template link if provided
+    if (body.certificate_template_id !== undefined) {
+      // First, delete any existing link
+      await supabaseAdmin
+        .from('event_certificate_templates')
+        .delete()
+        .eq('event_id', id)
+
+      // If a template ID is provided, create new link
+      if (body.certificate_template_id) {
+        const { error: templateLinkError } = await supabaseAdmin
+          .from('event_certificate_templates')
+          .insert([{
+            event_id: id,
+            certificate_template_id: body.certificate_template_id
+          }])
+
+        if (templateLinkError) {
+          console.error('Error updating certificate template link:', templateLinkError)
+          // Don't fail the update if template linking fails
+        } else {
+          console.log(`✅ Updated certificate template link for event ${id}`)
+        }
+      }
     }
 
     return NextResponse.json(event)

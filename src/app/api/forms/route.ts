@@ -12,6 +12,7 @@ const formQuestionSchema = z.object({
     'multiple_choice',
     'checkbox',
     'linear_scale',
+    'rating',
     'dropdown',
     'date',
     'time',
@@ -22,11 +23,14 @@ const formQuestionSchema = z.object({
   options: z.array(z.string()).optional(),
   required: z.boolean().default(false),
   order: z.number().default(0),
+  sectionId: z.string().optional(),
   // Linear scale specific
   min_value: z.number().optional(),
   max_value: z.number().optional(),
   min_label: z.string().optional(),
   max_label: z.string().optional(),
+  // Rating specific
+  rating_style: z.enum(['star', 'heart', 'thumbs']).optional(),
   // Validation rules
   validation: z.object({
     min_length: z.number().optional(),
@@ -41,6 +45,10 @@ const formQuestionSchema = z.object({
   // Validate linear scale has min and max
   if (data.type === 'linear_scale') {
     return data.min_value !== undefined && data.max_value !== undefined
+  }
+  // Validate rating has max_value and rating_style
+  if (data.type === 'rating') {
+    return data.max_value !== undefined && data.rating_style !== undefined
   }
   return true
 }, {

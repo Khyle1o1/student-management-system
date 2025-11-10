@@ -77,18 +77,7 @@ export function EventEvaluationForm({ eventId, studentId }: EventEvaluationFormP
 
   const fetchEventAndEvaluation = async () => {
     try {
-      // First check if student has already submitted evaluation
-      const responsesResponse = await fetch(`/api/evaluations/responses?event_id=${eventId}`)
-      if (responsesResponse.ok) {
-        const data = await responsesResponse.json()
-        if (data.responses && data.responses.length > 0) {
-          setSubmitted(true)
-          setLoading(false)
-          return
-        }
-      }
-
-      // Fetch event details
+      // Fetch event details first
       const eventResponse = await fetch(`/api/events/${eventId}`)
       if (!eventResponse.ok) {
         throw new Error('Event not found')
@@ -97,19 +86,33 @@ export function EventEvaluationForm({ eventId, studentId }: EventEvaluationFormP
       setEvent(eventData)
 
       // Check if event requires evaluation
-      if (!eventData.require_evaluation) {
+      if (!eventData.require_evaluation || !eventData.evaluation_id) {
         setError('This event does not require an evaluation')
         setLoading(false)
         return
       }
 
-      // Fetch the evaluation for this event
+      // Fetch the evaluation form for this event
       const evaluationResponse = await fetch(`/api/events/${eventId}/evaluation`)
-      if (evaluationResponse.ok) {
-        const evalData = await evaluationResponse.json()
-        setEvaluation(evalData)
-      } else {
+      if (!evaluationResponse.ok) {
         setError('No evaluation found for this event')
+        setLoading(false)
+        return
+      }
+      const evalData = await evaluationResponse.json()
+      setEvaluation(evalData)
+
+      // Check if student has already submitted evaluation
+      const responsesResponse = await fetch(`/api/forms/${evalData.id}/responses?student_id=${studentId}`)
+      if (responsesResponse.ok) {
+        const data = await responsesResponse.json()
+        // Check if current user has submitted
+        const hasSubmitted = data.responses && data.responses.some((r: any) => r.student_id === studentId)
+        if (hasSubmitted) {
+          setSubmitted(true)
+          setLoading(false)
+          return
+        }
       }
     } catch (error) {
       console.error('Error fetching evaluation:', error)
@@ -130,7 +133,7 @@ export function EventEvaluationForm({ eventId, studentId }: EventEvaluationFormP
     if (!evaluation) return
 
     // Validate required questions
-    const requiredQuestions = evaluation.questions.filter(q => q.required)
+    const requiredQuestions = evaluation.questions.filter((q: any) => q.required)
     for (const question of requiredQuestions) {
       if (!responses[question.id] || responses[question.id] === '') {
         alert(`Please answer the required question: ${question.question}`)
@@ -142,15 +145,27 @@ export function EventEvaluationForm({ eventId, studentId }: EventEvaluationFormP
     setError(null)
 
     try {
-      const response = await fetch('/api/evaluations/responses', {
+      // Fetch student UUID from student_id string
+      const studentResponse = await fetch(`/api/students?student_id=${studentId}`)
+      if (!studentResponse.ok) {
+        throw new Error('Failed to fetch student information')
+      }
+      const studentData = await studentResponse.json()
+      const studentUUID = studentData.students?.[0]?.id
+
+      if (!studentUUID) {
+        throw new Error('Student record not found')
+      }
+
+      const response = await fetch(`/api/forms/${evaluation.id}/responses`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          answers: responses,
           event_id: eventId,
-          evaluation_id: evaluation.id,
-          responses: responses,
+          student_id: studentUUID, // Send the UUID, not the student_id string
         }),
       })
 
@@ -162,7 +177,7 @@ export function EventEvaluationForm({ eventId, studentId }: EventEvaluationFormP
       }
     } catch (error) {
       console.error('Error submitting evaluation:', error)
-      setError('Failed to submit evaluation')
+      setError(error instanceof Error ? error.message : 'Failed to submit evaluation')
     } finally {
       setSubmitting(false)
     }

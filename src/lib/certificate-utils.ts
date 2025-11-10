@@ -1,11 +1,23 @@
-import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { createAttendanceConfirmationNotification, createCertificateAvailableNotification } from "@/lib/notifications"
 
 // Utility function to auto-generate certificates for present students
 export async function generateCertificatesForEvent(eventId: string) {
   try {
-    // Get all students who attended the event (present status and signed out)
-    const { data: attendees, error: attendeesError } = await supabase
+    // Get event details first to check attendance type
+    const { data: event, error: eventError } = await supabaseAdmin
+      .from('events')
+      .select('*, evaluation_id, require_evaluation, attendance_type')
+      .eq('id', eventId)
+      .single()
+
+    if (eventError) {
+      console.error('Error fetching event:', eventError)
+      return { success: false, error: 'Failed to fetch event details' }
+    }
+
+    // Build query based on attendance type
+    let attendeesQuery = supabaseAdmin
       .from('attendance')
       .select(`
         student_id,
@@ -18,9 +30,15 @@ export async function generateCertificatesForEvent(eventId: string) {
         )
       `)
       .eq('event_id', eventId)
-      .not('time_out', 'is', null) // Must have signed out
       .not('time_in', 'is', null) // Must have signed in
       .eq('certificate_generated', false)
+
+    // For IN_OUT events, also check that they have signed out
+    if (event.attendance_type === 'IN_OUT') {
+      attendeesQuery = attendeesQuery.not('time_out', 'is', null)
+    }
+
+    const { data: attendees, error: attendeesError } = await attendeesQuery
 
     if (attendeesError) {
       console.error('Error fetching attendees:', attendeesError)
@@ -28,145 +46,29 @@ export async function generateCertificatesForEvent(eventId: string) {
     }
 
     if (!attendees || attendees.length === 0) {
+      console.log(`No new certificates to generate for event ${eventId}`)
       return { success: true, message: 'No new certificates to generate' }
     }
 
-    // Get event details
-    const { data: event, error: eventError } = await supabase
-      .from('events')
-      .select('*')
-      .eq('id', eventId)
-      .single()
-
-    if (eventError) {
-      console.error('Error fetching event:', eventError)
-      return { success: false, error: 'Failed to fetch event details' }
-    }
+    console.log(`Generating certificates for ${attendees.length} students in event ${eventId}`)
 
     // Get certificate template ID from event_certificate_templates
-    const { data: eventTemplate, error: eventTemplateError } = await supabase
+    const { data: eventTemplate, error: eventTemplateError } = await supabaseAdmin
       .from('event_certificate_templates')
       .select('certificate_template_id')
       .eq('event_id', eventId)
       .single()
 
-    let templateId = null
     if (eventTemplateError || !eventTemplate) {
-      console.log('No template found for event, creating default template...')
-      // Create a default template for this event if none exists
-      const defaultTemplate = {
-        title: `Default Template for ${event.title}`,
-        description: 'Auto-generated default certificate template',
-        background_design: {
-          background_color: '#ffffff',
-          border_color: '#000000',
-          border_width: 2,
-          logo_position: 'top-center',
-          pattern: 'none'
-        },
-        dynamic_fields: [
-          {
-            id: 'student_name',
-            type: 'student_name',
-            label: 'Student Name',
-            position: { x: 1000, y: 500 },
-            style: {
-              font_family: 'Arial',
-              font_size: 24,
-              font_weight: 'bold',
-              color: '#000000',
-              text_align: 'center'
-            }
-          },
-          {
-            id: 'event_name',
-            type: 'event_name',
-            label: 'Event Name',
-            position: { x: 1000, y: 400 },
-            style: {
-              font_family: 'Arial',
-              font_size: 20,
-              font_weight: 'normal',
-              color: '#000000',
-              text_align: 'center'
-            }
-          },
-          {
-            id: 'certificate_number',
-            type: 'certificate_number',
-            label: 'Certificate Number',
-            position: { x: 1000, y: 1200 },
-            style: {
-              font_family: 'Arial',
-              font_size: 12,
-              font_weight: 'normal',
-              color: '#000000',
-              text_align: 'center'
-            }
-          }
-        ],
-        template_html: `<div class="certificate-container">
-          <div class="certificate-content">
-            <h1>Certificate of Participation</h1>
-            <div class="fields-container">
-              {{fields}}
-            </div>
-          </div>
-        </div>`,
-        template_css: `
-          .certificate-container {
-            width: 2000px;
-            height: 1414px;
-            background: white;
-            border: 2px solid #000000;
-            position: relative;
-            font-family: Arial, sans-serif;
-          }
-          .certificate-content {
-            padding: 50px;
-            text-align: center;
-          }
-          .fields-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-          }
-        `,
-        is_active: true
+      console.error('❌ No certificate template linked to this event. Please link a template in event settings.')
+      return { 
+        success: false, 
+        error: 'No certificate template found for this event. Please link a certificate template in the event settings.' 
       }
-
-      // Create the default template
-      const { data: newTemplate, error: createTemplateError } = await supabase
-        .from('certificate_templates')
-        .insert([{
-          ...defaultTemplate,
-          created_by: '00000000-0000-0000-0000-000000000000' // System user ID
-        }])
-        .select()
-        .single()
-
-      if (createTemplateError) {
-        console.error('Error creating default template:', createTemplateError)
-        return { success: false, error: 'Failed to create default certificate template' }
-      }
-
-      // Link the template to the event
-      const { error: linkError } = await supabase
-        .from('event_certificate_templates')
-        .insert([{
-          event_id: eventId,
-          certificate_template_id: newTemplate.id
-        }])
-
-      if (linkError) {
-        console.error('Error linking template to event:', linkError)
-        // Continue anyway, we have the template
-      }
-
-      templateId = newTemplate.id
-    } else {
-      templateId = eventTemplate.certificate_template_id
     }
+
+    const templateId = eventTemplate.certificate_template_id
+    console.log(`✅ Using certificate template: ${templateId}`)
 
     const results = []
     
@@ -176,7 +78,7 @@ export async function generateCertificatesForEvent(eventId: string) {
         const student = attendee.student
         
         // Check if certificate already exists for this student
-        const { data: existingCert, error: existingError } = await supabase
+        const { data: existingCert, error: existingError } = await supabaseAdmin
           .from('certificates')
           .select('id')
           .eq('event_id', eventId)
@@ -199,19 +101,24 @@ export async function generateCertificatesForEvent(eventId: string) {
 
         // Determine accessibility based on evaluation requirement
         let isAccessible = true
-        if (event.require_evaluation) {
-          const { data: evalResponse } = await supabase
-            .from('student_evaluation_responses')
+        if (event.require_evaluation && event.evaluation_id) {
+          console.log(`Event requires evaluation. Checking if student ${attendee.student_id} completed form ${event.evaluation_id}`)
+          // Check if student completed evaluation in the new forms system
+          const { data: evalResponse } = await supabaseAdmin
+            .from('form_responses')
             .select('id')
-            .eq('event_id', eventId)
+            .eq('form_id', event.evaluation_id)
             .eq('student_id', attendee.student_id)
             .single()
 
           isAccessible = !!evalResponse
+          console.log(`Student ${attendee.student_id} evaluation status: ${evalResponse ? 'COMPLETED' : 'NOT COMPLETED'}, is_accessible: ${isAccessible}`)
+        } else {
+          console.log(`Event does not require evaluation. Certificate will be immediately accessible.`)
         }
 
         // Create certificate
-        const { data: certificate, error: certError } = await supabase
+        const { data: certificate, error: certError } = await supabaseAdmin
           .from('certificates')
           .insert([{
             event_id: eventId,
@@ -225,7 +132,7 @@ export async function generateCertificatesForEvent(eventId: string) {
           .single()
 
         if (certError) {
-          console.error(`Error creating certificate for student ${attendee.student_id}:`, certError)
+          console.error(`❌ Error creating certificate for student ${attendee.student_id}:`, certError)
           results.push({
             student_id: attendee.student_id,
             success: false,
@@ -234,8 +141,10 @@ export async function generateCertificatesForEvent(eventId: string) {
           continue
         }
 
+        console.log(`✅ Certificate created successfully for student ${attendee.student_id}:`, certificate.id, `is_accessible: ${certificate.is_accessible}`)
+
         // Update attendance record
-        await supabase
+        await supabaseAdmin
           .from('attendance')
           .update({ certificate_generated: true })
           .eq('event_id', eventId)
@@ -249,7 +158,7 @@ export async function generateCertificatesForEvent(eventId: string) {
           eventDate: new Date(event.date).toLocaleDateString(),
           eventLocation: event.location || 'TBD',
           requiresEvaluation: event.require_evaluation || false,
-          evaluationUrl: event.require_evaluation ? `/dashboard/evaluations/${eventId}` : undefined,
+          evaluationUrl: event.require_evaluation ? `/dashboard/events/${eventId}/evaluation` : undefined,
           certificateUrl: isAccessible ? `/dashboard/certificates/${certificate.id}` : undefined,
           eventId: eventId
         })

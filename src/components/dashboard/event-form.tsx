@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Save, Loader2, Calendar, Clock, MapPin, AlertTriangle, CheckSquare, ClipboardCheck } from "lucide-react"
+import { Save, Loader2, Calendar, Clock, MapPin, AlertTriangle, CheckSquare, ClipboardCheck, RefreshCw } from "lucide-react"
 import { COLLEGES, COURSES_BY_COLLEGE, EVENT_SCOPE_TYPES, EVENT_SCOPE_LABELS, EVENT_SCOPE_DESCRIPTIONS } from "@/lib/constants/academic-programs"
 
 interface Evaluation {
@@ -158,17 +158,21 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
     loadEventData()
   }, [eventId])
 
-  // Load evaluation templates
+  // Load evaluation forms from new forms system
   const fetchEvaluations = useCallback(async () => {
     setLoadingEvaluations(true)
     try {
-      const response = await fetch('/api/evaluations?templates_only=true&limit=100')
+      const response = await fetch('/api/forms?status=PUBLISHED&limit=100')
       if (response.ok) {
         const data = await response.json()
-        setEvaluations(data.evaluations)
+        setEvaluations(data.forms || [])
+      } else {
+        console.error('Failed to fetch forms')
+        setEvaluations([])
       }
     } catch (error) {
-      console.error('Error fetching evaluations:', error)
+      console.error('Error fetching forms:', error)
+      setEvaluations([])
     } finally {
       setLoadingEvaluations(false)
     }
@@ -207,6 +211,11 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
       // If require_evaluation is disabled, clear evaluation_id
       if (field === 'require_evaluation' && !value) {
         newData.evaluation_id = ""
+      }
+      
+      // If require_evaluation is enabled, refresh the evaluations list
+      if (field === 'require_evaluation' && value) {
+        fetchEvaluations()
       }
       
       // Reset college and course when scope changes
@@ -624,7 +633,20 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
 
               {formData.require_evaluation && (
                 <div className="space-y-2 pl-6 border-l-2 border-blue-200 bg-blue-50 p-4">
-                  <Label htmlFor="evaluation_id">Select Evaluation Template *</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="evaluation_id">Select Evaluation Template *</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={fetchEvaluations}
+                      disabled={loadingEvaluations}
+                      className="h-8 px-2"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${loadingEvaluations ? 'animate-spin' : ''}`} />
+                      <span className="ml-1 text-xs">Refresh</span>
+                    </Button>
+                  </div>
                   <Select
                     value={formData.evaluation_id || undefined}
                     onValueChange={(value) => handleInputChange("evaluation_id", value)}
@@ -651,7 +673,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
                   
                   {evaluations.length === 0 && !loadingEvaluations && (
                     <div className="text-sm text-gray-600">
-                      No evaluation templates found. <a href="/dashboard/evaluations/new" className="text-blue-600 hover:underline">Create one first</a>.
+                      No evaluation templates found. <a href="/dashboard/forms/new" className="text-blue-600 hover:underline" target="_blank">Create one first</a>.
                     </div>
                   )}
                   

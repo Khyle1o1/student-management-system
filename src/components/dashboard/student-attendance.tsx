@@ -91,10 +91,19 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
         // Check evaluation completion for each event
         for (const record of attendedEvents) {
           try {
-            const evalResponse = await fetch(`/api/evaluations/responses?event_id=${record.event.id}`)
-            if (evalResponse.ok) {
-              const evalData = await evalResponse.json()
-              statuses[record.event.id] = evalData.responses && evalData.responses.length > 0
+            // Get the evaluation form ID for this event
+            if (record.event.evaluation_id) {
+              // Use student_id parameter to check if student has submitted
+              const evalResponse = await fetch(`/api/forms/${record.event.evaluation_id}/responses?student_id=${studentId}`)
+              if (evalResponse.ok) {
+                const evalData = await evalResponse.json()
+                // Check if there are any responses (the API filters by student_id)
+                const hasSubmitted = evalData.responses && evalData.responses.length > 0
+                statuses[record.event.id] = hasSubmitted
+                console.log(`Evaluation status for event ${record.event.id}: ${hasSubmitted ? 'COMPLETED' : 'NOT COMPLETED'}`)
+              } else {
+                statuses[record.event.id] = false
+              }
             } else {
               statuses[record.event.id] = false
             }

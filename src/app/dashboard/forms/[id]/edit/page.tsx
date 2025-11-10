@@ -40,27 +40,24 @@ export default function EditFormPage() {
 
   if (!formData) {
     return (
-      <div className="container mx-auto py-6">
-        <div className="text-center">
-          <p className="text-muted-foreground">Form not found</p>
-        </div>
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Form not found</p>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto py-6">
-      <FormBuilder 
-        formId={formId}
-        initialData={{
-          title: formData.title,
-          description: formData.description,
-          questions: formData.questions,
-          settings: formData.settings,
-          status: formData.status,
-        }}
-      />
-    </div>
+    <FormBuilder 
+      formId={formId}
+      initialData={{
+        title: formData.title,
+        description: formData.description,
+        questions: formData.questions,
+        sections: formData.sections,
+        settings: formData.settings,
+        status: formData.status,
+      }}
+    />
   )
 }
 

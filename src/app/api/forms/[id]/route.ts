@@ -3,6 +3,8 @@ import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
 
+export const dynamic = 'force-dynamic'
+
 // Enhanced validation schema for form questions
 const formQuestionSchema = z.object({
   id: z.string(),
@@ -12,6 +14,7 @@ const formQuestionSchema = z.object({
     'multiple_choice',
     'checkbox',
     'linear_scale',
+    'rating',
     'dropdown',
     'date',
     'time',
@@ -22,10 +25,12 @@ const formQuestionSchema = z.object({
   options: z.array(z.string()).optional(),
   required: z.boolean().default(false),
   order: z.number().default(0),
+  sectionId: z.string().optional(),
   min_value: z.number().optional(),
   max_value: z.number().optional(),
   min_label: z.string().optional(),
   max_label: z.string().optional(),
+  rating_style: z.enum(['star', 'heart', 'thumbs']).optional(),
   validation: z.object({
     min_length: z.number().optional(),
     max_length: z.number().optional(),
@@ -55,10 +60,10 @@ const updateFormSchema = z.object({
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
 
     // Fetch form with creator info
     const { data: form, error } = await supabaseAdmin
@@ -97,7 +102,7 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -105,7 +110,7 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
     const data = updateFormSchema.parse(body)
 
@@ -138,7 +143,7 @@ export async function PUT(
     if (data.status) {
       updateData.status = data.status
       // Set published_at when publishing
-      if (data.status === 'PUBLISHED' && !existingForm.published_at) {
+      if (data.status === 'PUBLISHED' && !(existingForm as any).published_at) {
         updateData.published_at = new Date().toISOString()
       }
     }
@@ -181,7 +186,7 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -189,7 +194,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { id } = params
+    const { id } = await params
 
     // Check if form exists and user has permission
     const { data: existingForm } = await supabaseAdmin

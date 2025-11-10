@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { generateCertificatesForEvent } from "@/lib/certificate-utils"
 
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     }
 
     // Verify event exists
-    const { data: event, error: eventError } = await supabase
+    const { data: event, error: eventError } = await supabaseAdmin
       .from('events')
       .select('*')
       .eq('id', event_id)

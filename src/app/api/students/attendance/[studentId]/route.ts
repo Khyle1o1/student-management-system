@@ -39,7 +39,8 @@ export async function GET(
           title,
           description,
           date,
-          require_evaluation
+          require_evaluation,
+          evaluation_id
         )
       `)
       .eq('student_id', student.id)

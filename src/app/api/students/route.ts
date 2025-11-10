@@ -41,16 +41,99 @@ export async function GET(request: Request) {
     const isAdmin = role === 'ADMIN'
     const isCollegeOrg = role === 'COLLEGE_ORG'
     const isCourseOrg = role === 'COURSE_ORG'
+    const isStudent = role === 'USER'
+    
+    const { searchParams } = new URL(request.url)
+    const studentIdFilter = searchParams.get('student_id') // Specific student_id lookup
+
+    // Allow students to query their own record
+    if (isStudent && studentIdFilter) {
+      // Students can only query their own student_id
+      if (studentIdFilter !== session.user.studentId) {
+        return NextResponse.json({ error: 'Forbidden - can only access your own record' }, { status: 403 })
+      }
+
+      const { data: student, error } = await supabaseAdmin
+        .from('students')
+        .select(`
+          id,
+          student_id,
+          name,
+          email,
+          college,
+          course,
+          year_level,
+          created_at,
+          archived,
+          archived_at
+        `)
+        .eq('student_id', studentIdFilter)
+        .single()
+
+      if (error || !student) {
+        return NextResponse.json({ 
+          students: [], 
+          total: 0,
+          page: 1,
+          limit: 1
+        })
+      }
+
+      return NextResponse.json({
+        students: [student],
+        total: 1,
+        page: 1,
+        limit: 1
+      })
+    }
+
+    // Regular admin/org access
     if (!(isAdmin || isCollegeOrg || isCourseOrg)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const { searchParams } = new URL(request.url)
+    
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
     const search = searchParams.get('search') || ''
     const filter = searchParams.get('filter') || 'active' // all, active, archived
     
     const offset = (page - 1) * limit
+
+    // If student_id is provided (admin/org request), return just that student
+    if (studentIdFilter) {
+      const { data: student, error } = await supabaseAdmin
+        .from('students')
+        .select(`
+          id,
+          student_id,
+          name,
+          email,
+          college,
+          course,
+          year_level,
+          created_at,
+          archived,
+          archived_at
+        `)
+        .eq('student_id', studentIdFilter)
+        .single()
+
+      if (error || !student) {
+        return NextResponse.json({ 
+          students: [], 
+          total: 0,
+          page: 1,
+          limit: 1
+        })
+      }
+
+      return NextResponse.json({
+        students: [student],
+        total: 1,
+        page: 1,
+        limit: 1
+      })
+    }
 
     // Build query based on filter
     let countQuery = supabaseAdmin

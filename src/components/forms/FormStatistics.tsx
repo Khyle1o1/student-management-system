@@ -127,6 +127,9 @@ export function FormStatistics({ formId }: FormStatisticsProps) {
       case 'linear_scale':
         return renderLinearScaleStats(questionStat)
 
+      case 'rating':
+        return renderRatingStats(questionStat)
+
       case 'short_answer':
       case 'paragraph':
       case 'email':
@@ -179,7 +182,7 @@ export function FormStatistics({ formId }: FormStatisticsProps) {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {pieData.map((entry, index) => (
+                  {pieData.map((entry: any, index: number) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -370,6 +373,129 @@ export function FormStatistics({ formId }: FormStatisticsProps) {
         <div className="flex justify-between text-sm text-muted-foreground">
           <span>Min: {statistics.min}</span>
           <span>Max: {statistics.max}</span>
+        </div>
+      </div>
+    )
+  }
+
+  const renderRatingStats = (questionStat: QuestionStatistic) => {
+    const { statistics } = questionStat
+    
+    if (!statistics.distribution || statistics.distribution.length === 0) {
+      return <p className="text-sm text-muted-foreground">No responses yet</p>
+    }
+
+    // Get rating icon from question statistics metadata (if available)
+    const ratingStyle = (questionStat as any).rating_style || 'star'
+    const ratingIcon = ratingStyle === 'heart' ? '❤️' : ratingStyle === 'thumbs' ? '👍' : '⭐'
+
+    const barData = statistics.distribution.map((d: any) => ({
+      value: d.value.toString(),
+      count: d.count,
+      percentage: d.percentage,
+    }))
+
+    return (
+      <div className="space-y-6">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Average Rating</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold flex items-center gap-2">
+                {statistics.average}
+                <span className="text-xl">{ratingIcon}</span>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Median</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold flex items-center gap-2">
+                {statistics.median}
+                <span className="text-xl">{ratingIcon}</span>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Most Common</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold flex items-center gap-2">
+                {statistics.mode || 'N/A'}
+                {statistics.mode && <span className="text-xl">{ratingIcon}</span>}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Total Ratings</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{statistics.response_count}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Distribution Chart with Icons */}
+        <div>
+          <h4 className="text-sm font-medium mb-4">Rating Distribution</h4>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={barData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="value" 
+                label={{ value: `${ratingIcon} Rating`, position: 'insideBottom', offset: -5 }}
+              />
+              <YAxis label={{ value: 'Count', angle: -90, position: 'insideLeft' }} />
+              <Tooltip 
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="bg-white p-3 border rounded shadow-lg">
+                        <p className="font-medium text-lg">{payload[0].payload.value} {ratingIcon}</p>
+                        <p className="text-sm">Count: {payload[0].value}</p>
+                        <p className="text-sm">Percentage: {payload[0].payload.percentage}%</p>
+                      </div>
+                    )
+                  }
+                  return null
+                }}
+              />
+              <Bar dataKey="count" fill="#FFBB28" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Visual Rating Display */}
+        <div className="p-4 bg-muted/50 rounded-lg">
+          <h4 className="text-sm font-medium mb-3">Visual Summary</h4>
+          <div className="flex items-center justify-center gap-6">
+            <div className="text-center">
+              <div className="text-sm text-muted-foreground mb-2">Average Rating</div>
+              <div className="flex gap-1">
+                {Array.from({ length: statistics.max || 5 }, (_, i) => (
+                  <span 
+                    key={i} 
+                    className="text-3xl"
+                    style={{ 
+                      opacity: i < Math.round(statistics.average) ? 1 : 0.2 
+                    }}
+                  >
+                    {ratingIcon}
+                  </span>
+                ))}
+              </div>
+              <div className="text-sm font-medium mt-2">
+                {statistics.average} out of {statistics.max || 5}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     )

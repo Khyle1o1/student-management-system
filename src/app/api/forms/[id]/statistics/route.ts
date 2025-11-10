@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 
+export const dynamic = 'force-dynamic'
+
 interface QuestionStatistics {
   question_id: string
   question_type: string
@@ -12,7 +14,7 @@ interface QuestionStatistics {
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -20,7 +22,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { id: formId } = params
+    const { id: formId } = await params
 
     // Check if form exists and user has permission
     const { data: form } = await supabaseAdmin
@@ -111,7 +113,8 @@ export async function GET(
           break
 
         case 'linear_scale':
-          // Calculate average, median, mode, distribution
+        case 'rating':
+          // Calculate average, median, mode, distribution (same logic for both)
           const numericAnswers = answers.map(a => Number(a)).filter(n => !isNaN(n))
           
           if (numericAnswers.length > 0) {
@@ -178,6 +181,7 @@ export async function GET(
         question_type: questionType,
         question_text: question.question,
         total_responses: answers.length,
+        rating_style: question.rating_style, // Include rating style for rating questions
         statistics,
       }
     })

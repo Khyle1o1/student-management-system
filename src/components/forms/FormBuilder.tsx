@@ -20,13 +20,22 @@ import {
   X,
   Copy,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  LayoutList
 } from "lucide-react"
 import { toast } from "react-hot-toast"
 
+interface Section {
+  id: string
+  title: string
+  description?: string
+  order: number
+}
+
 interface Question {
   id: string
-  type: 'short_answer' | 'paragraph' | 'multiple_choice' | 'checkbox' | 'linear_scale' | 'dropdown' | 'date' | 'time' | 'email'
+  sectionId?: string
+  type: 'short_answer' | 'paragraph' | 'multiple_choice' | 'checkbox' | 'linear_scale' | 'dropdown' | 'date' | 'time' | 'email' | 'rating'
   question: string
   description?: string
   options?: string[]
@@ -36,6 +45,7 @@ interface Question {
   max_value?: number
   min_label?: string
   max_label?: string
+  rating_style?: 'star' | 'heart' | 'thumbs'
 }
 
 interface FormSettings {
@@ -54,6 +64,7 @@ interface FormBuilderProps {
     title: string
     description?: string
     questions: Question[]
+    sections?: Section[]
     settings?: FormSettings
     status?: 'DRAFT' | 'PUBLISHED' | 'CLOSED'
   }
@@ -67,6 +78,7 @@ const QUESTION_TYPES = [
   { value: 'multiple_choice', label: 'Multiple Choice' },
   { value: 'checkbox', label: 'Checkboxes' },
   { value: 'linear_scale', label: 'Linear Scale' },
+  { value: 'rating', label: 'Rating (Star/Heart/Thumbs)' },
   { value: 'dropdown', label: 'Dropdown' },
   { value: 'date', label: 'Date' },
   { value: 'time', label: 'Time' },
@@ -77,6 +89,7 @@ export function FormBuilder({ formId, initialData, onSave, onCancel }: FormBuild
   const router = useRouter()
   const [title, setTitle] = useState(initialData?.title || '')
   const [description, setDescription] = useState(initialData?.description || '')
+  const [sections, setSections] = useState<Section[]>(initialData?.sections || [])
   const [questions, setQuestions] = useState<Question[]>(initialData?.questions || [])
   const [settings, setSettings] = useState<FormSettings>(initialData?.settings || {
     allow_multiple_submissions: false,
@@ -91,23 +104,77 @@ export function FormBuilder({ formId, initialData, onSave, onCancel }: FormBuild
   const [previewMode, setPreviewMode] = useState(false)
   const [saving, setSaving] = useState(false)
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null)
+  const [expandedSection, setExpandedSection] = useState<string | null>(null)
 
-  const addQuestion = (type: Question['type'] = 'short_answer') => {
+  // Section management functions
+  const addSection = () => {
+    const newSection: Section = {
+      id: `s_${Date.now()}`,
+      title: '',
+      description: '',
+      order: sections.length,
+    }
+    setSections([...sections, newSection])
+    setExpandedSection(newSection.id)
+  }
+
+  const updateSection = (id: string, updates: Partial<Section>) => {
+    setSections(sections.map(s => s.id === id ? { ...s, ...updates } : s))
+  }
+
+  const deleteSection = (id: string) => {
+    // Remove section
+    setSections(sections.filter(s => s.id !== id).map((s, index) => ({ ...s, order: index })))
+    // Remove sectionId from questions in this section
+    setQuestions(questions.map(q => q.sectionId === id ? { ...q, sectionId: undefined } : q))
+  }
+
+  const addQuestion = (type: Question['type'] = 'short_answer', sectionId?: string) => {
     const newQuestion: Question = {
       id: `q_${Date.now()}`,
+      sectionId,
       type,
       question: '',
       required: false,
       order: questions.length,
       ...(type === 'multiple_choice' || type === 'checkbox' || type === 'dropdown' ? { options: ['Option 1'] } : {}),
       ...(type === 'linear_scale' ? { min_value: 1, max_value: 5, min_label: 'Low', max_label: 'High' } : {}),
+      ...(type === 'rating' ? { rating_style: 'star', max_value: 5 } : {}),
     }
     setQuestions([...questions, newQuestion])
     setExpandedQuestion(newQuestion.id)
   }
 
   const updateQuestion = (id: string, updates: Partial<Question>) => {
-    setQuestions(questions.map(q => q.id === id ? { ...q, ...updates } : q))
+    setQuestions(questions.map(q => {
+      if (q.id === id) {
+        const updatedQuestion = { ...q, ...updates }
+        
+        // When changing to multiple_choice, checkbox, or dropdown, initialize options if not present
+        if (updates.type && ['multiple_choice', 'checkbox', 'dropdown'].includes(updates.type)) {
+          if (!updatedQuestion.options || updatedQuestion.options.length === 0) {
+            updatedQuestion.options = ['Option 1', 'Option 2']
+          }
+        }
+        
+        // When changing to linear_scale, initialize min/max if not present
+        if (updates.type === 'linear_scale') {
+          if (!updatedQuestion.min_value) updatedQuestion.min_value = 1
+          if (!updatedQuestion.max_value) updatedQuestion.max_value = 5
+          if (!updatedQuestion.min_label) updatedQuestion.min_label = 'Low'
+          if (!updatedQuestion.max_label) updatedQuestion.max_label = 'High'
+        }
+        
+        // When changing to rating, initialize default style and max
+        if (updates.type === 'rating') {
+          if (!updatedQuestion.rating_style) updatedQuestion.rating_style = 'star'
+          if (!updatedQuestion.max_value) updatedQuestion.max_value = 5
+        }
+        
+        return updatedQuestion
+      }
+      return q
+    }))
   }
 
   const deleteQuestion = (id: string) => {
@@ -196,6 +263,7 @@ export function FormBuilder({ formId, initialData, onSave, onCancel }: FormBuild
       const formData = {
         title,
         description,
+        sections: sections.map((s, i) => ({ ...s, order: i })),
         questions: questions.map((q, i) => ({ ...q, order: i })),
         settings,
         status: publishNow ? 'PUBLISHED' : status,
@@ -289,172 +357,482 @@ export function FormBuilder({ formId, initialData, onSave, onCancel }: FormBuild
         </CardHeader>
       </Card>
 
-      {/* Questions */}
-      {questions.map((question, index) => (
-        <Card key={question.id} className={expandedQuestion === question.id ? "border-blue-500" : ""}>
-          <CardHeader>
-            <div className="flex items-start gap-2">
-              <GripVertical className="h-5 w-5 text-muted-foreground mt-2 cursor-move" />
-              <div className="flex-1 space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Question {index + 1}</span>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => moveQuestion(question.id, 'up')}
-                      disabled={index === 0}
-                    >
-                      <ChevronUp className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => moveQuestion(question.id, 'down')}
-                      disabled={index === questions.length - 1}
-                    >
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => duplicateQuestion(question.id)}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => deleteQuestion(question.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <Input
-                      placeholder="Question"
-                      value={question.question}
-                      onChange={(e) => updateQuestion(question.id, { question: e.target.value })}
-                    />
-                  </div>
-                  
-                  <div>
-                    <Select
-                      value={question.type}
-                      onValueChange={(value) => updateQuestion(question.id, { type: value as Question['type'] })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {QUESTION_TYPES.map(type => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id={`required-${question.id}`}
-                      checked={question.required}
-                      onCheckedChange={(checked) => updateQuestion(question.id, { required: checked })}
-                    />
-                    <Label htmlFor={`required-${question.id}`}>Required</Label>
-                  </div>
-                </div>
-
-                <Input
-                  placeholder="Description (optional)"
-                  value={question.description || ''}
-                  onChange={(e) => updateQuestion(question.id, { description: e.target.value })}
-                  className="text-sm"
-                />
-
-                {/* Question-specific options */}
-                {['multiple_choice', 'checkbox', 'dropdown'].includes(question.type) && question.options && (
-                  <div className="space-y-2">
-                    <Label>Options</Label>
-                    {question.options.map((option, optionIndex) => (
-                      <div key={optionIndex} className="flex gap-2">
-                        <Input
-                          value={option}
-                          onChange={(e) => updateOption(question.id, optionIndex, e.target.value)}
-                          placeholder={`Option ${optionIndex + 1}`}
-                        />
+      {/* Sections and Questions */}
+      {sections.length === 0 && questions.filter(q => !q.sectionId).length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="py-12 text-center">
+            <LayoutList className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-lg font-semibold mb-2">No questions or sections yet</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Start by adding a question or create a section to organize your form
+            </p>
+            <div className="flex gap-2 justify-center">
+              <Button onClick={() => addQuestion()} variant="outline">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Question
+              </Button>
+              <Button onClick={addSection} variant="outline">
+                <LayoutList className="h-4 w-4 mr-2" />
+                Add Section
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Questions without section (default section) */}
+          {questions.filter(q => !q.sectionId).map((question, index) => (
+            <Card key={question.id} className={expandedQuestion === question.id ? "border-blue-500" : ""}>
+              <CardHeader>
+                <div className="flex items-start gap-2">
+                  <GripVertical className="h-5 w-5 text-muted-foreground mt-2 cursor-move" />
+                  <div className="flex-1 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Question {index + 1}</span>
+                      <div className="flex items-center gap-2">
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => deleteOption(question.id, optionIndex)}
-                          disabled={question.options!.length <= 1}
+                          onClick={() => duplicateQuestion(question.id)}
                         >
-                          <X className="h-4 w-4" />
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => deleteQuestion(question.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
                         </Button>
                       </div>
-                    ))}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => addOption(question.id)}
-                    >
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <Input
+                          placeholder="Question"
+                          value={question.question}
+                          onChange={(e) => updateQuestion(question.id, { question: e.target.value })}
+                        />
+                      </div>
+                      
+                      <div>
+                        <Select
+                          value={question.type}
+                          onValueChange={(value) => updateQuestion(question.id, { type: value as Question['type'] })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {QUESTION_TYPES.map(type => (
+                              <SelectItem key={type.value} value={type.value}>
+                                {type.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id={`required-${question.id}`}
+                          checked={question.required}
+                          onCheckedChange={(checked) => updateQuestion(question.id, { required: checked })}
+                        />
+                        <Label htmlFor={`required-${question.id}`}>Required</Label>
+                      </div>
+                    </div>
+
+                    <Input
+                      placeholder="Description (optional)"
+                      value={question.description || ''}
+                      onChange={(e) => updateQuestion(question.id, { description: e.target.value })}
+                      className="text-sm"
+                    />
+
+                    {/* Question-specific options */}
+                    {['multiple_choice', 'checkbox', 'dropdown'].includes(question.type) && question.options && (
+                      <div className="space-y-2">
+                        <Label>Options</Label>
+                        {question.options.map((option, optionIndex) => (
+                          <div key={optionIndex} className="flex gap-2">
+                            <Input
+                              value={option}
+                              onChange={(e) => updateOption(question.id, optionIndex, e.target.value)}
+                              placeholder={`Option ${optionIndex + 1}`}
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => deleteOption(question.id, optionIndex)}
+                              disabled={question.options!.length <= 1}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => addOption(question.id)}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Option
+                        </Button>
+                      </div>
+                    )}
+
+                    {question.type === 'linear_scale' && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Min Value</Label>
+                          <Input
+                            type="number"
+                            value={question.min_value}
+                            onChange={(e) => updateQuestion(question.id, { min_value: parseInt(e.target.value) })}
+                          />
+                          <Input
+                            placeholder="Min label"
+                            value={question.min_label}
+                            onChange={(e) => updateQuestion(question.id, { min_label: e.target.value })}
+                            className="mt-2"
+                          />
+                        </div>
+                        <div>
+                          <Label>Max Value</Label>
+                          <Input
+                            type="number"
+                            value={question.max_value}
+                            onChange={(e) => updateQuestion(question.id, { max_value: parseInt(e.target.value) })}
+                          />
+                          <Input
+                            placeholder="Max label"
+                            value={question.max_label}
+                            onChange={(e) => updateQuestion(question.id, { max_label: e.target.value })}
+                            className="mt-2"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {question.type === 'rating' && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Rating Style</Label>
+                            <Select
+                              value={question.rating_style || 'star'}
+                              onValueChange={(value) => updateQuestion(question.id, { rating_style: value as 'star' | 'heart' | 'thumbs' })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="star">⭐ Star</SelectItem>
+                                <SelectItem value="heart">❤️ Heart</SelectItem>
+                                <SelectItem value="thumbs">👍 Thumbs Up</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Number of {question.rating_style === 'star' ? 'Stars' : question.rating_style === 'heart' ? 'Hearts' : 'Thumbs'}</Label>
+                            <Select
+                              value={question.max_value?.toString() || '5'}
+                              onValueChange={(value) => updateQuestion(question.id, { max_value: parseInt(value) })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="3">3</SelectItem>
+                                <SelectItem value="5">5</SelectItem>
+                                <SelectItem value="10">10</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="p-3 bg-muted rounded-lg">
+                          <p className="text-sm text-muted-foreground mb-2">Preview:</p>
+                          <div className="flex gap-1">
+                            {Array.from({ length: question.max_value || 5 }, (_, i) => (
+                              <span key={i} className="text-2xl opacity-30">
+                                {question.rating_style === 'heart' ? '❤️' : question.rating_style === 'thumbs' ? '👍' : '⭐'}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+          ))}
+
+          {/* Sections */}
+          {sections.map((section, sectionIndex) => {
+            const sectionQuestions = questions.filter(q => q.sectionId === section.id)
+            return (
+              <div key={section.id} className="space-y-4">
+                {/* Section Header */}
+                <Card className={`bg-gradient-to-r from-purple-50 to-blue-50 ${expandedSection === section.id ? "border-purple-500" : ""}`}>
+                  <CardHeader>
+                    <div className="flex items-start gap-3">
+                      <LayoutList className="h-6 w-6 text-purple-600 mt-1" />
+                      <div className="flex-1 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Badge variant="outline" className="bg-white">
+                            Section {sectionIndex + 1}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteSection(section.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                        
+                        <Input
+                          placeholder="Section Title"
+                          value={section.title}
+                          onChange={(e) => updateSection(section.id, { title: e.target.value })}
+                          className="text-xl font-bold bg-white"
+                        />
+                        
+                        <Textarea
+                          placeholder="Section Description (optional)"
+                          value={section.description || ''}
+                          onChange={(e) => updateSection(section.id, { description: e.target.value })}
+                          className="text-sm bg-white resize-none"
+                          rows={2}
+                        />
+                      </div>
+                    </div>
+                  </CardHeader>
+                </Card>
+
+                {/* Questions in this section */}
+                {sectionQuestions.map((question, qIndex) => (
+                  <Card key={question.id} className={`ml-4 ${expandedQuestion === question.id ? "border-blue-500" : ""}`}>
+                    <CardHeader>
+                      <div className="flex items-start gap-2">
+                        <GripVertical className="h-5 w-5 text-muted-foreground mt-2 cursor-move" />
+                        <div className="flex-1 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">Question {qIndex + 1}</span>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => duplicateQuestion(question.id)}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => deleteQuestion(question.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="md:col-span-2">
+                              <Input
+                                placeholder="Question"
+                                value={question.question}
+                                onChange={(e) => updateQuestion(question.id, { question: e.target.value })}
+                              />
+                            </div>
+                            
+                            <div>
+                              <Select
+                                value={question.type}
+                                onValueChange={(value) => updateQuestion(question.id, { type: value as Question['type'] })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {QUESTION_TYPES.map(type => (
+                                    <SelectItem key={type.value} value={type.value}>
+                                      {type.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="flex items-center space-x-2">
+                              <Switch
+                                id={`required-${question.id}`}
+                                checked={question.required}
+                                onCheckedChange={(checked) => updateQuestion(question.id, { required: checked })}
+                              />
+                              <Label htmlFor={`required-${question.id}`}>Required</Label>
+                            </div>
+                          </div>
+
+                          <Input
+                            placeholder="Description (optional)"
+                            value={question.description || ''}
+                            onChange={(e) => updateQuestion(question.id, { description: e.target.value })}
+                            className="text-sm"
+                          />
+
+                          {/* Question-specific options (same as above) */}
+                          {['multiple_choice', 'checkbox', 'dropdown'].includes(question.type) && question.options && (
+                            <div className="space-y-2">
+                              <Label>Options</Label>
+                              {question.options.map((option, optionIndex) => (
+                                <div key={optionIndex} className="flex gap-2">
+                                  <Input
+                                    value={option}
+                                    onChange={(e) => updateOption(question.id, optionIndex, e.target.value)}
+                                    placeholder={`Option ${optionIndex + 1}`}
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => deleteOption(question.id, optionIndex)}
+                                    disabled={question.options!.length <= 1}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => addOption(question.id)}
+                              >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add Option
+                              </Button>
+                            </div>
+                          )}
+
+                          {question.type === 'linear_scale' && (
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <Label>Min Value</Label>
+                                <Input
+                                  type="number"
+                                  value={question.min_value}
+                                  onChange={(e) => updateQuestion(question.id, { min_value: parseInt(e.target.value) })}
+                                />
+                                <Input
+                                  placeholder="Min label"
+                                  value={question.min_label}
+                                  onChange={(e) => updateQuestion(question.id, { min_label: e.target.value })}
+                                  className="mt-2"
+                                />
+                              </div>
+                              <div>
+                                <Label>Max Value</Label>
+                                <Input
+                                  type="number"
+                                  value={question.max_value}
+                                  onChange={(e) => updateQuestion(question.id, { max_value: parseInt(e.target.value) })}
+                                />
+                                <Input
+                                  placeholder="Max label"
+                                  value={question.max_label}
+                                  onChange={(e) => updateQuestion(question.id, { max_label: e.target.value })}
+                                  className="mt-2"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {question.type === 'rating' && (
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <Label>Rating Style</Label>
+                                  <Select
+                                    value={question.rating_style || 'star'}
+                                    onValueChange={(value) => updateQuestion(question.id, { rating_style: value as 'star' | 'heart' | 'thumbs' })}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="star">⭐ Star</SelectItem>
+                                      <SelectItem value="heart">❤️ Heart</SelectItem>
+                                      <SelectItem value="thumbs">👍 Thumbs Up</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <Label>Number of {question.rating_style === 'star' ? 'Stars' : question.rating_style === 'heart' ? 'Hearts' : 'Thumbs'}</Label>
+                                  <Select
+                                    value={question.max_value?.toString() || '5'}
+                                    onValueChange={(value) => updateQuestion(question.id, { max_value: parseInt(value) })}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="3">3</SelectItem>
+                                      <SelectItem value="5">5</SelectItem>
+                                      <SelectItem value="10">10</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              <div className="p-3 bg-muted rounded-lg">
+                                <p className="text-sm text-muted-foreground mb-2">Preview:</p>
+                                <div className="flex gap-1">
+                                  {Array.from({ length: question.max_value || 5 }, (_, i) => (
+                                    <span key={i} className="text-2xl opacity-30">
+                                      {question.rating_style === 'heart' ? '❤️' : question.rating_style === 'thumbs' ? '👍' : '⭐'}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                  </Card>
+                ))}
+
+                {/* Add Question to Section */}
+                <Card className="ml-4 border-dashed">
+                  <CardContent className="py-4">
+                    <Button onClick={() => addQuestion('short_answer', section.id)} variant="outline" className="w-full" size="sm">
                       <Plus className="h-4 w-4 mr-2" />
-                      Add Option
+                      Add Question to Section
                     </Button>
-                  </div>
-                )}
-
-                {question.type === 'linear_scale' && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Min Value</Label>
-                      <Input
-                        type="number"
-                        value={question.min_value}
-                        onChange={(e) => updateQuestion(question.id, { min_value: parseInt(e.target.value) })}
-                      />
-                      <Input
-                        placeholder="Min label"
-                        value={question.min_label}
-                        onChange={(e) => updateQuestion(question.id, { min_label: e.target.value })}
-                        className="mt-2"
-                      />
-                    </div>
-                    <div>
-                      <Label>Max Value</Label>
-                      <Input
-                        type="number"
-                        value={question.max_value}
-                        onChange={(e) => updateQuestion(question.id, { max_value: parseInt(e.target.value) })}
-                      />
-                      <Input
-                        placeholder="Max label"
-                        value={question.max_label}
-                        onChange={(e) => updateQuestion(question.id, { max_label: e.target.value })}
-                        className="mt-2"
-                      />
-                    </div>
-                  </div>
-                )}
+                  </CardContent>
+                </Card>
               </div>
-            </div>
-          </CardHeader>
-        </Card>
-      ))}
+            )
+          })}
 
-      {/* Add Question Button */}
-      <Card className="border-dashed">
-        <CardContent className="pt-6">
-          <Button onClick={() => addQuestion()} variant="outline" className="w-full">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Question
-          </Button>
-        </CardContent>
-      </Card>
+          {/* Add Question/Section Buttons */}
+          <Card className="border-dashed">
+            <CardContent className="py-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Button onClick={() => addQuestion()} variant="outline" className="w-full">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Question
+                </Button>
+                <Button onClick={addSection} variant="outline" className="w-full">
+                  <LayoutList className="h-4 w-4 mr-2" />
+                  Add Section
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {/* Settings Panel */}
       {showSettings && (
@@ -604,6 +982,24 @@ function renderPreviewQuestion(question: Question) {
               <Button key={i} variant="outline" size="sm" disabled>
                 {(question.min_value || 1) + i}
               </Button>
+            ))}
+          </div>
+        </div>
+      )
+    
+    case 'rating':
+      return (
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            {Array.from({ length: question.max_value || 5 }, (_, i) => (
+              <button
+                key={i}
+                type="button"
+                className="text-3xl transition-all hover:scale-110 opacity-30 hover:opacity-100"
+                disabled
+              >
+                {question.rating_style === 'heart' ? '❤️' : question.rating_style === 'thumbs' ? '👍' : '⭐'}
+              </button>
             ))}
           </div>
         </div>

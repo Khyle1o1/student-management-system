@@ -163,6 +163,20 @@ export async function POST(request: Request) {
       }
 
       attendanceRecord = newRecord
+      
+      // Auto-generate certificate for IN_ONLY events (attendance is complete after sign-in)
+      if (event.attendance_type === 'IN_ONLY') {
+        console.log(`📜 IN_ONLY event detected. Auto-generating certificate for student ${student.student_id}...`)
+        try {
+          const result = await generateCertificatesForEvent(eventId)
+          console.log('Certificate generation result:', result)
+        } catch (certificateError) {
+          console.error('❌ Error auto-generating certificates for IN_ONLY event:', certificateError)
+          // Don't fail the attendance recording if certificate generation fails
+        }
+      } else {
+        console.log(`⏳ IN_OUT event detected. Certificate will be generated after sign-out.`)
+      }
     } else {
       // Update existing record with sign-out time
       const { data: updatedRecord, error: updateError } = await supabaseAdmin
@@ -196,10 +210,12 @@ export async function POST(request: Request) {
       attendanceRecord = updatedRecord
       
       // Auto-generate certificates when student signs out (completes attendance)
+      console.log(`📜 Student signed out. Auto-generating certificate for event ${event.title}...`)
       try {
-        await generateCertificatesForEvent(eventId)
+        const result = await generateCertificatesForEvent(eventId)
+        console.log('Certificate generation result:', result)
       } catch (certificateError) {
-        console.error('Error auto-generating certificates:', certificateError)
+        console.error('❌ Error auto-generating certificates:', certificateError)
         // Don't fail the attendance recording if certificate generation fails
       }
     }

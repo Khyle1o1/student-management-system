@@ -146,11 +146,24 @@ export default function NotificationBell() {
   }
 
   useEffect(() => {
+    // Check for pending notifications (evaluations, certificates) on mount
+    const checkPendingNotifications = async () => {
+      try {
+        await fetch('/api/notifications/check-pending', {
+          method: 'POST'
+        })
+      } catch (error) {
+        console.error('Error checking pending notifications:', error)
+      }
+    }
+
+    checkPendingNotifications()
     fetchNotifications()
     fetchUnreadCount()
     
     // Poll for new notifications every 30 seconds
     const interval = setInterval(() => {
+      checkPendingNotifications()
       fetchUnreadCount()
       if (open) {
         fetchNotifications()

@@ -13,6 +13,44 @@ import { Progress } from "@/components/ui/progress"
 import { toast } from "react-hot-toast"
 import { CheckCircle2 } from "lucide-react"
 
+// Rating component to handle hover state
+function RatingInput({ 
+  max, 
+  value, 
+  icon, 
+  onChange 
+}: { 
+  max: number
+  value: number | undefined
+  icon: string
+  onChange: (rating: number) => void 
+}) {
+  const [hoveredRating, setHoveredRating] = useState<number | null>(null)
+
+  return (
+    <div className="flex gap-2">
+      {Array.from({ length: max }, (_, i) => {
+        const ratingNum = i + 1
+        const isActive = ratingNum <= (hoveredRating || value || 0)
+        return (
+          <button
+            key={ratingNum}
+            type="button"
+            onClick={() => onChange(ratingNum)}
+            onMouseEnter={() => setHoveredRating(ratingNum)}
+            onMouseLeave={() => setHoveredRating(null)}
+            className={`text-4xl transition-all hover:scale-125 ${
+              isActive ? 'opacity-100' : 'opacity-20'
+            }`}
+          >
+            {icon}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 interface Question {
   id: string
   type: string
@@ -24,6 +62,7 @@ interface Question {
   max_value?: number
   min_label?: string
   max_label?: string
+  rating_style?: 'star' | 'heart' | 'thumbs'
 }
 
 interface FormData {
@@ -273,6 +312,28 @@ export function FormResponse({ formId }: FormResponseProps) {
                 )
               })}
             </div>
+            {error && <p className="text-sm text-red-500 mt-1">{error}</p>}
+          </div>
+        )
+
+      case 'rating':
+        const ratingMax = question.max_value || 5
+        const ratingValue = answers[question.id]
+        const ratingIcon = question.rating_style === 'heart' ? '❤️' : question.rating_style === 'thumbs' ? '👍' : '⭐'
+
+        return (
+          <div className="space-y-3">
+            <RatingInput
+              max={ratingMax}
+              value={ratingValue}
+              icon={ratingIcon}
+              onChange={(rating) => handleAnswerChange(question.id, rating)}
+            />
+            {ratingValue && (
+              <p className="text-sm text-muted-foreground">
+                You selected: {ratingValue} / {ratingMax}
+              </p>
+            )}
             {error && <p className="text-sm text-red-500 mt-1">{error}</p>}
           </div>
         )

@@ -317,62 +317,34 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
         />
       </div>
 
-      {/* Recent Events Section */}
+      {/* Events Section */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Recent Events */}
-        <Card className="xl:col-span-2 border-slate-200">
-          <CardHeader>
+        {/* Upcoming Events - Made larger and more prominent */}
+        <Card className="xl:col-span-2 border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white shadow-lg">
+          <CardHeader className="pb-3">
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Calendar className="h-5 w-5 text-blue-600" />
-                <span>Recent Events</span>
+                <Clock className="h-6 w-6 text-blue-600" />
+                <span className="text-xl font-bold text-gray-900">Upcoming Events</span>
               </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {recentAttendance.length === 0 ? (
-              <div className="text-center py-4 text-gray-500">
-                <Calendar className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                <p>No upcoming events</p>
-              </div>
-            ) : (
-              recentAttendance.map((event) => (
-                <div key={event.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <Calendar className="h-4 w-4 text-gray-500" />
-                    <div>
-                      <p className="font-medium">{event.event.title}</p>
-                      <p className="text-sm text-gray-500">{new Date(event.event.date).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {event.event.type}
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Upcoming Events */}
-        <Card className="border-slate-200">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Clock className="h-5 w-5 text-blue-600" />
-              <span>Upcoming</span>
+              {upcomingEvents.length > 0 && (
+                <Badge className="bg-blue-600 text-white">
+                  {upcomingEvents.length} {upcomingEvents.length === 1 ? 'Event' : 'Events'}
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {upcomingEvents.length === 0 ? (
-              <div className="text-center py-4 text-gray-500">
-                <Clock className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                <p>No upcoming events</p>
+              <div className="text-center py-8 text-gray-500">
+                <Clock className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+                <p className="text-base">No upcoming events</p>
               </div>
             ) : (
               upcomingEvents.map((event) => (
-                <div key={event.id} className="p-3 bg-gray-50 rounded-lg">
+                <div key={event.id} className="p-4 bg-white border border-blue-100 rounded-lg hover:border-blue-300 transition-colors shadow-sm">
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-gray-900 text-sm">{event.title}</h4>
+                    <h4 className="font-semibold text-gray-900 text-base">{event.title}</h4>
                     <Badge 
                       variant={event.priority === "high" ? "destructive" : "secondary"}
                       className="text-xs"
@@ -380,11 +352,43 @@ export function StudentDashboard({ studentId }: StudentDashboardProps) {
                       {event.priority || "normal"}
                     </Badge>
                   </div>
-                  <div className="flex items-center space-x-2 text-xs text-gray-600">
-                    <Calendar className="h-3 w-3" />
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <Calendar className="h-4 w-4" />
                     <span>{new Date(event.date).toLocaleDateString()}</span>
                     <span>•</span>
                     <span className="capitalize">{event.type || "event"}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Events - Made smaller */}
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Calendar className="h-4 w-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-600">Recent Events</span>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {recentAttendance.length === 0 ? (
+              <div className="text-center py-4 text-gray-400">
+                <Calendar className="h-6 w-6 mx-auto mb-2 text-gray-300" />
+                <p className="text-sm">No recent events</p>
+              </div>
+            ) : (
+              recentAttendance.slice(0, 5).map((event) => (
+                <div key={event.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-2 flex-1 min-w-0">
+                    <Calendar className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm truncate">{event.event.title}</p>
+                      <p className="text-xs text-gray-500">{new Date(event.event.date).toLocaleDateString()}</p>
+                    </div>
                   </div>
                 </div>
               ))

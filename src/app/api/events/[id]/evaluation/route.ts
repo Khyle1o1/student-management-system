@@ -14,28 +14,36 @@ export async function GET(
 
     const { id: eventId } = await params
 
-    // Get the evaluation linked to this event
-    const { data: eventEvaluation, error: eventEvalError } = await supabaseAdmin
-      .from('event_evaluations')
-      .select(`
-        evaluation_id,
-        is_required,
-        evaluation:evaluations(*)
-      `)
-      .eq('event_id', eventId)
-      .maybeSingle()
+    // Get the event with its evaluation_id
+    const { data: event, error: eventError } = await supabaseAdmin
+      .from('events')
+      .select('evaluation_id, require_evaluation')
+      .eq('id', eventId)
+      .single()
 
-    if (eventEvalError) {
-      console.error('Error fetching event evaluation:', eventEvalError)
-      return NextResponse.json({ error: 'Failed to fetch evaluation' }, { status: 500 })
+    if (eventError) {
+      console.error('Error fetching event:', eventError)
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     }
 
-    if (!eventEvaluation) {
+    if (!event.require_evaluation || !event.evaluation_id) {
       return NextResponse.json({ error: 'No evaluation found for this event' }, { status: 404 })
     }
 
-    // Return the evaluation data
-    return NextResponse.json(eventEvaluation.evaluation)
+    // Fetch the evaluation form from the new forms system
+    const { data: evaluationForm, error: formError } = await supabaseAdmin
+      .from('evaluation_forms')
+      .select('*')
+      .eq('id', event.evaluation_id)
+      .single()
+
+    if (formError || !evaluationForm) {
+      console.error('Error fetching evaluation form:', formError)
+      return NextResponse.json({ error: 'Evaluation form not found' }, { status: 404 })
+    }
+
+    // Return the evaluation form data
+    return NextResponse.json(evaluationForm)
 
   } catch (error) {
     console.error('Error in GET /api/events/[id]/evaluation:', error)
