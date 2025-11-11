@@ -1,21 +1,15 @@
 /**
  * Google OAuth Utilities
- * 
+ *
  * Helper functions for managing Google OAuth sessions and authentication
  */
+'use client'
 
-// Clear Google OAuth cache by redirecting to Google logout
+import { signOut } from "next-auth/react"
+
+// Clear Google OAuth cache by removing stored account data
 export function clearGoogleOAuthCache() {
-  // For localhost development, we can't use Google's logout redirect
-  // Instead, we'll clear local data and redirect to login
   forceGoogleAccountSelection()
-  
-  // For production, you could use: 
-  // const currentUrl = window.location.origin + '/auth/login'
-  // window.location.href = `https://accounts.google.com/logout?continue=${encodeURIComponent(currentUrl)}`
-  
-  // For development (localhost), just redirect to login after clearing cache
-  window.location.href = '/auth/login'
 }
 
 // Force account selection on next Google login
@@ -43,16 +37,23 @@ export function forceGoogleAccountSelection() {
 
 // Complete logout that clears everything
 export async function completeLogout() {
-  // Clear local storage
-  forceGoogleAccountSelection()
-  
-  // Clear cookies by setting them to expire
+  try {
+    // Sign out via NextAuth to clear the session cookie
+    await signOut({ redirect: false })
+  } catch (error) {
+    console.error('NextAuth signOut failed', error)
+  }
+
+  // Clear local storage and cached Google data
+  clearGoogleOAuthCache()
+
+  // Attempt to clear non-httpOnly cookies (fallback)
   document.cookie.split(";").forEach(function(c) { 
     document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
   });
 
-  // Redirect to Google logout
-  clearGoogleOAuthCache()
+  // Redirect to the public landing page
+  window.location.href = '/'
 }
 
 // Check if user needs to clear cache (call this after failed login attempts)
