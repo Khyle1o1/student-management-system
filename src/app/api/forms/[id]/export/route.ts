@@ -320,7 +320,7 @@ async function exportToPDF(form: any, responses: any[], statistics: any): Promis
     
     doc.setFontSize(14)
     doc.setFont('helvetica', 'normal')
-    doc.text('Student Management System', pageWidth / 2, 25, { align: 'center' })
+    doc.text('SmartU', pageWidth / 2, 25, { align: 'center' })
     
     doc.setFontSize(12)
     doc.text('Form Statistics Report', pageWidth / 2, 35, { align: 'center' })

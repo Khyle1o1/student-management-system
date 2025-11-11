@@ -89,7 +89,7 @@ function LoginContent() {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl text-center">Student Login</CardTitle>
           <CardDescription className="text-center">
-            Sign in to the Student Management System
+            Sign in to SmartU
           </CardDescription>
         </CardHeader>
         <CardContent>

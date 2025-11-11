@@ -38,7 +38,7 @@ function AuthErrorContent() {
           </div>
           <CardTitle className="text-2xl text-red-600">Authentication Failed</CardTitle>
           <CardDescription>
-            Unable to sign you in to the Student Management System
+            Unable to sign you in to SmartU
           </CardDescription>
         </CardHeader>
         <CardContent>

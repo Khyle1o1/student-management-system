@@ -1,4 +1,4 @@
-# Student Management System
+# SmartU
 
 A modern web application for managing student records, attendance, and fee payments.
 

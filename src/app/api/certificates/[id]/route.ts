@@ -286,7 +286,7 @@ async function generateCertificatePDF(certificate: any, template: any): Promise<
     // Add footer information
     doc.setFontSize(6)
     doc.setTextColor('#cbd5e0')
-    doc.text('Student Management System - Certificate Generator', 10, 205, { align: 'left' })
+    doc.text('SmartU - Certificate Generator', 10, 205, { align: 'left' })
     doc.text(`Document ID: ${certificate?.id || 'N/A'}`, 287, 205, { align: 'right' })
 
     // Convert to buffer using the most reliable method

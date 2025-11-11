@@ -140,7 +140,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
           <CardHeader className="space-y-1 pb-6">
             <CardTitle className="text-2xl text-center text-[#191970]">Student Login</CardTitle>
             <CardDescription className="text-center">
-              Sign in to the Student Management System
+              Sign in to SmartU
             </CardDescription>
           </CardHeader>
           

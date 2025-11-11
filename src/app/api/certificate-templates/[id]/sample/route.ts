@@ -221,7 +221,7 @@ async function generateSampleCertificatePDF(template: any): Promise<Buffer> {
           // Add footer information
           doc.setFontSize(6)
           doc.setTextColor('#cbd5e0')
-          doc.text('Student Management System - Certificate Generator', 10, 205, { align: 'left' })
+      doc.text('SmartU - Certificate Generator', 10, 205, { align: 'left' })
           doc.text(`Sample Template: ${template.id}`, 287, 205, { align: 'right' })
 
           // Convert to buffer
@@ -454,7 +454,7 @@ async function generateSampleCertificatePDF(template: any): Promise<Buffer> {
     // Add footer information
     doc.setFontSize(6)
     doc.setTextColor('#cbd5e0')
-    doc.text('Student Management System - Certificate Generator', 10, 205, { align: 'left' })
+    doc.text('SmartU - Certificate Generator', 10, 205, { align: 'left' })
     doc.text(`Sample Template: ${template.id}`, 287, 205, { align: 'right' })
 
     // Convert to buffer

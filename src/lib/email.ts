@@ -27,7 +27,7 @@ export async function sendAttendanceConfirmationEmail(data: AttendanceEmailData)
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; margin-bottom: 30px;">
             <h1 style="margin: 0; font-size: 28px;">Attendance Confirmed</h1>
-            <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Student Management System</p>
+            <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">SmartU</p>
           </div>
           
           <div style="padding: 0 20px;">
@@ -83,7 +83,7 @@ export async function sendAttendanceConfirmationEmail(data: AttendanceEmailData)
                 If you have any questions about this event or your attendance record, please contact your administrator.
               </p>
               <p style="margin: 10px 0;">
-                <strong>Student Management System</strong><br>
+                <strong>SmartU</strong><br>
                 This email was sent automatically. Please do not reply to this email.
               </p>
             </div>
@@ -93,7 +93,7 @@ export async function sendAttendanceConfirmationEmail(data: AttendanceEmailData)
     `
 
     const { data: result, error } = await resend.emails.send({
-      from: 'Student Management System <onboarding@resend.dev>',
+      from: 'SmartU <onboarding@resend.dev>',
       to: [data.studentEmail],
       subject,
       html,
@@ -138,7 +138,7 @@ export async function sendEvaluationReminderEmail(data: EvaluationReminderEmailD
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 30px; text-align: center; margin-bottom: 30px;">
             <h1 style="margin: 0; font-size: 28px;">Evaluation Required</h1>
-            <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Student Management System</p>
+            <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">SmartU</p>
           </div>
           
           <div style="padding: 0 20px;">
@@ -178,7 +178,7 @@ export async function sendEvaluationReminderEmail(data: EvaluationReminderEmailD
                 If you're having trouble accessing the evaluation or have questions, please contact your administrator.
               </p>
               <p style="margin: 10px 0;">
-                <strong>Student Management System</strong><br>
+                <strong>SmartU</strong><br>
                 This email was sent automatically. Please do not reply to this email.
               </p>
             </div>
@@ -188,7 +188,7 @@ export async function sendEvaluationReminderEmail(data: EvaluationReminderEmailD
     `
 
     const { data: result, error } = await resend.emails.send({
-      from: 'Student Management System <onboarding@resend.dev>',
+      from: 'SmartU <onboarding@resend.dev>',
       to: [data.studentEmail],
       subject,
       html,
@@ -233,7 +233,7 @@ export async function sendCertificateAvailableEmail(data: CertificateAvailableEm
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 30px; text-align: center; margin-bottom: 30px;">
             <h1 style="margin: 0; font-size: 28px;">🎉 Certificate Ready!</h1>
-            <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Student Management System</p>
+            <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">SmartU</p>
           </div>
           
           <div style="padding: 0 20px;">
@@ -273,7 +273,7 @@ export async function sendCertificateAvailableEmail(data: CertificateAvailableEm
                 Thank you for participating in ${data.eventTitle}. We hope you found it valuable!
               </p>
               <p style="margin: 10px 0;">
-                <strong>Student Management System</strong><br>
+                <strong>SmartU</strong><br>
                 This email was sent automatically. Please do not reply to this email.
               </p>
             </div>
@@ -283,7 +283,7 @@ export async function sendCertificateAvailableEmail(data: CertificateAvailableEm
     `
 
     const { data: result, error } = await resend.emails.send({
-      from: 'Student Management System <onboarding@resend.dev>',
+      from: 'SmartU <onboarding@resend.dev>',
       to: [data.studentEmail],
       subject,
       html,
