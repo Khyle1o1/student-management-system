@@ -396,28 +396,29 @@ export function BatchStudentImport() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
+        <CardHeader className="px-4 sm:px-6">
+          <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
             <Users className="h-5 w-5" />
             <span>Batch Student Import</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4 sm:space-y-6 px-4 sm:px-6">
           {/* Connection Error Alert */}
           {connectionError && (
-            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg flex items-center space-x-2">
-              <AlertCircle className="h-5 w-5 text-red-600" />
-              <div>
-                <p className="font-medium">{connectionError}</p>
-                <p className="text-sm mt-1">
+            <div className="bg-red-50 border border-red-200 text-red-800 px-3 sm:px-4 py-2 sm:py-3 rounded-lg flex flex-col sm:flex-row items-start space-y-2 sm:space-y-0 sm:space-x-2">
+              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="font-medium text-sm">{connectionError}</p>
+                <p className="text-xs sm:text-sm mt-1">
                   The server might be experiencing high load or network issues. 
                   Please try again in a few minutes or contact the system administrator if the problem persists.
                 </p>
                 <Button 
                   variant="outline" 
-                  className="mt-2 border-red-300 text-red-600 hover:bg-red-50"
+                  size="sm"
+                  className="mt-2 border-red-300 text-red-600 hover:bg-red-50 text-xs"
                   onClick={() => setConnectionError(null)}
                 >
                   Dismiss
@@ -427,65 +428,65 @@ export function BatchStudentImport() {
           )}
 
           {/* Template Download Section */}
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div>
-              <h3 className="text-lg font-semibold">Download Template</h3>
-              <p className="text-sm text-muted-foreground">
+              <h3 className="text-base sm:text-lg font-semibold">Download Template</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                 Download a sample template to see the required format for student data
               </p>
             </div>
-            <div className="flex space-x-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Button
                 variant="outline"
                 onClick={() => downloadTemplate('csv')}
-                className="flex items-center space-x-2"
+                className="flex items-center justify-center space-x-2 w-full sm:w-auto"
               >
                 <FileText className="h-4 w-4" />
-                <span>Download CSV Template</span>
+                <span className="text-sm">Download CSV Template</span>
               </Button>
               <Button
                 variant="outline"
                 onClick={() => downloadTemplate('xlsx')}
-                className="flex items-center space-x-2"
+                className="flex items-center justify-center space-x-2 w-full sm:w-auto"
               >
                 <FileSpreadsheet className="h-4 w-4" />
-                <span>Download Excel Template</span>
+                <span className="text-sm">Download Excel Template</span>
               </Button>
             </div>
           </div>
 
           {/* File Upload Section */}
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div>
-              <h3 className="text-lg font-semibold">Upload Student Data</h3>
-              <p className="text-sm text-muted-foreground">
+              <h3 className="text-base sm:text-lg font-semibold">Upload Student Data</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                 Upload a CSV or Excel file containing student information
               </p>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
               <Input
                 ref={fileInputRef}
                 type="file"
                 accept=".csv,.xlsx,.xls"
                 onChange={handleFileSelect}
-                className="max-w-md"
+                className="w-full sm:max-w-md text-sm"
               />
               {file && (
-                <Badge variant="secondary" className="flex items-center space-x-1">
+                <Badge variant="secondary" className="flex items-center space-x-1 w-fit text-xs">
                   <FileSpreadsheet className="h-3 w-3" />
-                  <span>{file.name}</span>
+                  <span className="truncate max-w-[200px]">{file.name}</span>
                 </Badge>
               )}
             </div>
           </div>
 
           {/* Required Fields Info */}
-          <div className="p-4 bg-blue-50 rounded-lg">
-            <h4 className="font-medium text-blue-900 mb-2">Required Fields:</h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm text-blue-800">
+          <div className="p-3 sm:p-4 bg-blue-50 rounded-lg">
+            <h4 className="font-medium text-blue-900 mb-2 text-sm sm:text-base">Required Fields:</h4>
+            <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-2 text-xs sm:text-sm text-blue-800">
               {REQUIRED_FIELDS.map(field => (
                 <div key={field} className="flex items-center space-x-1">
-                  <CheckCircle className="h-3 w-3" />
+                  <CheckCircle className="h-3 w-3 flex-shrink-0" />
                   <span>{field}</span>
                 </div>
               ))}
@@ -493,18 +494,18 @@ export function BatchStudentImport() {
             <p className="text-xs text-blue-700 mt-2">
               Optional fields: password (defaults to &apos;student123&apos;)
             </p>
-            <div className="mt-2 text-xs text-blue-700">
-              <strong>Year Level Format:</strong> YEAR_1, YEAR_2, YEAR_3, YEAR_4<br/>
-              <strong>College Examples:</strong> College of Technology, College of Engineering, College of Education
+            <div className="mt-2 text-xs text-blue-700 space-y-1">
+              <div><strong>Year Level Format:</strong> YEAR_1, YEAR_2, YEAR_3, YEAR_4</div>
+              <div><strong>College Examples:</strong> College of Technology, College of Engineering, College of Education</div>
             </div>
           </div>
 
           {/* Progress Indicator */}
           {isUploading && importProgress && (
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <div>{importProgress.status}</div>
-                <div>{importProgress.percentage}%</div>
+              <div className="flex items-center justify-between text-xs sm:text-sm">
+                <div className="truncate flex-1 pr-2">{importProgress.status}</div>
+                <div className="font-medium">{importProgress.percentage}%</div>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2.5">
                 <div 
@@ -522,29 +523,30 @@ export function BatchStudentImport() {
 
           {/* Preview Section */}
           {showPreview && preview.length > 0 && !isUploading && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Preview (First 10 records)</h3>
-                <div className="flex space-x-2">
-                  <Button onClick={resetForm} variant="outline">
+            <div className="space-y-3 sm:space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <h3 className="text-base sm:text-lg font-semibold">Preview (First 10 records)</h3>
+                <div className="flex gap-2">
+                  <Button onClick={resetForm} variant="outline" className="flex-1 sm:flex-none text-sm">
                     Cancel
                   </Button>
-                  <Button onClick={processImport} disabled={isUploading}>
+                  <Button onClick={processImport} disabled={isUploading} className="flex-1 sm:flex-none text-sm">
                     {isUploading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processing...
+                        <span className="hidden sm:inline">Processing...</span>
                       </>
                     ) : (
                       <>
                         <Upload className="mr-2 h-4 w-4" />
-                        Import {preview.length > 10 ? `All Records` : `${preview.length} Records`}
+                        <span>Import {preview.length > 10 ? `All` : preview.length}</span>
                       </>
                     )}
                   </Button>
                 </div>
               </div>
-              <div className="border rounded-lg overflow-hidden">
+              {/* Desktop Table View */}
+              <div className="hidden md:block border rounded-lg overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -568,38 +570,60 @@ export function BatchStudentImport() {
                   </TableBody>
                 </Table>
               </div>
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-2">
+                {preview.map((record, index) => (
+                  <div key={index} className="border rounded-lg p-3 space-y-2 bg-white">
+                    <div className="font-medium text-sm">{record.name}</div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">ID:</span> {record.studentId}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Year:</span> {record.yearLevel}
+                      </div>
+                      <div className="col-span-2 truncate">
+                        <span className="text-muted-foreground">Email:</span> {record.email}
+                      </div>
+                      <div className="col-span-2 truncate">
+                        <span className="text-muted-foreground">Course:</span> {record.course}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
           {/* Results Section */}
           {showResults && importResult && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Import Results</h3>
+            <div className="space-y-3 sm:space-y-4">
+              <h3 className="text-base sm:text-lg font-semibold">Import Results</h3>
               
               {/* Summary Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
                 <Card>
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-blue-600">{importResult.totalRows}</div>
-                    <div className="text-sm text-muted-foreground">Total Records</div>
+                  <CardContent className="p-3 sm:p-4 text-center">
+                    <div className="text-xl sm:text-2xl font-bold text-blue-600">{importResult.totalRows}</div>
+                    <div className="text-xs sm:text-sm text-muted-foreground">Total</div>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-green-600">{importResult.successCount}</div>
-                    <div className="text-sm text-muted-foreground">Successful</div>
+                  <CardContent className="p-3 sm:p-4 text-center">
+                    <div className="text-xl sm:text-2xl font-bold text-green-600">{importResult.successCount}</div>
+                    <div className="text-xs sm:text-sm text-muted-foreground">Success</div>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-red-600">{importResult.errorCount}</div>
-                    <div className="text-sm text-muted-foreground">Errors</div>
+                  <CardContent className="p-3 sm:p-4 text-center">
+                    <div className="text-xl sm:text-2xl font-bold text-red-600">{importResult.errorCount}</div>
+                    <div className="text-xs sm:text-sm text-muted-foreground">Errors</div>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-yellow-600">{importResult.duplicateCount}</div>
-                    <div className="text-sm text-muted-foreground">Duplicates</div>
+                  <CardContent className="p-3 sm:p-4 text-center">
+                    <div className="text-xl sm:text-2xl font-bold text-yellow-600">{importResult.duplicateCount}</div>
+                    <div className="text-xs sm:text-sm text-muted-foreground">Duplicates</div>
                   </CardContent>
                 </Card>
               </div>
@@ -607,8 +631,9 @@ export function BatchStudentImport() {
               {/* Error Details */}
               {importResult.errors.length > 0 && (
                 <div className="space-y-2">
-                  <h4 className="font-medium text-red-900">Validation Errors:</h4>
-                  <div className="max-h-60 overflow-y-auto border rounded-lg">
+                  <h4 className="font-medium text-red-900 text-sm sm:text-base">Validation Errors:</h4>
+                  {/* Desktop Table */}
+                  <div className="hidden md:block max-h-60 overflow-y-auto border rounded-lg">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -630,16 +655,27 @@ export function BatchStudentImport() {
                       </TableBody>
                     </Table>
                   </div>
+                  {/* Mobile Cards */}
+                  <div className="md:hidden max-h-60 overflow-y-auto space-y-2">
+                    {importResult.errors.map((error, index) => (
+                      <div key={index} className="border rounded-lg p-3 bg-red-50 space-y-1 text-xs">
+                        <div><span className="font-medium">Row:</span> {error.row}</div>
+                        <div><span className="font-medium">Field:</span> {error.field}</div>
+                        <div className="text-red-600"><span className="font-medium">Error:</span> {error.message}</div>
+                        <div className="text-muted-foreground break-words"><span className="font-medium">Value:</span> {error.value}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
               {/* Duplicate Details */}
               {importResult.duplicates.length > 0 && (
                 <div className="space-y-2">
-                  <h4 className="font-medium text-yellow-900">Duplicate Entries (Skipped):</h4>
-                  <div className="flex flex-wrap gap-2">
+                  <h4 className="font-medium text-yellow-900 text-sm sm:text-base">Duplicate Entries (Skipped):</h4>
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
                     {importResult.duplicates.map((duplicate, index) => (
-                      <Badge key={index} variant="outline" className="text-yellow-700">
+                      <Badge key={index} variant="outline" className="text-yellow-700 text-xs">
                         {duplicate}
                       </Badge>
                     ))}
@@ -647,7 +683,7 @@ export function BatchStudentImport() {
                 </div>
               )}
 
-              <Button onClick={resetForm} className="mt-4">
+              <Button onClick={resetForm} className="mt-4 w-full sm:w-auto text-sm">
                 Import Another File
               </Button>
             </div>

@@ -123,6 +123,10 @@ export function DashboardShell({ children }: DashboardShellProps) {
     }
   }, [isAdmin, session?.user?.id]) // More specific dependencies
 
+  useEffect(() => {
+    setIsMobileMenuOpen(false)
+  }, [pathname])
+
   // Navigation items based on user role
   const baseAdminNavItems: NavigationItem[] = [
     { href: "/dashboard", label: "Overview", icon: BarChart3 },
@@ -157,6 +161,12 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const adminNavItems: NavigationItem[] = [
     // Curated student-style navigation for admin
     { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
+    { 
+      href: "/dashboard/students", 
+      label: "Students", 
+      icon: Users, 
+      badge: stats?.students?.total?.toString() || "0"
+    },
     { href: "/dashboard/events", label: "Events", icon: Calendar },
     { href: "/dashboard/certificates/templates", label: "Certificates", icon: Award },
     { href: "/dashboard/forms", label: "Evaluations", icon: ClipboardCheck },
@@ -369,14 +379,28 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
         {/* Enhanced Main Content */}
         <main className="flex-1 min-w-0 lg:ml-64 p-4 lg:p-6">
-          {/* Top Header (Admin only) aligned with content */}
-          {isAdmin && (
-            <div className="max-w-6xl mx-auto lg:ml-12 mb-4">
-              <AdminHeader />
+          {!isAdmin && (
+            <div className="lg:hidden mb-4">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="rounded-xl"
+                aria-label="Open navigation menu"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
             </div>
           )}
 
-          <div className="max-w-6xl mx-auto lg:ml-12 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden transition-colors">
+          {/* Top Header (Admin only) aligned with content */}
+          {isAdmin && (
+            <div className="max-w-6xl mx-auto lg:ml-12 mb-4">
+              <AdminHeader onToggleSidebar={() => setIsMobileMenuOpen(true)} />
+            </div>
+          )}
+
+          <div className="max-w-6xl mx-auto lg:ml-12 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-visible transition-colors">
             <div className="p-4 lg:p-6">
               {children}
             </div>

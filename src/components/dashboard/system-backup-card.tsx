@@ -202,31 +202,31 @@ export function SystemBackupCard() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <CardHeader className="flex flex-col gap-3 sm:gap-4 px-4 sm:px-6">
         <div>
-          <CardTitle className="flex items-center gap-2 text-2xl">
-            <HardDrive className="h-6 w-6" />
-            System Backup &amp; Restore
+          <CardTitle className="flex items-center gap-2 text-lg sm:text-xl md:text-2xl">
+            <HardDrive className="h-5 w-5 sm:h-6 sm:w-6" />
+            <span className="break-words">System Backup &amp; Restore</span>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs sm:text-sm mt-1">
             Automatic monthly backups and manual restore controls
           </CardDescription>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <Button
             onClick={handleManualBackup}
             disabled={isBackingUp || data?.status.backupInProgress}
-            className="flex items-center gap-2"
+            className="flex items-center justify-center gap-2 w-full sm:w-auto"
           >
             {isBackingUp ? (
               <>
                 <RefreshCcw className="h-4 w-4 animate-spin" />
-                Backing Up...
+                <span className="text-sm">Backing Up...</span>
               </>
             ) : (
               <>
                 <DownloadCloud className="h-4 w-4" />
-                Back Up Now
+                <span className="text-sm">Back Up Now</span>
               </>
             )}
           </Button>
@@ -235,7 +235,7 @@ export function SystemBackupCard() {
             <AlertDialogTrigger asChild>
               <Button
                 variant="outline"
-                className="flex items-center gap-2"
+                className="flex items-center justify-center gap-2 w-full sm:w-auto"
                 disabled={
                   data?.backups.length === 0 ||
                   isRestoring ||
@@ -243,13 +243,13 @@ export function SystemBackupCard() {
                 }
               >
                 <History className="h-4 w-4" />
-                Restore
+                <span className="text-sm">Restore</span>
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent className="max-w-lg">
+            <AlertDialogContent className="max-w-[95vw] sm:max-w-lg mx-4">
               <AlertDialogHeader>
-                <AlertDialogTitle>Restore system from backup</AlertDialogTitle>
-                <AlertDialogDescription>
+                <AlertDialogTitle className="text-base sm:text-lg">Restore system from backup</AlertDialogTitle>
+                <AlertDialogDescription className="text-xs sm:text-sm">
                   Restoring will overwrite all current data and files with the backup contents. This action cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
@@ -257,37 +257,37 @@ export function SystemBackupCard() {
                 {data?.backups.length ? (
                   <>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground">
+                      <label className="text-xs sm:text-sm font-medium text-foreground">
                         Available backups
                       </label>
                       <Select
                         value={selectedBackup}
                         onValueChange={setSelectedBackup}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="text-xs sm:text-sm">
                           <SelectValue placeholder="Select a backup file" />
                         </SelectTrigger>
                         <SelectContent>
                           {data.backups.map((backup) => (
-                            <SelectItem key={backup.name} value={backup.name}>
+                            <SelectItem key={backup.name} value={backup.name} className="text-xs sm:text-sm">
                               {backup.name} • {backup.sizeHuman}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-destructive">
                       Restoring may take several minutes. Keep this window open until it finishes.
                     </div>
                   </>
                 ) : (
-                  <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+                  <div className="rounded-lg border bg-muted/30 p-3 sm:p-4 text-xs sm:text-sm">
                     No backups available. Create a backup first before restoring.
                   </div>
                 )}
               </div>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={isRestoring}>Cancel</AlertDialogCancel>
+              <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                <AlertDialogCancel disabled={isRestoring} className="w-full sm:w-auto text-sm">Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleRestore}
                   disabled={
@@ -296,6 +296,7 @@ export function SystemBackupCard() {
                     !data?.backups.length ||
                     data?.status?.restoreInProgress
                   }
+                  className="w-full sm:w-auto text-sm"
                 >
                   {isRestoring ? "Restoring..." : "Restore"}
                 </AlertDialogAction>
@@ -305,23 +306,23 @@ export function SystemBackupCard() {
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4 sm:space-y-6 px-4 sm:px-6">
         {loading ? (
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             {[0, 1, 2].map((idx) => (
               <div
                 key={idx}
-                className="h-24 rounded-lg border border-muted bg-muted/30 animate-pulse"
+                className="h-20 sm:h-24 rounded-lg border border-muted bg-muted/30 animate-pulse"
               />
             ))}
           </div>
         ) : error ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-destructive">
             {error}
           </div>
         ) : data ? (
           <>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
               <MetricCard
                 label="Last backup"
                 value={lastBackupText}
@@ -340,19 +341,19 @@ export function SystemBackupCard() {
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <h3 className="text-xs sm:text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                   Available backups
                 </h3>
-                <div className="flex gap-2 text-xs text-muted-foreground">
+                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                   {data.status.backupInProgress && (
-                    <Badge variant="outline" className="border-blue-400 text-blue-600">
+                    <Badge variant="outline" className="border-blue-400 text-blue-600 text-xs">
                       <RefreshCcw className="mr-1 h-3 w-3 animate-spin" />
                       Backup running
                     </Badge>
                   )}
                   {data.status.restoreInProgress && (
-                    <Badge variant="outline" className="border-amber-400 text-amber-600">
+                    <Badge variant="outline" className="border-amber-400 text-amber-600 text-xs">
                       <RefreshCcw className="mr-1 h-3 w-3 animate-spin" />
                       Restore running
                     </Badge>
@@ -374,25 +375,25 @@ export function SystemBackupCard() {
                           <li
                             key={backup.name}
                             className={cn(
-                              "flex flex-col gap-2 px-4 py-3 md:flex-row md:items-center md:justify-between",
+                              "flex flex-col gap-2 px-3 sm:px-4 py-3 md:flex-row md:items-center md:justify-between",
                               selectedBackup === backup.name && "bg-background",
                             )}
                           >
-                            <div>
-                              <p className="font-medium">{backup.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {format(createdAt, "MMMM d, yyyy h:mm a")} •{" "}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm break-words">{backup.name}</p>
+                              <p className="text-xs text-muted-foreground break-words">
+                                {format(createdAt, "MMM d, yyyy h:mm a")} •{" "}
                                 {formatDistanceToNow(createdAt, { addSuffix: true })}
                               </p>
                             </div>
-                            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                              <Badge variant="secondary">{backup.sizeHuman}</Badge>
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs text-muted-foreground">
+                              <Badge variant="secondary" className="text-xs">{backup.sizeHuman}</Badge>
                               {backup.metadata?.requestedBy?.name && (
-                                <Badge variant="outline">
+                                <Badge variant="outline" className="text-xs">
                                   {backup.metadata.requestedBy.name}
                                 </Badge>
                               )}
-                              <Badge variant="outline">{trigLabel}</Badge>
+                              <Badge variant="outline" className="text-xs">{trigLabel}</Badge>
                             </div>
                           </li>
                         )
@@ -400,7 +401,7 @@ export function SystemBackupCard() {
                     </ul>
                   </ScrollArea>
                 ) : (
-                  <div className="px-4 py-6 text-sm text-muted-foreground">
+                  <div className="px-3 sm:px-4 py-4 sm:py-6 text-xs sm:text-sm text-muted-foreground text-center">
                     No backups stored yet. Run a manual backup or wait for the automatic schedule.
                   </div>
                 )}
@@ -427,9 +428,9 @@ function MetricCard({ label, value, tone }: MetricCardProps) {
   }
 
   return (
-    <div className={cn("rounded-lg border p-4", toneClasses[tone])}>
+    <div className={cn("rounded-lg border p-3 sm:p-4", toneClasses[tone])}>
       <p className="text-xs font-semibold uppercase tracking-wide">{label}</p>
-      <p className="mt-2 text-sm font-medium">{value}</p>
+      <p className="mt-1 sm:mt-2 text-xs sm:text-sm font-medium break-words">{value}</p>
     </div>
   )
 }

@@ -7,11 +7,15 @@ import { Separator } from "@/components/ui/separator"
 import NotificationBell from "@/components/notifications/NotificationBell"
 import { completeLogout } from "@/lib/google-oauth-utils"
 import { cn } from "@/lib/utils"
-import { Search, ChevronRight, LogOut } from "lucide-react"
+import { Search, ChevronRight, LogOut, Menu } from "lucide-react"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { Button } from "@/components/ui/button"
 
-export function AdminHeader() {
+interface AdminHeaderProps {
+  onToggleSidebar?: () => void
+}
+
+export function AdminHeader({ onToggleSidebar }: AdminHeaderProps) {
   const { data: session } = useSession()
   const pathname = usePathname()
 
@@ -31,6 +35,17 @@ export function AdminHeader() {
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
+            {onToggleSidebar && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="lg:hidden rounded-xl"
+                onClick={onToggleSidebar}
+                aria-label="Toggle navigation menu"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            )}
             <div>
               <h1 className="text-xl font-bold text-[#1E293B] dark:text-slate-100">SmartU</h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Smart Solutions for a Smarter BukSU</p>

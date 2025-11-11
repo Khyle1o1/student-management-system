@@ -28,8 +28,8 @@ export default async function EventsPage() {
             </p>
           </div>
           {(session.user.role === 'ADMIN' || session.user.role === 'COLLEGE_ORG') && (
-            <Link href="/dashboard/events/new">
-              <Button>
+            <Link href="/dashboard/events/new" className="w-full sm:w-auto">
+              <Button className="w-full sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
                 Add Event
               </Button>

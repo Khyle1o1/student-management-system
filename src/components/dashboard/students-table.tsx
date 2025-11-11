@@ -218,31 +218,33 @@ export function StudentsTable() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
           <Input
             placeholder="Search students..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-[300px]"
+            className="w-full sm:w-[250px] md:w-[300px]"
           />
-          <Select value={filter} onValueChange={(value: any) => setFilter(value)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter students" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="active">Active Students</SelectItem>
-              <SelectItem value="archived">Archived Students</SelectItem>
-              <SelectItem value="all">All Students</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" onClick={fetchStudents} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Select value={filter} onValueChange={(value: any) => setFilter(value)}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filter students" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active Students</SelectItem>
+                <SelectItem value="archived">Archived Students</SelectItem>
+                <SelectItem value="all">All Students</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={fetchStudents} disabled={loading} className="shrink-0">
+              <RefreshCw className={`h-4 w-4 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
+          </div>
         </div>
         <div className="flex items-center gap-4">
-          <Button asChild>
+          <Button asChild className="w-full sm:w-auto">
             <Link href="/dashboard/students/new">
               <Plus className="h-4 w-4 mr-2" />
               Add New Student
@@ -279,18 +281,19 @@ export function StudentsTable() {
       />
 
       <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Students</CardTitle>
+        <CardHeader className="px-4 sm:px-6">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+            <CardTitle className="text-lg sm:text-xl">Students</CardTitle>
             {filter === 'archived' && (
-              <Badge variant="default" className="bg-yellow-100 text-yellow-800">
-                Archived students are automatically deleted after 2 years
+              <Badge variant="default" className="bg-yellow-100 text-yellow-800 text-xs sm:text-sm w-fit">
+                Archived students deleted after 2 years
               </Badge>
             )}
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
+        <CardContent className="px-4 sm:px-6">
+          {/* Desktop Table View - Hidden on Mobile */}
+          <div className="hidden md:block rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -419,18 +422,137 @@ export function StudentsTable() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Mobile Card View - Hidden on Desktop */}
+          <div className="md:hidden space-y-3">
+            {loading && students.length === 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                <span className="text-sm">Loading students...</span>
+              </div>
+            ) : students.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 space-y-2">
+                <User className="h-8 w-8 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground text-center">
+                  {searchTerm 
+                    ? "No students found matching your search." 
+                    : filter === 'archived' 
+                      ? "No archived students found."
+                      : "No students found."}
+                </span>
+              </div>
+            ) : (
+              students.map((student) => (
+                <Card key={student.id} className="overflow-hidden border hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <button
+                          onClick={() => openDetailsModal(student.id)}
+                          className="text-base font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer transition-colors line-clamp-1"
+                        >
+                          {student.name}
+                        </button>
+                        <p className="text-xs text-muted-foreground mt-0.5">ID: {student.studentId}</p>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-9 w-9 p-0 flex-shrink-0 touch-manipulation">
+                            <span className="sr-only">Open menu</span>
+                            <MoreHorizontal className="h-5 w-5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => openDetailsModal(student.id)}>
+                            <Eye className="mr-2 h-4 w-4 flex-shrink-0" />
+                            <span className="truncate">View Details</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/students/${student.id}`} className="flex items-center">
+                              <Edit className="mr-2 h-4 w-4 flex-shrink-0" />
+                              <span className="truncate">Edit</span>
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => openArchiveModal(student)}
+                            className={student.archived ? "text-green-600" : "text-orange-600"}
+                          >
+                            {student.archived ? (
+                              <>
+                                <ArchiveRestore className="mr-2 h-4 w-4 flex-shrink-0" />
+                                <span className="truncate">Unarchive</span>
+                              </>
+                            ) : (
+                              <>
+                                <Archive className="mr-2 h-4 w-4 flex-shrink-0" />
+                                <span className="truncate">Archive</span>
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-start space-x-2 text-xs">
+                        <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                        <span className="break-words flex-1">{student.email}</span>
+                      </div>
+
+                      <div className="text-xs space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">College:</span>
+                          <span className="font-medium text-right line-clamp-1">{student.college}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Course:</span>
+                          <span className="font-medium text-right line-clamp-1">{student.course}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Year Level:</span>
+                          <Badge className={`${getYearLevelBadgeColor(student.yearLevel)} text-xs`}>
+                            {getYearLevelDisplayText(student.yearLevel)}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <span className="text-xs text-muted-foreground">
+                          Enrolled: {formatDate(student.enrolledAt)}
+                        </span>
+                        {student.archived ? (
+                          <Badge variant="default" className="bg-yellow-100 text-yellow-800 text-xs">
+                            <Archive className="h-3 w-3 mr-1" />
+                            Archived
+                          </Badge>
+                        ) : (
+                          <Badge variant="default" className="bg-green-100 text-green-800 text-xs">
+                            Active
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
           
           {/* Pagination Controls */}
-          <div className="flex items-center justify-between space-x-2 py-4">
-            <div className="text-sm text-muted-foreground">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-4 mt-3 border-t">
+            <div className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
               Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} student(s)
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center justify-center space-x-1 sm:space-x-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={!hasPrevious || loading}
+                className="text-xs sm:text-sm"
               >
                 Previous
               </Button>
@@ -456,7 +578,7 @@ export function StudentsTable() {
                       size="sm"
                       onClick={() => handlePageChange(pageNum)}
                       disabled={loading}
-                      className="w-8 h-8 p-0"
+                      className="w-7 h-7 sm:w-8 sm:h-8 p-0 text-xs sm:text-sm"
                     >
                       {pageNum}
                     </Button>
@@ -469,6 +591,7 @@ export function StudentsTable() {
                 size="sm"
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={!hasNext || loading}
+                className="text-xs sm:text-sm"
               >
                 Next
               </Button>

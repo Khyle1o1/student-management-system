@@ -17,17 +17,17 @@ export default async function SettingsPage() {
 
   return (
     <DashboardShell>
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Settings</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">
               Manage system settings and bulk operations
             </p>
           </div>
         </div>
         
-        <div className="grid gap-6">
+        <div className="grid gap-4 sm:gap-6">
           <SystemBackupCard />
           <BatchStudentImport />
         </div>

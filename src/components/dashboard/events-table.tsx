@@ -258,39 +258,41 @@ export function EventsTable() {
         </div>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-3 sm:mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3 px-1 sm:px-0">
             {filteredEvents.map((event) => {
                 const isPending = String(event.status).toUpperCase() === 'PENDING'
                 const Wrapper: any = isPending ? 'div' : Link
-                const wrapperProps = isPending ? {} : { href: `/dashboard/attendance/${event.id}` }
+                const wrapperProps = isPending 
+                  ? { className: "block h-full" } 
+                  : { href: `/dashboard/attendance/${event.id}`, className: "block h-full" }
                 return (
                   <Wrapper key={event.id} {...wrapperProps}>
-                  <Card className={`${isPending ? 'opacity-90 cursor-not-allowed' : 'hover:shadow-md cursor-pointer group'} transition-shadow duration-200`}>
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <CardTitle className="text-lg font-semibold leading-tight truncate group-hover:text-blue-600 transition-colors">
+                  <Card className={`${isPending ? 'opacity-90 cursor-not-allowed' : 'hover:shadow-md cursor-pointer group'} transition-shadow duration-200 h-full w-full overflow-hidden`}>
+                    <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0 pr-1">
+                          <CardTitle className="text-base sm:text-lg font-semibold leading-tight line-clamp-2 sm:line-clamp-1 group-hover:text-blue-600 transition-colors break-words">
                             {event.title}
                           </CardTitle>
-                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                          <p className="text-xs sm:text-sm text-muted-foreground mt-1 line-clamp-2 break-words">
                             {event.description || "No description provided"}
                           </p>
                         </div>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
-                            <Button variant="ghost" className="h-8 w-8 p-0 ml-2">
+                            <Button variant="ghost" className="h-9 w-9 sm:h-8 sm:w-8 p-0 flex-shrink-0 touch-manipulation">
                               <span className="sr-only">Open menu</span>
-                              <MoreHorizontal className="h-4 w-4" />
+                              <MoreHorizontal className="h-5 w-5 sm:h-4 sm:w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" className="w-52">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             {!isPending && (
                               <DropdownMenuItem asChild>
-                                <Link href={`/dashboard/attendance/${event.id}`}>
-                                  <UserCheck className="mr-2 h-4 w-4" />
-                                  Manage Attendance
+                                <Link href={`/dashboard/attendance/${event.id}`} className="flex items-center">
+                                  <UserCheck className="mr-2 h-4 w-4 flex-shrink-0" />
+                                  <span className="truncate">Manage Attendance</span>
                                 </Link>
                               </DropdownMenuItem>
                             )}
@@ -312,15 +314,15 @@ export function EventsTable() {
                               </>
                             )}
                             <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/events/${event.id}`}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit Event
+                              <Link href={`/dashboard/events/${event.id}`} className="flex items-center">
+                                <Edit className="mr-2 h-4 w-4 flex-shrink-0" />
+                                <span className="truncate">Edit Event</span>
                               </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/events/${event.id}`}>
-                                <Eye className="mr-2 h-4 w-4" />
-                                View Details
+                              <Link href={`/dashboard/events/${event.id}`} className="flex items-center">
+                                <Eye className="mr-2 h-4 w-4 flex-shrink-0" />
+                                <span className="truncate">View Details</span>
                               </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem
@@ -355,69 +357,72 @@ export function EventsTable() {
                                   alert('Failed to generate report. Please try again.');
                                 }
                               }}
+                              className="flex items-center"
                             >
-                              <FileText className="mr-2 h-4 w-4" />
-                              Generate PDF Report
+                              <FileText className="mr-2 h-4 w-4 flex-shrink-0" />
+                              <span className="truncate">Generate PDF Report</span>
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.preventDefault();
                                 handleDeleteEvent(event.id);
                               }}
-                              className="text-red-600"
+                              className="text-red-600 flex items-center"
                             >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
+                              <Trash2 className="mr-2 h-4 w-4 flex-shrink-0" />
+                              <span className="truncate">Delete</span>
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
                     </CardHeader>
                     
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-3 sm:space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
                       {/* Date and Time */}
-                      <div className="flex items-center space-x-2 text-sm">
-                        <Calendar className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                        <div>
-                          <div className="font-medium">{formatEventDate(event.eventDate)}</div>
-                          <div className="text-muted-foreground flex items-center space-x-1">
-                            <Clock className="h-3 w-3" />
-                            <span>{formatTime(event.startTime)} - {formatTime(event.endTime)}</span>
+                      <div className="flex items-start sm:items-center space-x-2 text-xs sm:text-sm">
+                        <Calendar className="h-4 w-4 sm:h-4 sm:w-4 text-blue-500 flex-shrink-0 mt-0.5 sm:mt-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium break-words">{formatEventDate(event.eventDate)}</div>
+                          <div className="text-muted-foreground flex items-center space-x-1 mt-0.5">
+                            <Clock className="h-3 w-3 flex-shrink-0" />
+                            <span className="break-words text-xs sm:text-sm">
+                              {formatTime(event.startTime)} - {formatTime(event.endTime)}
+                            </span>
                           </div>
                         </div>
                       </div>
 
                       {/* Location */}
-                      <div className="flex items-center space-x-2 text-sm">
-                        <MapPin className="h-4 w-4 text-red-500 flex-shrink-0" />
-                        <span className="truncate">{event.location}</span>
+                      <div className="flex items-start space-x-2 text-xs sm:text-sm">
+                        <MapPin className="h-4 w-4 sm:h-4 sm:w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                        <span className="break-words line-clamp-2 flex-1">{event.location}</span>
                       </div>
 
                       {/* Badges Row */}
-                      <div className="flex flex-wrap gap-2">
-                        <Badge className={getEventTypeBadgeColor(event.eventType)}>
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                        <Badge className={`${getEventTypeBadgeColor(event.eventType)} text-xs`}>
                           {event.eventType}
                         </Badge>
-                        <Badge className={getStatusBadgeColor(event.status)}>
+                        <Badge className={`${getStatusBadgeColor(event.status)} text-xs`}>
                           {event.status}
                         </Badge>
                       </div>
 
                       {/* Scope */}
-                      <div className="flex items-start space-x-2 text-sm">
-                        <Target className="h-4 w-4 text-purple-500 flex-shrink-0 mt-0.5" />
+                      <div className="flex items-start space-x-2 text-xs sm:text-sm">
+                        <Target className="h-4 w-4 sm:h-4 sm:w-4 text-purple-500 flex-shrink-0 mt-0.5" />
                         <div className="flex-1 min-w-0">
-                          <Badge className={getScopeBadgeColor(event.scope_type)} variant="outline">
+                          <Badge className={`${getScopeBadgeColor(event.scope_type)} text-xs`} variant="outline">
                             {EVENT_SCOPE_LABELS[event.scope_type as keyof typeof EVENT_SCOPE_LABELS]}
                           </Badge>
-                          <div className="text-xs text-muted-foreground mt-1 truncate">
+                          <div className="text-xs text-muted-foreground mt-1 break-words line-clamp-2">
                             {formatScopeDetails(event)}
                           </div>
                         </div>
                       </div>
 
                       {isPending && (
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded-md leading-relaxed">
                           Awaiting System Administrator approval. Attendance and management are disabled until approval.
                         </div>
                       )}
@@ -427,8 +432,8 @@ export function EventsTable() {
                 )
               })}
             </div>
-            
-          <div className="flex items-center justify-between space-x-2 py-4 mt-6 border-t">
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 py-4 mt-6 border-t">
             <div className="text-sm text-muted-foreground">
               Showing {filteredEvents.length} of {events.length} event(s)
             </div>
@@ -442,17 +447,17 @@ export function EventsTable() {
     <Card>
       <CardHeader>
         <CardTitle>Events</CardTitle>
-        <div className="flex items-center space-x-2">
-          <div className="relative flex-1 max-w-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:flex-1 sm:max-w-sm">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search events..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
+              className="pl-8 w-full"
             />
           </div>
-          <Button variant="outline" onClick={fetchEvents}>
+          <Button variant="outline" onClick={fetchEvents} className="w-full sm:w-auto">
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
@@ -460,22 +465,22 @@ export function EventsTable() {
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
-            <TabsTrigger value="all" className="flex items-center gap-2">
+          <TabsList className="flex w-full flex-wrap gap-2 mb-6 bg-transparent p-0 h-auto">
+            <TabsTrigger value="all" className="w-full sm:w-auto flex-1 basis-full sm:basis-auto flex items-center justify-center gap-2 text-sm min-w-0">
               <Calendar className="h-4 w-4" />
               All Events
               <Badge variant="secondary" className="ml-1">
                 {events.length}
               </Badge>
             </TabsTrigger>
-            <TabsTrigger value="pending" className="flex items-center gap-2">
+            <TabsTrigger value="pending" className="w-full sm:w-auto flex-1 basis-full sm:basis-auto flex items-center justify-center gap-2 text-sm min-w-0">
               <AlertCircle className="h-4 w-4" />
               Pending
               <Badge variant="secondary" className="ml-1 bg-purple-100 text-purple-800">
                 {pendingCount}
               </Badge>
             </TabsTrigger>
-            <TabsTrigger value="active" className="flex items-center gap-2">
+            <TabsTrigger value="active" className="w-full sm:w-auto flex-1 basis-full sm:basis-auto flex items-center justify-center gap-2 text-sm min-w-0">
               <CheckCircle className="h-4 w-4" />
               Active/Approved
               <Badge variant="secondary" className="ml-1 bg-green-100 text-green-800">
