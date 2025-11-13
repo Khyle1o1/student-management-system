@@ -126,7 +126,15 @@ export async function GET(request: NextRequest) {
       status?: string | null
     }> = []
 
-    eventsData?.forEach((event) => {
+    eventsData?.forEach((event: {
+      id: string
+      title: string
+      date: string | null
+      start_time?: string | null
+      end_time?: string | null
+      location?: string | null
+      status?: string | null
+    }) => {
       if (!event?.date) return
       items.push({
         id: event.id,
@@ -140,7 +148,12 @@ export async function GET(request: NextRequest) {
       })
     })
 
-    feesData?.forEach((fee) => {
+    feesData?.forEach((fee: {
+      id: string
+      name: string
+      due_date: string | null
+      amount?: number | null
+    }) => {
       if (!fee?.due_date) return
       items.push({
         id: fee.id,
@@ -151,7 +164,12 @@ export async function GET(request: NextRequest) {
       })
     })
 
-    evaluationsData?.forEach((form) => {
+    evaluationsData?.forEach((form: {
+      id: string
+      title: string
+      closes_at: string | null
+      status?: string | null
+    }) => {
       if (!form?.closes_at) return
       items.push({
         id: form.id,

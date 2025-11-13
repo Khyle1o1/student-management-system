@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState } from "react"
+import { useEffect, useState } from "react"
 import { Calendar, Users, FileText, Phone, Mail, AlertCircle, Bell, BookOpen, GraduationCap, Building, CheckCircle, ArrowRight, Star, Trophy, Clock, Target, Award, TrendingUp, BarChart, Sparkles, Shield, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import { LoginModal } from "@/components/ui/login-modal"
 import { IntramuralsStandings } from "@/components/intramurals/IntramuralsStandings"
+import { PublicTournamentBracket } from "@/components/intramurals/PublicTournamentBracket"
 
 const reasons = [
   {
@@ -100,9 +101,45 @@ const additionalFeatures = [
 
 export default function HomePage() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
+  const [tournaments, setTournaments] = useState<Array<{
+    id: string
+    name: string
+    category: string
+    bracket_type: string
+    randomize_locked: boolean
+    match_count: number
+    rounds: number
+    has_third_place: boolean
+  }>>([])
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string | null>(null)
+  const [tournamentsLoading, setTournamentsLoading] = useState(false)
 
   const openLoginModal = () => setIsLoginModalOpen(true)
   const closeLoginModal = () => setIsLoginModalOpen(false)
+
+  useEffect(() => {
+    const fetchTournaments = async () => {
+      try {
+        setTournamentsLoading(true)
+        const response = await fetch("/api/intramurals/tournaments")
+        if (response.ok) {
+          const data = await response.json()
+          const visible = (data.tournaments || []).filter((t: any) => t.match_count > 0)
+          setTournaments(visible)
+          if (!selectedTournamentId && visible.length > 0) {
+            setSelectedTournamentId(visible[0].id)
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching tournaments:", error)
+      } finally {
+        setTournamentsLoading(false)
+      }
+    }
+
+    fetchTournaments()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="min-h-screen bg-white">
@@ -158,6 +195,65 @@ export default function HomePage() {
 
         {/* Intramurals Standings Section - Display at top when enabled */}
         <IntramuralsStandings />
+
+        {/* Featured Tournament Bracket */}
+        <section className="py-12 bg-gradient-to-b from-white to-slate-50">
+          <div className="container mx-auto px-4">
+            <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+              <div className="space-y-2">
+                <Badge className="bg-gradient-to-r from-[#191970] to-[#191970]/80 text-white px-5 py-2 rounded-full text-sm font-semibold shadow">
+                  🏟️ Intramurals Tournament Bracket
+                </Badge>
+                <h2 className="text-3xl font-bold text-[#191970]">Featured Tournament</h2>
+                <p className="text-slate-600 max-w-2xl">
+                  Follow the latest bracket progress, including automatic semifinal, final, and third-place showdowns. Results update in real time as matches are recorded.
+                </p>
+              </div>
+              {tournaments.length > 1 && (
+                <div className="flex flex-wrap gap-2">
+                  {tournaments.map((tournament) => (
+                    <Button
+                      key={tournament.id}
+                      size="sm"
+                      variant={selectedTournamentId === tournament.id ? "default" : "outline"}
+                      className={
+                        selectedTournamentId === tournament.id
+                          ? "bg-[#191970] hover:bg-[#191970]/90 text-white"
+                          : "border-[#191970]/30 text-[#191970] hover:bg-[#191970]/5"
+                      }
+                      onClick={() => setSelectedTournamentId(tournament.id)}
+                    >
+                      {tournament.name}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-8">
+              {tournamentsLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#191970] mx-auto mb-4"></div>
+                    <p className="text-slate-600">Loading tournaments...</p>
+                  </div>
+                </div>
+              )}
+
+              {!tournamentsLoading && tournaments.length === 0 && (
+                <div className="text-center py-12 text-slate-500">
+                  No tournament brackets are available yet. Check back soon!
+                </div>
+              )}
+
+              {!tournamentsLoading && tournaments.length > 0 && selectedTournamentId && (
+                <div className="rounded-2xl border border-slate-200 shadow-sm bg-white">
+                  <PublicTournamentBracket eventId={selectedTournamentId} />
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
 
         {/* Enhanced Hero Section */}
         <section className="relative bg-gradient-to-br from-[#191970]/10 via-white to-[#191970]/5 py-16 overflow-hidden">

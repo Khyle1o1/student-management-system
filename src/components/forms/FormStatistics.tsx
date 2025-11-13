@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -68,11 +68,7 @@ export function FormStatistics({ formId }: FormStatisticsProps) {
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
 
-  useEffect(() => {
-    fetchStatistics()
-  }, [formId])
-
-  const fetchStatistics = async () => {
+  const fetchStatistics = useCallback(async () => {
     setLoading(true)
     try {
       const response = await fetch(`/api/forms/${formId}/statistics`)
@@ -86,7 +82,11 @@ export function FormStatistics({ formId }: FormStatisticsProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [formId])
+
+  useEffect(() => {
+    fetchStatistics()
+  }, [fetchStatistics])
 
   const handleExport = async (format: 'csv' | 'json' | 'pdf') => {
     setExporting(true)

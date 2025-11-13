@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   Table,
@@ -59,11 +59,7 @@ export function FormsTable() {
   const [total, setTotal] = useState(0)
   const limit = 10
 
-  useEffect(() => {
-    fetchForms()
-  }, [page, search, statusFilter])
-
-  const fetchForms = async () => {
+  const fetchForms = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams({
@@ -85,7 +81,11 @@ export function FormsTable() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [page, search, statusFilter, limit])
+
+  useEffect(() => {
+    fetchForms()
+  }, [fetchForms])
 
   const handleDelete = async (id: string, title: string) => {
     if (!confirm(`Are you sure you want to delete "${title}"?`)) return

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -45,9 +45,12 @@ import {
   Eye,
   RefreshCw,
   Medal,
+  GitBranch,
 } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { format } from "date-fns"
+import { TournamentCreationDialog } from "./TournamentCreationDialog"
+import { TournamentBracket } from "./TournamentBracket"
 
 interface Team {
   id: string
@@ -64,6 +67,9 @@ interface Event {
   category: "sports" | "socio-cultural"
   created_at: string
   updated_at: string
+  is_tournament?: boolean
+  bracket_type?: string
+  randomize_locked?: boolean
   medal_awards?: Array<{
     id: string
     gold_team_id: string | null
@@ -106,20 +112,12 @@ export function IntramuralsMedalManagement() {
     bronze_team_id: "",
   })
 
-  useEffect(() => {
-    fetchAllData()
-  }, [])
+  // Tournament management
+  const [showTournamentDialog, setShowTournamentDialog] = useState(false)
+  const [selectedTournament, setSelectedTournament] = useState<Event | null>(null)
+  const [deletingTournamentId, setDeletingTournamentId] = useState<string | null>(null)
 
-  const fetchAllData = async () => {
-    try {
-      setLoading(true)
-      await Promise.all([fetchTeams(), fetchEvents(), fetchSettings()])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchTeams = async () => {
+  const fetchTeams = useCallback(async () => {
     try {
       const response = await fetch("/api/intramurals/admin/teams")
       if (response.ok) {
@@ -130,9 +128,9 @@ export function IntramuralsMedalManagement() {
       console.error("Error fetching teams:", error)
       toast.error("Failed to fetch teams")
     }
-  }
+  }, [])
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       const response = await fetch("/api/intramurals/admin/events")
       if (response.ok) {
@@ -143,9 +141,39 @@ export function IntramuralsMedalManagement() {
       console.error("Error fetching events:", error)
       toast.error("Failed to fetch events")
     }
+  }, [])
+
+  const handleDeleteTournament = async (tournament: Event) => {
+    if (!confirm(`Delete tournament "${tournament.name}"? This will remove the bracket and all related results.`)) {
+      return
+    }
+
+    setDeletingTournamentId(tournament.id)
+    try {
+      const response = await fetch(`/api/intramurals/admin/tournaments/${tournament.id}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        toast.error(error.error || "Failed to delete tournament")
+        return
+      }
+
+      toast.success("Tournament deleted")
+      if (selectedTournament?.id === tournament.id) {
+        setSelectedTournament(null)
+      }
+      await Promise.all([fetchEvents(), fetchSettings()])
+    } catch (error) {
+      console.error("Error deleting tournament:", error)
+      toast.error("Failed to delete tournament")
+    } finally {
+      setDeletingTournamentId(null)
+    }
   }
 
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     try {
       const response = await fetch("/api/intramurals/admin/settings")
       if (response.ok) {
@@ -155,7 +183,20 @@ export function IntramuralsMedalManagement() {
     } catch (error) {
       console.error("Error fetching settings:", error)
     }
-  }
+  }, [])
+
+  const fetchAllData = useCallback(async () => {
+    try {
+      setLoading(true)
+      await Promise.all([fetchTeams(), fetchEvents(), fetchSettings()])
+    } finally {
+      setLoading(false)
+    }
+  }, [fetchTeams, fetchEvents, fetchSettings])
+
+  useEffect(() => {
+    fetchAllData()
+  }, [fetchAllData])
 
   const handleSaveTeam = async () => {
     if (!teamForm.name.trim()) {
@@ -412,6 +453,10 @@ export function IntramuralsMedalManagement() {
             <Medal className="mr-2 h-4 w-4" />
             Medal Assignment
           </TabsTrigger>
+          <TabsTrigger value="tournaments">
+            <GitBranch className="mr-2 h-4 w-4" />
+            Tournaments ({events.filter(e => e.is_tournament).length})
+          </TabsTrigger>
         </TabsList>
 
         {/* Teams Tab */}
@@ -447,7 +492,7 @@ export function IntramuralsMedalManagement() {
                   {teams.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                        No teams yet. Click "Add Team" to create one.
+                        No teams yet. Click &quot;Add Team&quot; to create one.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -537,7 +582,7 @@ export function IntramuralsMedalManagement() {
                   {events.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                        No events yet. Click "Add Event" to create one.
+                        No events yet. Click &quot;Add Event&quot; to create one.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -679,7 +724,132 @@ export function IntramuralsMedalManagement() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Tournaments Tab */}
+        <TabsContent value="tournaments" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Tournament Management</CardTitle>
+                  <CardDescription>
+                    Create and manage tournament brackets with automatic medal assignment
+                  </CardDescription>
+                </div>
+                <Button onClick={() => setShowTournamentDialog(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Tournament
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {selectedTournament ? (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedTournament(null)}
+                    >
+                      <X className="mr-2 h-4 w-4" />
+                      Back to List
+                    </Button>
+                  </div>
+                  <TournamentBracket
+                    tournamentId={selectedTournament.id}
+                    onUpdate={() => {
+                      fetchEvents()
+                      fetchSettings()
+                    }}
+                  />
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Tournament Name</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Bracket Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {events.filter(e => e.is_tournament).length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          No tournaments yet. Click &quot;Create Tournament&quot; to create one.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      events
+                        .filter(e => e.is_tournament)
+                        .map((tournament) => (
+                          <TableRow key={tournament.id}>
+                            <TableCell className="font-medium">{tournament.name}</TableCell>
+                            <TableCell>
+                              <Badge variant={tournament.category === "sports" ? "default" : "secondary"}>
+                                {tournament.category === "sports" ? "🏆 Sports" : "🎭 Socio-Cultural"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {tournament.bracket_type?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'N/A'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {tournament.randomize_locked ? (
+                                <Badge className="bg-green-100 text-green-800">
+                                  Locked
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline">Unlocked</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {format(new Date(tournament.created_at), "MMM dd, yyyy")}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setSelectedTournament(tournament)}
+                                >
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  View Bracket
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleDeleteTournament(tournament)}
+                                  disabled={deletingTournamentId === tournament.id}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  {deletingTournamentId === tournament.id ? "Deleting..." : "Delete"}
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      {/* Tournament Creation Dialog */}
+      <TournamentCreationDialog
+        open={showTournamentDialog}
+        onOpenChange={setShowTournamentDialog}
+        teams={teams}
+        onSuccess={() => {
+          fetchEvents()
+        }}
+      />
 
       {/* Team Dialog */}
       <Dialog open={showTeamDialog} onOpenChange={setShowTeamDialog}>

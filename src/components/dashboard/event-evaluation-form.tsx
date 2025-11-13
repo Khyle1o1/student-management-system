@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -65,17 +65,13 @@ export function EventEvaluationForm({ eventId, studentId }: EventEvaluationFormP
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const fetchEventAndEvaluation = useCallback(async () => {
     if (!studentId) {
       setError("Student ID not available")
       setLoading(false)
       return
     }
-    
-    fetchEventAndEvaluation()
-  }, [eventId, studentId])
 
-  const fetchEventAndEvaluation = async () => {
     try {
       // Fetch event details first
       const eventResponse = await fetch(`/api/events/${eventId}`)
@@ -120,7 +116,11 @@ export function EventEvaluationForm({ eventId, studentId }: EventEvaluationFormP
     } finally {
       setLoading(false)
     }
-  }
+  }, [eventId, studentId])
+
+  useEffect(() => {
+    fetchEventAndEvaluation()
+  }, [fetchEventAndEvaluation])
 
   const handleResponseChange = (questionId: string, value: any) => {
     setResponses(prev => ({

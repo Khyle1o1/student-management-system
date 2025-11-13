@@ -18,7 +18,7 @@ export async function GET() {
 
     const { data: events, error: eventsError } = await supabaseAdmin
       .from('intramurals_events')
-      .select('*')
+      .select('id, name, category, created_at, updated_at, is_tournament, bracket_type, randomize_locked')
       .order('created_at', { ascending: false })
 
     if (eventsError) {
@@ -55,8 +55,8 @@ export async function GET() {
       if (ma.bronze_team_id) teamIds.add(ma.bronze_team_id)
     })
 
-    let teams = []
-    let teamsError = null
+    let teams: Array<{ id: string; name: string }> = []
+    let teamsError: any = null
     
     if (teamIds.size > 0) {
       const result = await supabaseAdmin

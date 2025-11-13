@@ -191,6 +191,18 @@ This will create all necessary tables, indexes, triggers, and RLS policies.
 - The standings refresh every 5 minutes on the public page
 - All operations require appropriate admin role permissions
 
+## Tournament Bracketing System
+
+The system now includes a comprehensive tournament bracketing feature! See [TOURNAMENT_BRACKETING_SYSTEM.md](./TOURNAMENT_BRACKETING_SYSTEM.md) for details.
+
+**Key Features:**
+- Create tournaments with Single Elimination, Double Elimination, or Round Robin brackets
+- Randomize teams with configurable limits
+- Lock brackets to start tournaments
+- Automatic bracket generation and winner advancement
+- Automatic medal assignment based on tournament results
+- Interactive bracket visualization
+
 ## Future Enhancements (Optional)
 
 - Export standings as PDF or CSV
@@ -198,4 +210,3 @@ This will create all necessary tables, indexes, triggers, and RLS policies.
 - Historical standings tracking
 - Team logos display in standings
 - More detailed statistics and analytics
-

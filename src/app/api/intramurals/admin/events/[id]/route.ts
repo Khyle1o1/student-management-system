@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 // PUT - Update an event
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -18,6 +18,8 @@ export async function PUT(
     if (!['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG'].includes(session.user.role as any)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
+
+    const { id } = await context.params
 
     const body = await request.json()
     const { name, category } = body
@@ -42,7 +44,7 @@ export async function PUT(
         name: name.trim(),
         category: category,
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single()
 
@@ -67,7 +69,7 @@ export async function PUT(
 // DELETE - Delete an event
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -79,10 +81,12 @@ export async function DELETE(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
+    const { id } = await context.params
+
     const { error } = await supabaseAdmin
       .from('intramurals_events')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
 
     if (error) {
       console.error('Error deleting event:', error)

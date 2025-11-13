@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -94,11 +94,7 @@ export function FormResponse({ formId }: FormResponseProps) {
   const [currentPage, setCurrentPage] = useState(0)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  useEffect(() => {
-    fetchForm()
-  }, [formId])
-
-  const fetchForm = async () => {
+  const fetchForm = useCallback(async () => {
     try {
       const response = await fetch(`/api/forms/${formId}`)
       if (!response.ok) {
@@ -122,7 +118,11 @@ export function FormResponse({ formId }: FormResponseProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [formId])
+
+  useEffect(() => {
+    fetchForm()
+  }, [fetchForm])
 
   const handleAnswerChange = (questionId: string, value: any) => {
     setAnswers({ ...answers, [questionId]: value })

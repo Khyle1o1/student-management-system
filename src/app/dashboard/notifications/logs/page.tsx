@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -59,19 +59,18 @@ export default function NotificationLogsPage() {
   })
   const [retryingId, setRetryingId] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchLogs()
-  }, [pagination.page, filters])
+  const { page, limit } = pagination
+  const { type, status, search } = filters
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams({
-        page: pagination.page.toString(),
-        limit: pagination.limit.toString(),
-        ...(filters.type && filters.type !== 'all' && { type: filters.type }),
-        ...(filters.status && filters.status !== 'all' && { status: filters.status }),
-        ...(filters.search && { search: filters.search }),
+        page: page.toString(),
+        limit: limit.toString(),
+        ...(type && type !== 'all' && { type }),
+        ...(status && status !== 'all' && { status }),
+        ...(search && { search }),
       })
 
       const response = await fetch(`/api/notifications/logs?${params}`)
@@ -85,7 +84,11 @@ export default function NotificationLogsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [page, limit, type, status, search])
+
+  useEffect(() => {
+    fetchLogs()
+  }, [fetchLogs])
 
   const handleRetry = async (logId: string) => {
     try {

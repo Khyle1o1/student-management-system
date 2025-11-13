@@ -1,7 +1,7 @@
 "use client"
 /* eslint-disable @next/next/no-img-element */
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -63,16 +63,94 @@ export function CertificateTemplateCreatorSimple({ templateId, initialData }: Ce
     }
   }, [initialData])
 
+  const drawPreview = useCallback(() => {
+    if (!previewCanvasRef.current || !backgroundImageUrl) return
+
+    const canvas = previewCanvasRef.current
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const displayWidth = 800
+    const aspectRatio = 297 / 210
+    const displayHeight = displayWidth / aspectRatio
+
+    canvas.width = displayWidth
+    canvas.height = displayHeight
+    canvas.style.width = `${displayWidth}px`
+    canvas.style.height = `${displayHeight}px`
+
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      const imgAspect = img.width / img.height
+      const canvasAspect = displayWidth / displayHeight
+
+      let drawWidth = displayWidth
+      let drawHeight = displayHeight
+      let drawX = 0
+      let drawY = 0
+
+      if (imgAspect > canvasAspect) {
+        drawHeight = displayHeight
+        drawWidth = drawHeight * imgAspect
+        drawX = (displayWidth - drawWidth) / 2
+      } else {
+        drawWidth = displayWidth
+        drawHeight = drawWidth / imgAspect
+        drawY = (displayHeight - drawHeight) / 2
+      }
+
+      ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight)
+
+      const scaleX = displayWidth / 2000
+      const scaleY = displayHeight / 1414
+
+      const previewFontSize = TEXT_CONFIG.fontSize * scaleX
+      const fontWeight = TEXT_CONFIG.fontWeight === 'bold' ? 'bold' : 'normal'
+      ctx.font = `${fontWeight} ${previewFontSize}px ${TEXT_CONFIG.fontFamily}, Arial, sans-serif`
+      ctx.fillStyle = TEXT_CONFIG.fontColor
+      ctx.textAlign = TEXT_CONFIG.textAlign as CanvasTextAlign
+      ctx.textBaseline = 'middle'
+
+      const nameX = TEXT_CONFIG.namePosition.x * scaleX
+      const nameY = TEXT_CONFIG.namePosition.y * scaleY
+      const certX = TEXT_CONFIG.certNumberPosition.x * scaleX
+      const certY = TEXT_CONFIG.certNumberPosition.y * scaleY
+
+      ctx.fillText("Juan Dela Cruz", nameX, nameY)
+
+      const certFontSize = TEXT_CONFIG.certNumberFontSize * scaleX
+      ctx.font = `${TEXT_CONFIG.certNumberFontWeight} ${certFontSize}px ${TEXT_CONFIG.fontFamily}, Arial, sans-serif`
+      ctx.fillText("CERT-0001", certX, certY)
+    }
+    img.onerror = () => {
+      console.error('Failed to load preview image')
+      ctx.fillStyle = '#ff0000'
+      ctx.font = '16px Arial'
+      ctx.textAlign = 'center'
+      ctx.fillText('Failed to load image', canvas.width / 2, canvas.height / 2)
+    }
+
+    if (backgroundImageUrl.startsWith('/')) {
+      img.src = backgroundImageUrl
+    } else if (backgroundImageUrl.startsWith('http')) {
+      img.src = backgroundImageUrl
+    } else {
+      img.src = `/${backgroundImageUrl}`
+    }
+  }, [backgroundImageUrl])
+
   // Generate preview with sample data
   useEffect(() => {
     if (backgroundImageUrl && previewCanvasRef.current) {
-      // Small delay to ensure canvas is ready
       const timer = setTimeout(() => {
         drawPreview()
       }, 100)
       return () => clearTimeout(timer)
     }
-  }, [backgroundImageUrl])
+  }, [backgroundImageUrl, drawPreview])
 
   const handleImageUpload = async (file: File) => {
     if (!file) return
@@ -106,100 +184,6 @@ export function CertificateTemplateCreatorSimple({ templateId, initialData }: Ce
       alert('Failed to upload image. Please try again.')
     } finally {
       setUploading(false)
-    }
-  }
-
-  const drawPreview = () => {
-    if (!previewCanvasRef.current || !backgroundImageUrl) return
-
-    const canvas = previewCanvasRef.current
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    // A4 Landscape dimensions in pixels (at 96 DPI)
-    // For better preview, use a reasonable display size
-    const displayWidth = 800 // Display width for preview
-    const aspectRatio = 297 / 210 // A4 landscape aspect ratio
-    const displayHeight = displayWidth / aspectRatio
-    
-    canvas.width = displayWidth
-    canvas.height = displayHeight
-    canvas.style.width = `${displayWidth}px`
-    canvas.style.height = `${displayHeight}px`
-
-    // Load and draw background image
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => {
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      
-      // Draw image to fit canvas while maintaining aspect ratio
-      const imgAspect = img.width / img.height
-      const canvasAspect = displayWidth / displayHeight
-      
-      let drawWidth = displayWidth
-      let drawHeight = displayHeight
-      let drawX = 0
-      let drawY = 0
-      
-      if (imgAspect > canvasAspect) {
-        // Image is wider, fit to height
-        drawHeight = displayHeight
-        drawWidth = drawHeight * imgAspect
-        drawX = (displayWidth - drawWidth) / 2
-      } else {
-        // Image is taller, fit to width
-        drawWidth = displayWidth
-        drawHeight = drawWidth / imgAspect
-        drawY = (displayHeight - drawHeight) / 2
-      }
-      
-      ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight)
-      
-      // Calculate scale factors from template coordinates (2000x1414) to canvas
-      const scaleX = displayWidth / 2000
-      const scaleY = displayHeight / 1414
-      
-      // Scale font size for preview
-      const previewFontSize = TEXT_CONFIG.fontSize * scaleX
-      
-      // Draw sample name
-      const fontWeight = TEXT_CONFIG.fontWeight === 'bold' ? 'bold' : 'normal'
-      ctx.font = `${fontWeight} ${previewFontSize}px ${TEXT_CONFIG.fontFamily}, Arial, sans-serif`
-      ctx.fillStyle = TEXT_CONFIG.fontColor
-      ctx.textAlign = TEXT_CONFIG.textAlign as CanvasTextAlign
-      ctx.textBaseline = 'middle'
-      
-      const nameX = TEXT_CONFIG.namePosition.x * scaleX
-      const nameY = TEXT_CONFIG.namePosition.y * scaleY
-      const certX = TEXT_CONFIG.certNumberPosition.x * scaleX
-      const certY = TEXT_CONFIG.certNumberPosition.y * scaleY
-      
-      // Draw sample name
-      ctx.fillText("Juan Dela Cruz", nameX, nameY)
-      
-      // Draw sample certificate number with different font size and weight
-      const certFontSize = TEXT_CONFIG.certNumberFontSize * scaleX
-      ctx.font = `${TEXT_CONFIG.certNumberFontWeight} ${certFontSize}px ${TEXT_CONFIG.fontFamily}, Arial, sans-serif`
-      ctx.fillText("CERT-0001", certX, certY)
-    }
-    img.onerror = () => {
-      console.error('Failed to load preview image')
-      // Draw error message on canvas
-      ctx.fillStyle = '#ff0000'
-      ctx.font = '16px Arial'
-      ctx.textAlign = 'center'
-      ctx.fillText('Failed to load image', canvas.width / 2, canvas.height / 2)
-    }
-    
-    // Handle both relative and absolute URLs
-    if (backgroundImageUrl.startsWith('/')) {
-      img.src = backgroundImageUrl
-    } else if (backgroundImageUrl.startsWith('http')) {
-      img.src = backgroundImageUrl
-    } else {
-      img.src = `/${backgroundImageUrl}`
     }
   }
 

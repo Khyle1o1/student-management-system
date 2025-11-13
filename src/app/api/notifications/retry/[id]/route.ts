@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 // POST retry a failed notification
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -21,7 +21,7 @@ export async function POST(
       )
     }
 
-    const { id } = params
+    const { id } = await context.params
 
     // Get the notification log
     const { data: log, error: fetchError } = await supabase

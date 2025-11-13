@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   Dialog,
   DialogContent,
@@ -94,13 +94,7 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
   const [updatingPayment, setUpdatingPayment] = useState<string | null>(null)
   const [receiptModal, setReceiptModal] = useState<{ open: boolean; paymentId: string | null; receipt: string }>({ open: false, paymentId: null, receipt: "" })
 
-  useEffect(() => {
-    if (studentId && open) {
-      fetchStudentDetails()
-    }
-  }, [studentId, open])
-
-  const fetchStudentDetails = async () => {
+  const fetchStudentDetails = useCallback(async () => {
     if (!studentId) return
     
     setLoading(true)
@@ -115,7 +109,13 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
     } finally {
       setLoading(false)
     }
-  }
+  }, [studentId])
+
+  useEffect(() => {
+    if (studentId && open) {
+      fetchStudentDetails()
+    }
+  }, [studentId, open, fetchStudentDetails])
 
   const handleUpdatePaymentStatus = async (paymentId: string, newStatus: string, receiptNumber?: string) => {
     setUpdatingPayment(paymentId)
