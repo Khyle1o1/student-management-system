@@ -8,6 +8,7 @@ A modern web application for managing student records, attendance, and fee payme
 - Attendance tracking with QR code scanning
 - Fee management and payment tracking
 - Event scheduling and management
+- **Automated Email Reminders** (Event, Fee, Certificate notifications)
 - Role-based access control (Admin/Student)
 - Real-time dashboard with statistics
 - Export data to CSV/Excel
@@ -20,6 +21,7 @@ A modern web application for managing student records, attendance, and fee payme
 - **UI Components**: Radix UI with Tailwind CSS
 - **Authentication**: NextAuth.js with Google OAuth
 - **Database**: PostgreSQL with Supabase
+- **Email**: Nodemailer with responsive HTML templates
 - **State Management**: React Query & Zustand
 - **Form Handling**: React Hook Form with Zod validation
 - **Charts**: Recharts
@@ -72,6 +74,21 @@ npm run dev
 1. Configure Google OAuth in the Google Cloud Console
 2. Add the credentials to your environment variables
 3. See `GOOGLE_OAUTH_SETUP.md` for detailed instructions
+
+## Email Notification System
+
+SmartU includes an automated email reminder system that sends notifications to students for:
+- Events (1 day and 1 hour reminders)
+- Fees (assignment and 3-day reminders)
+- Certificates (ready for download)
+
+**Setup Instructions:**
+1. See [EMAIL_REMINDERS_SETUP.md](./EMAIL_REMINDERS_SETUP.md) for detailed configuration
+2. See [NOTIFICATION_SYSTEM_README.md](./NOTIFICATION_SYSTEM_README.md) for system documentation
+3. Configure SMTP settings in `.env`
+4. Run the database migration (`sql/notification_system.sql`)
+5. Set up automated scheduler (cron job)
+6. Access admin panel at `/dashboard/notifications/settings`
 
 ## Deployment
 

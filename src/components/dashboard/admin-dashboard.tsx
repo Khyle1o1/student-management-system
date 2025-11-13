@@ -20,6 +20,8 @@ import {
   TrendingDown,
   UserPlus,
   CalendarPlus,
+  ChevronLeft,
+  ChevronRight,
   BarChart3,
   Clock,
   CheckCircle,
@@ -34,7 +36,8 @@ import {
   User
 } from "lucide-react"
 import Link from "next/link"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
+import { addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isToday, isSameDay, startOfDay, addDays, format } from "date-fns"
 
 interface DashboardStats {
   students: {
@@ -107,6 +110,51 @@ interface Activity {
   feeId?: string
   // Store original data for modal display
   originalData?: any
+}
+
+interface CalendarEntry {
+  id: string
+  type: 'event' | 'fee' | 'evaluation'
+  title: string
+  date: string
+  start_time?: string | null
+  end_time?: string | null
+  location?: string | null
+  amount?: number | null
+  status?: string | null
+}
+
+const calendarTypeConfig: Record<CalendarEntry['type'], { label: string; dot: string; pill: string; text: string }> = {
+  event: {
+    label: 'Upcoming event',
+    dot: 'bg-blue-500',
+    pill: 'bg-blue-100 text-blue-700',
+    text: 'text-blue-600',
+  },
+  evaluation: {
+    label: 'Evaluation deadline',
+    dot: 'bg-amber-500',
+    pill: 'bg-amber-100 text-amber-700',
+    text: 'text-amber-600',
+  },
+  fee: {
+    label: 'Fee due date',
+    dot: 'bg-emerald-500',
+    pill: 'bg-emerald-100 text-emerald-700',
+    text: 'text-emerald-600',
+  },
+}
+
+const parseDateValue = (value: string): Date => {
+  const parsed = new Date(value)
+  if (!isNaN(parsed.getTime())) {
+    return parsed
+  }
+  const alt = new Date(`${value}T00:00:00`)
+  if (!isNaN(alt.getTime())) {
+    return alt
+  }
+  return new Date()
 }
 
 
@@ -233,6 +281,12 @@ export function AdminDashboard() {
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
   const [activityDetails, setActivityDetails] = useState<any>(null)
   const [loadingDetails, setLoadingDetails] = useState(false)
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date())
+  const [calendarEntries, setCalendarEntries] = useState<CalendarEntry[]>([])
+  const [calendarLoading, setCalendarLoading] = useState(true)
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const handlePrevMonth = () => setCalendarMonth((prev) => subMonths(prev, 1))
+  const handleNextMonth = () => setCalendarMonth((prev) => addMonths(prev, 1))
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -315,12 +369,82 @@ export function AdminDashboard() {
     fetchStats()
   }, [])
 
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const fetchCalendar = async () => {
+      try {
+        setCalendarLoading(true)
+        const monthParam = format(calendarMonth, 'yyyy-MM')
+        const response = await fetch(`/api/dashboard/calendar?month=${monthParam}`, {
+          signal: controller.signal,
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch calendar data')
+        }
+
+        const data = await response.json()
+        setCalendarEntries(data.items || [])
+      } catch (error: any) {
+        if (error.name !== 'AbortError') {
+          console.error('Error fetching calendar data:', error)
+        }
+      } finally {
+        setCalendarLoading(false)
+      }
+    }
+
+    fetchCalendar()
+
+    return () => controller.abort()
+  }, [calendarMonth])
+
   const activeUsers = Math.max(
     0,
     Math.round(
       ((stats?.students?.new || 0) + (stats?.events?.thisMonth || 0)) * 0.35
     )
   )
+
+  const calendarDays = useMemo(() => {
+    const start = startOfWeek(startOfMonth(calendarMonth), { weekStartsOn: 0 })
+    const end = endOfWeek(endOfMonth(calendarMonth), { weekStartsOn: 0 })
+    return eachDayOfInterval({ start, end })
+  }, [calendarMonth])
+
+  const upcomingEventCount = useMemo(() => {
+    const todayStart = startOfDay(new Date())
+    return calendarEntries.filter((entry) => {
+      if (entry.type !== 'event') return false
+      const entryDate = parseDateValue(entry.date)
+      return isSameMonth(entryDate, calendarMonth) && entryDate >= todayStart
+    }).length
+  }, [calendarEntries, calendarMonth])
+
+  const upcomingItems = useMemo(() => {
+    const todayStart = startOfDay(new Date())
+    const horizon = addDays(todayStart, 14)
+    return calendarEntries
+      .filter((entry) => {
+        const entryDate = parseDateValue(entry.date)
+        return entryDate >= todayStart && entryDate <= horizon
+      })
+      .sort((a, b) => parseDateValue(a.date).getTime() - parseDateValue(b.date).getTime())
+      .slice(0, 5)
+  }, [calendarEntries])
+
+  const getEntriesForDay = (day: Date) => {
+    return calendarEntries
+      .filter((entry) => isSameDay(parseDateValue(entry.date), day))
+      .sort((a, b) => parseDateValue(a.date).getTime() - parseDateValue(b.date).getTime())
+  }
+
+  const handleDateClick = (day: Date) => {
+    setSelectedDate(day)
+  }
+
+  const selectedDateEntries = selectedDate ? getEntriesForDay(selectedDate) : []
 
   const fetchActivityDetails = async (activity: Activity) => {
     setLoadingDetails(true)
@@ -449,7 +573,7 @@ export function AdminDashboard() {
       </div>
 
       {/* Main grid: Activity timeline + Performance + Calendar */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         {/* Timeline */}
         <Card className="xl:col-span-2 rounded-2xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm transition-colors">
           <CardHeader className="pb-2">
@@ -459,7 +583,7 @@ export function AdminDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
+            <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-2">
               {loading ? (
                 <div className="flex items-center justify-center py-10">
                   <Loader2 className="h-8 w-8 animate-spin text-gray-400 dark:text-gray-500" />
@@ -467,7 +591,7 @@ export function AdminDashboard() {
               ) : activities.length === 0 ? (
                 <p className="text-center text-gray-500 dark:text-slate-400 py-6">No recent activity</p>
               ) : (
-                activities.slice(0, 10).map((activity) => (
+                activities.slice(0, 8).map((activity) => (
                   <ActivityItem
                     key={activity.id}
                     activity={activity}
@@ -480,51 +604,172 @@ export function AdminDashboard() {
         </Card>
 
         {/* Calendar / Upcoming */}
-        <Card className="rounded-2xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm transition-colors">
+        <Card className="xl:col-span-3 rounded-2xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm transition-colors">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center justify-between text-slate-900 dark:text-white">
               <div className="flex items-center gap-2">
                 <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-300" />
                 <span>Calendar</span>
               </div>
-              <Badge className="bg-blue-600 text-white dark:bg-blue-500 dark:text-white">
-                {stats?.events.upcoming || 0} upcoming
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handlePrevMonth}
+                  disabled={calendarLoading}
+                  className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div className="text-sm font-medium text-slate-600 dark:text-slate-300 min-w-[120px] text-center">
+                  {format(calendarMonth, 'MMMM yyyy')}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleNextMonth}
+                  disabled={calendarLoading}
+                  className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Badge className="bg-blue-600 text-white dark:bg-blue-500 dark:text-white min-w-[92px] justify-center">
+                  {calendarLoading ? 'Loading...' : `${upcomingEventCount} upcoming`}
+                </Badge>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {/* Simple month grid skeleton for visual feel */}
-            <div className="rounded-xl border border-blue-100 overflow-hidden">
-              <div className="grid grid-cols-7 text-xs text-slate-500 dark:text-slate-300 bg-blue-50/50 dark:bg-slate-800/60">
-                {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d)=>(
-                  <div key={d} className="p-2 text-center font-medium">{d}</div>
-                ))}
+            {calendarLoading ? (
+              <div className="py-10 flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-blue-600 dark:text-blue-400" />
               </div>
-              <div className="grid grid-cols-7 gap-px bg-blue-100 dark:bg-slate-800">
-                {Array.from({ length: 35 }).map((_, i) => (
-                  <div key={i} className="h-14 bg-white dark:bg-slate-900 p-1 transition-colors">
-                    <div className="text-[10px] text-slate-400 dark:text-slate-500">{i % 30 + 1}</div>
-                    {i % 7 === 2 && (
-                      <div className="mt-1 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400"></div>
-                    )}
+            ) : (
+              <>
+                <div className="rounded-xl border border-blue-100 dark:border-slate-800 overflow-hidden">
+                  <div className="grid grid-cols-7 text-xs text-slate-500 dark:text-slate-300 bg-blue-50/60 dark:bg-slate-800/60">
+                    {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d)=>(
+                      <div key={d} className="p-2 text-center font-medium">{d}</div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-            <div className="mt-4 space-y-2">
-              <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
-                Upcoming event this week
-              </div>
-              <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                <span className="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
-                Evaluation deadline
-              </div>
-              <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                <span className="w-2.5 h-2.5 rounded-full bg-green-500"></span>
-                Fee due date
-              </div>
-            </div>
+                  <div className="grid grid-cols-7 gap-px bg-blue-100 dark:bg-slate-800">
+                    {calendarDays.map((day) => {
+                      const dayEntries = getEntriesForDay(day)
+                      const isCurrentMonth = isSameMonth(day, calendarMonth)
+                      const dayClassNames = [
+                        "h-28 bg-white dark:bg-slate-900 p-2 transition-colors",
+                        !isCurrentMonth ? "bg-slate-50 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500" : "",
+                        isToday(day) ? "ring-1 ring-blue-400" : "",
+                      ].join(" ")
+
+                      return (
+                        <div 
+                          key={day.toISOString()} 
+                          className={`${dayClassNames} ${dayEntries.length > 0 ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-800' : ''}`}
+                          onClick={() => dayEntries.length > 0 && handleDateClick(day)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-200">
+                              {format(day, 'd')}
+                            </span>
+                            {isToday(day) && (
+                              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600">
+                                Today
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-2 space-y-1">
+                            {dayEntries.slice(0, 3).map((entry) => {
+                              const config = calendarTypeConfig[entry.type]
+                              const detail =
+                                entry.type === 'event' && entry.start_time
+                                  ? `${entry.start_time}${entry.end_time ? `–${entry.end_time}` : ''}`
+                                  : entry.type === 'fee' && entry.amount
+                                  ? `₱${entry.amount.toLocaleString()}`
+                                  : ""
+                              return (
+                                <div key={`${entry.type}-${entry.id}`} className="flex items-center gap-1">
+                                  <span className={`h-2 w-2 rounded-full ${config.dot}`}></span>
+                                  <span
+                                    className="text-[10px] text-slate-600 dark:text-slate-300 truncate"
+                                    title={[entry.title, detail].filter(Boolean).join(" • ")}
+                                  >
+                                    {entry.title}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                            {dayEntries.length > 3 && (
+                              <div className="text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                                +{dayEntries.length - 3} more
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-4">
+                  {Object.entries(calendarTypeConfig).map(([key, config]) => (
+                    <div key={key} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                      <span className={`h-2.5 w-2.5 rounded-full ${config.dot}`}></span>
+                      {config.label}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4">
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
+                    Upcoming (next 2 weeks)
+                  </h4>
+                  {upcomingItems.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No upcoming items in the next two weeks.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {upcomingItems.map((item) => {
+                        const config = calendarTypeConfig[item.type]
+                        const entryDate = parseDateValue(item.date)
+                        const detail =
+                          item.type === 'event' && item.start_time
+                            ? `${item.start_time}${item.end_time ? ` – ${item.end_time}` : ''}`
+                            : item.type === 'fee' && item.amount
+                            ? `₱${item.amount.toLocaleString()}`
+                            : item.type === 'evaluation' && item.status
+                            ? item.status
+                            : ''
+
+                        return (
+                          <div
+                            key={`upcoming-${item.type}-${item.id}`}
+                            className="flex items-start gap-3 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2"
+                          >
+                            <span className={`mt-2 h-2.5 w-2.5 rounded-full ${config.dot}`}></span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[11px] font-semibold uppercase tracking-wide ${config.text}`}>
+                                  {config.label}
+                                </span>
+                                <span className="text-xs text-slate-500 dark:text-slate-400">
+                                  {format(entryDate, 'MMM d, yyyy')}
+                                </span>
+                              </div>
+                              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                                {item.title}
+                              </p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                {[detail, item.location].filter(Boolean).join(' • ')}
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -834,6 +1079,133 @@ export function AdminDashboard() {
             </div>
           ) : (
             <p className="text-center text-gray-500 py-4">No details available</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Date Details Dialog */}
+      <Dialog open={!!selectedDate} onOpenChange={() => setSelectedDate(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-blue-600" />
+              {selectedDate && format(selectedDate, 'EEEE, MMMM d, yyyy')}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedDateEntries.length > 0 
+                ? `${selectedDateEntries.length} item${selectedDateEntries.length > 1 ? 's' : ''} scheduled for this date`
+                : 'No items scheduled for this date'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedDateEntries.length > 0 ? (
+            <div className="space-y-4 mt-4">
+              {selectedDateEntries.map((entry) => {
+                const config = calendarTypeConfig[entry.type]
+                return (
+                  <Card 
+                    key={`${entry.type}-${entry.id}`} 
+                    className={`border-l-4 ${
+                      entry.type === 'event' ? 'border-l-blue-500' : 
+                      entry.type === 'evaluation' ? 'border-l-amber-500' : 
+                      'border-l-green-500'
+                    }`}
+                  >
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`h-3 w-3 rounded-full ${config.dot}`}></span>
+                          <CardTitle className="text-lg">{entry.title}</CardTitle>
+                        </div>
+                        <Badge className={config.pill}>
+                          {config.label}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {entry.type === 'event' && (
+                        <>
+                          {entry.start_time && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Clock className="h-4 w-4 text-slate-500" />
+                              <span className="text-slate-700 dark:text-slate-300">
+                                {entry.start_time}
+                                {entry.end_time && ` - ${entry.end_time}`}
+                              </span>
+                            </div>
+                          )}
+                          {entry.location && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <MapPin className="h-4 w-4 text-slate-500" />
+                              <span className="text-slate-700 dark:text-slate-300">{entry.location}</span>
+                            </div>
+                          )}
+                          {entry.status && (
+                            <div className="flex items-center gap-2">
+                              <Badge variant={entry.status === 'APPROVED' ? 'default' : 'secondary'}>
+                                {entry.status}
+                              </Badge>
+                            </div>
+                          )}
+                          <div className="pt-2">
+                            <Link href={`/dashboard/events/${entry.id}`}>
+                              <Button variant="outline" size="sm">
+                                View Event Details
+                              </Button>
+                            </Link>
+                          </div>
+                        </>
+                      )}
+                      
+                      {entry.type === 'fee' && (
+                        <>
+                          {entry.amount && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <DollarSign className="h-4 w-4 text-slate-500" />
+                              <span className="text-slate-700 dark:text-slate-300 font-semibold">
+                                ₱{entry.amount.toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                          <div className="pt-2">
+                            <Link href="/dashboard/fees">
+                              <Button variant="outline" size="sm">
+                                View Fee Details
+                              </Button>
+                            </Link>
+                          </div>
+                        </>
+                      )}
+                      
+                      {entry.type === 'evaluation' && (
+                        <>
+                          {entry.start_time && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Clock className="h-4 w-4 text-slate-500" />
+                              <span className="text-slate-700 dark:text-slate-300">
+                                Deadline: {entry.start_time}
+                              </span>
+                            </div>
+                          )}
+                          <div className="pt-2">
+                            <Link href="/dashboard/forms">
+                              <Button variant="outline" size="sm">
+                                View Evaluation
+                              </Button>
+                            </Link>
+                          </div>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Calendar className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+              <p className="text-slate-500">No items scheduled for this date</p>
+            </div>
           )}
         </DialogContent>
       </Dialog>

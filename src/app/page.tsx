@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import { LoginModal } from "@/components/ui/login-modal"
+import { IntramuralsStandings } from "@/components/intramurals/IntramuralsStandings"
 
 const reasons = [
   {
@@ -154,6 +155,9 @@ export default function HomePage() {
             </div>
           </div>
         </header>
+
+        {/* Intramurals Standings Section - Display at top when enabled */}
+        <IntramuralsStandings />
 
         {/* Enhanced Hero Section */}
         <section className="relative bg-gradient-to-br from-[#191970]/10 via-white to-[#191970]/5 py-16 overflow-hidden">

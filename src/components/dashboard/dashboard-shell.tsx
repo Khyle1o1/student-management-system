@@ -28,7 +28,9 @@ import {
   ClipboardCheck,
   Award,
   UserCog,
-  Clock
+  Clock,
+  Mail,
+  Trophy
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -172,6 +174,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
     { href: "/dashboard/forms", label: "Evaluations", icon: ClipboardCheck },
     { href: "/dashboard/reports", label: "Reports", icon: FileText },
     { href: "/dashboard/fees", label: "Fees", icon: CreditCard },
+    { href: "/dashboard/intramurals", label: "Intramurals", icon: Trophy },
+    { href: "/dashboard/notifications/settings", label: "Notifications", icon: Mail },
     ...usersNavItem,
     { href: "/dashboard/settings", label: "Settings", icon: Settings }
   ]
@@ -240,80 +244,87 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
         {/* Enhanced Sidebar - curved student-style */}
         <aside className={cn(
-          "fixed left-0 z-50 w-72 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md transform transition-all duration-300 ease-in-out border-r border-gray-200/60 dark:border-slate-800/60",
-          "top-0 bottom-0",
+          "fixed left-0 z-50 w-72 transform transition-all duration-300 ease-in-out",
+          "top-0 bottom-0 overflow-hidden",
           isMobileMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full lg:translate-x-0 lg:shadow-none",
         )}>
-          <div className="h-full flex flex-col rounded-r-3xl lg:rounded-r-[28px] shadow-sm bg-gradient-to-b from-[#EEF2FF] to-white dark:from-slate-950 dark:to-slate-900 transition-colors">
+          <div className="h-full flex flex-col rounded-r-3xl lg:rounded-r-[28px] shadow-sm bg-gradient-to-b from-[#191970] to-[#0f1349] transition-colors border-r border-[#191970]/80 overflow-hidden">
             {/* Mobile Header */}
-            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200/60 lg:hidden">
-              <h2 className="text-lg font-semibold text-gray-900">Navigation</h2>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-white/10 lg:hidden">
+              <h2 className="text-lg font-semibold text-white">Navigation</h2>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="h-8 w-8 p-0"
+                className="h-8 w-8 p-0 text-white hover:bg-white/10 hover:text-white"
               >
                 <X className="h-4 w-4" />
               </Button>
             </div>
 
             {/* Navigation Menu */}
-            <div className="flex-1 overflow-y-auto no-scrollbar py-4">
-              <nav className="px-4 space-y-1.5">
-                {navItems.map((item) => {
+            <div className="flex-1 overflow-y-auto no-scrollbar py-3">
+              <nav className="px-2 space-y-.5 relative">
+                {navItems.map((item, index) => {
                   const Icon = item.icon
                   const isActive = pathname === item.href || 
                     (pathname.startsWith(item.href) && item.href !== '/dashboard')
                   
                   return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        "group flex items-center justify-between px-3 py-3 rounded-2xl text-sm font-medium transition-all duration-300 ease-in-out",
-                        isActive
-                          ? "bg-white dark:bg-slate-800 text-[#1E293B] dark:text-white shadow-md border border-blue-100/60 dark:border-slate-700"
-                          : "text-gray-700 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-slate-800/70 hover:text-gray-900 dark:hover:text-white hover:shadow-sm"
+                    <div key={item.href} className="relative">
+                      {/* White vertical line indicator for active item */}
+                      {isActive && (
+                        <div className="absolute -left-2 top-0 bottom-0 w-1 bg-white rounded-r-full z-20"></div>
                       )}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className={cn(
-                          "flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300",
-                          isActive 
-                            ? "bg-blue-100 text-blue-600 ring-1 ring-blue-200 dark:bg-blue-900/40 dark:text-blue-200 dark:ring-blue-800" 
-                            : "bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 group-hover:bg-gray-200 dark:group-hover:bg-slate-700 group-hover:text-gray-700 dark:group-hover:text-white"
-                        )}>
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <span className="font-medium">{item.label}</span>
-                      </div>
-                      {item.badge && (
-                        <Badge 
-                          variant={isActive ? "default" : "secondary"}
-                          className={cn(
-                            "text-xs h-6 px-2.5 font-semibold rounded-full",
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          "group relative flex items-center justify-between px-3 py-3 rounded-2xl text-sm font-medium transition-all duration-300 ease-in-out",
+                          isActive
+                            ? "bg-white text-[#191970] shadow-lg"
+                            : "text-white/80 hover:bg-white/10 hover:text-white hover:shadow-sm"
+                        )}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        data-nav-item={item.href}
+                        data-nav-index={index}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className={cn(
+                            "flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300",
                             isActive 
-                              ? "bg-blue-600 text-white shadow-sm" 
-                              : "bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-200 group-hover:bg-gray-300 dark:group-hover:bg-slate-600"
-                          )}
-                        >
-                          {item.badge}
-                        </Badge>
-                      )}
-                    </Link>
+                              ? "bg-[#191970] text-white" 
+                              : "bg-white/10 text-white/70 group-hover:bg-white/20 group-hover:text-white"
+                          )}>
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <span className="font-medium">{item.label}</span>
+                        </div>
+                        {item.badge && (
+                          <Badge 
+                            variant={isActive ? "default" : "secondary"}
+                            className={cn(
+                              "text-xs h-6 px-2.5 font-semibold rounded-full",
+                              isActive 
+                                ? "bg-[#191970] text-white shadow-sm" 
+                                : "bg-white/20 text-white group-hover:bg-white/30"
+                            )}
+                          >
+                            {item.badge}
+                          </Badge>
+                        )}
+                      </Link>
+                    </div>
                   )
                 })}
 
                 {/* Logout */}
                 <button
                   onClick={() => completeLogout()}
-                  className="mt-2 w-full group flex items-center justify-between px-3 py-3 rounded-2xl text-sm font-medium transition-all duration-300 ease-in-out text-gray-700 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-slate-800/70 hover:text-gray-900 dark:hover:text-white hover:shadow-sm"
+                  className="mt-2 w-full group flex items-center justify-between px-3 py-3 rounded-2xl text-sm font-medium transition-all duration-300 ease-in-out text-white/80 hover:bg-white/10 hover:text-white hover:shadow-sm"
                   title="Sign out everywhere"
                 >
                   <div className="flex items-center space-x-3">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 group-hover:bg-gray-200 dark:group-hover:bg-slate-700 group-hover:text-gray-700 dark:group-hover:text-white transition-all duration-300">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/10 text-white/70 group-hover:bg-white/20 group-hover:text-white transition-all duration-300">
                       <LogOut className="h-4 w-4" />
                     </div>
                     <span className="font-medium">Logout</span>
@@ -324,36 +335,36 @@ export function DashboardShell({ children }: DashboardShellProps) {
               {/* Quick Stats Section */}
               {isAdmin && stats && (
                 <div className="mt-6 mx-4">
-                  <div className="bg-gradient-to-br from-white to-[#EEF2FF] dark:from-slate-900 dark:to-slate-800 rounded-2xl p-4 border border-gray-200/50 dark:border-slate-700 shadow-sm">
-                    <h4 className="text-xs font-bold text-gray-900 dark:text-white mb-3 flex items-center uppercase tracking-wide">
-                      <BarChart3 className="h-3 w-3 mr-2 text-gray-600 dark:text-slate-300" />
+                  <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-sm">
+                    <h4 className="text-xs font-bold text-white mb-3 flex items-center uppercase tracking-wide">
+                      <BarChart3 className="h-3 w-3 mr-2 text-white/80" />
                       Quick Stats
                     </h4>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between py-1.5">
                         <div className="flex items-center space-x-2">
-                          <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                          <span className="text-xs text-gray-700 dark:text-slate-300 font-medium">Active Students</span>
+                          <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                          <span className="text-xs text-white/90 font-medium">Active Students</span>
                         </div>
-                        <span className="text-xs font-bold text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/40 px-1.5 py-0.5 rounded">
+                        <span className="text-xs font-bold text-green-100 bg-green-500/30 px-1.5 py-0.5 rounded">
                           {stats.students.total}
                         </span>
                       </div>
                       <div className="flex items-center justify-between py-1.5">
                         <div className="flex items-center space-x-2">
-                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                          <span className="text-xs text-gray-700 dark:text-slate-300 font-medium">Total Events</span>
+                          <div className="w-2 h-2 rounded-full bg-blue-400"></div>
+                          <span className="text-xs text-white/90 font-medium">Total Events</span>
                         </div>
-                        <span className="text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/40 px-1.5 py-0.5 rounded">
+                        <span className="text-xs font-bold text-blue-100 bg-blue-500/30 px-1.5 py-0.5 rounded">
                           {stats.events.total}
                         </span>
                       </div>
                       <div className="flex items-center justify-between py-1.5">
                         <div className="flex items-center space-x-2">
-                          <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                          <span className="text-xs text-gray-700 dark:text-slate-300 font-medium">Pending Payments</span>
+                          <div className="w-2 h-2 rounded-full bg-orange-400"></div>
+                          <span className="text-xs text-white/90 font-medium">Pending Payments</span>
                         </div>
-                        <span className="text-xs font-bold text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/40 px-1.5 py-0.5 rounded">
+                        <span className="text-xs font-bold text-orange-100 bg-orange-500/30 px-1.5 py-0.5 rounded">
                           {stats.payments.pending}
                         </span>
                       </div>
@@ -364,9 +375,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
             </div>
 
            {/* Sidebar Footer */}
-            <div className="border-t border-gray-200/60 p-3">
+            <div className="border-t border-white/10 p-3">
               <div className="text-center">
-                <p className="text-xs text-gray-500 flex items-center justify-center gap-1">
+                <p className="text-xs text-white/60 flex items-center justify-center gap-1">
                   Made with 
                   ❤️
                   by Khyle Amacna of 
@@ -377,26 +388,73 @@ export function DashboardShell({ children }: DashboardShellProps) {
           </div>
         </aside>
 
+      
+
         {/* Enhanced Main Content */}
         <main className="flex-1 min-w-0 lg:ml-64 p-4 lg:p-6">
-          {!isAdmin && (
-            <div className="lg:hidden mb-4">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setIsMobileMenuOpen(true)}
-                className="rounded-xl"
-                aria-label="Open navigation menu"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-            </div>
-          )}
-
-          {/* Top Header (Admin only) aligned with content */}
-          {isAdmin && (
+          {/* Top Header for both Admin and Student */}
+          {isAdmin ? (
             <div className="max-w-6xl mx-auto lg:ml-12 mb-4">
               <AdminHeader onToggleSidebar={() => setIsMobileMenuOpen(true)} />
+            </div>
+          ) : (
+            <div className="max-w-6xl mx-auto mb-4">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
+                <div className="px-4 sm:px-6 lg:px-8">
+                  <div className="flex items-center justify-between h-16">
+                    <div className="flex items-center gap-3">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="lg:hidden rounded-xl border-[#191970]/20 hover:border-[#191970]/40"
+                        onClick={() => setIsMobileMenuOpen(true)}
+                        aria-label="Toggle navigation menu"
+                      >
+                        <Menu className="h-5 w-5" />
+                      </Button>
+                      <div>
+                        <h1 className="text-xl font-bold text-[#191970]">SmartU</h1>
+                        <p className="text-xs text-[#191970]/70 hidden sm:block">Smart Solutions for a Smarter BukSU</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Button variant="ghost" size="sm" className="hidden sm:flex text-[#191970]/70 hover:text-[#191970]">
+                        <Search className="h-4 w-4" />
+                      </Button>
+
+                      <NotificationBell />
+
+                      <Separator orientation="vertical" className="h-6 bg-[#191970]/10" />
+
+                      <div className="flex items-center gap-3">
+                        <div className="hidden sm:block text-right">
+                          <p className="text-sm font-medium text-[#191970]">
+                            {session?.user?.name}
+                          </p>
+                          <p className="text-xs text-[#191970]/60 capitalize">
+                            Student
+                          </p>
+                        </div>
+                        <div className="h-8 w-8 bg-gradient-to-r from-[#191970] to-[#191970]/80 rounded-full flex items-center justify-center text-white text-sm font-medium shadow">
+                          {session?.user?.name?.charAt(0)}
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex items-center gap-2 text-[#191970]/70 hover:text-[#191970]"
+                        onClick={() => completeLogout()}
+                        title="Sign out everywhere"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span className="hidden sm:inline">Sign out</span>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
