@@ -46,6 +46,8 @@ import {
   Save,
   Loader2
 } from "lucide-react"
+import Swal from "sweetalert2"
+import "sweetalert2/dist/sweetalert2.min.css"
 
 interface Student {
   id: string
@@ -235,12 +237,22 @@ export function FeeManagement({ feeId }: FeeManagementProps) {
     // Validate form data before submitting
     const amount = parseFloat(paymentForm.amount)
     if (isNaN(amount) || amount <= 0) {
-      alert("Please enter a valid amount greater than 0")
+      await Swal.fire({
+        icon: "warning",
+        title: "Invalid amount",
+        text: "Please enter a valid amount greater than 0.",
+        confirmButtonColor: "#0f172a",
+      })
       return
     }
 
     if (!paymentForm.status) {
-      alert("Please select a payment status")
+      await Swal.fire({
+        icon: "warning",
+        title: "Status required",
+        text: "Please select a payment status before saving.",
+        confirmButtonColor: "#0f172a",
+      })
       return
     }
 
@@ -276,6 +288,12 @@ export function FeeManagement({ feeId }: FeeManagementProps) {
       })
 
       if (response.ok) {
+        await Swal.fire({
+          icon: "success",
+          title: "Payment recorded",
+          text: "The payment has been added successfully.",
+          confirmButtonColor: "#0f172a",
+        })
         setPaymentDialog(false)
         setSelectedStudent(null)
         setPaymentForm({
@@ -293,14 +311,29 @@ export function FeeManagement({ feeId }: FeeManagementProps) {
         // Handle validation errors more gracefully
         if (errorData.error && Array.isArray(errorData.error)) {
           const validationErrors = errorData.error.map((err: any) => `${err.path?.join('.')}: ${err.message}`).join('\n')
-          alert(`Validation errors:\n${validationErrors}`)
+          await Swal.fire({
+            icon: "error",
+            title: "Validation errors",
+            html: validationErrors.replace(/\n/g, "<br/>"),
+            confirmButtonColor: "#dc2626",
+          })
         } else {
-          alert(`Failed to add payment: ${errorData.error || 'Unknown error'}`)
+          await Swal.fire({
+            icon: "error",
+            title: "Unable to add payment",
+            text: errorData.error || "Unknown error while adding the payment.",
+            confirmButtonColor: "#dc2626",
+          })
         }
       }
     } catch (error) {
       console.error("Error adding payment:", error)
-      alert("Error adding payment")
+      await Swal.fire({
+        icon: "error",
+        title: "Unexpected error",
+        text: "An error occurred while adding the payment. Please try again.",
+        confirmButtonColor: "#dc2626",
+      })
     } finally {
       setSubmittingPayment(false)
     }

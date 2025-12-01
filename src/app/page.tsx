@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { LoginModal } from "@/components/ui/login-modal"
 import { IntramuralsStandings } from "@/components/intramurals/IntramuralsStandings"
 import { IntramuralsSchedule } from "@/components/intramurals/IntramuralsSchedule"
+import { useToast } from "@/hooks/use-toast"
 
 const reasons = [
   {
@@ -103,9 +104,22 @@ export default function HomePage() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
   const [visibilityLoading, setVisibilityLoading] = useState(true)
+  const { toast } = useToast()
 
-  const openLoginModal = () => setIsLoginModalOpen(true)
-  const closeLoginModal = () => setIsLoginModalOpen(false)
+  const openLoginModal = () => {
+    toast({
+      title: "Opening login",
+      description: "Preparing secure login portal...",
+    })
+    setIsLoginModalOpen(true)
+  }
+  const closeLoginModal = () => {
+    toast({
+      title: "Login closed",
+      description: "You can reopen the portal anytime from the header button.",
+    })
+    setIsLoginModalOpen(false)
+  }
 
   useEffect(() => {
     const fetchVisibility = async () => {
@@ -115,10 +129,21 @@ export default function HomePage() {
         if (response.ok) {
           const data = await response.json()
           setIsVisible(data.visible || false)
+          toast({
+            title: "Intramurals visibility loaded",
+            description: data.visible
+              ? "Showing intramurals medal tally on the homepage."
+              : "Showing full SmartU landing page.",
+          })
         }
       } catch (error) {
         console.error("Error fetching visibility:", error)
         setIsVisible(false)
+        toast({
+          title: "Intramurals visibility error",
+          description: "Failed to load visibility settings. Showing default view.",
+          variant: "destructive",
+        })
       } finally {
         setVisibilityLoading(false)
       }
@@ -172,7 +197,7 @@ export default function HomePage() {
                   onClick={openLoginModal}
                   className="bg-gradient-to-r from-[#191970] to-[#191970]/80 hover:from-[#191970]/90 hover:to-[#191970]/70 text-white font-semibold px-8 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
                 >
-                  Student Login
+                  Login
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </Button>
               </div>
@@ -607,10 +632,10 @@ export default function HomePage() {
           </div>
         </footer>
 
-        {/* Login Modal */}
-        <LoginModal isOpen={isLoginModalOpen} onClose={closeLoginModal} />
           </>
         )}
+        {/* Login Modal rendered globally so it works in all modes */}
+        <LoginModal isOpen={isLoginModalOpen} onClose={closeLoginModal} />
       </div>
     )
   }

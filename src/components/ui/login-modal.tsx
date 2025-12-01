@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { loginSchema, type LoginFormData } from "@/lib/validations"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
-import { Chrome, Mail, Lock, AlertTriangle, X } from "lucide-react"
+import { Chrome, Mail, Lock, AlertTriangle, X, Loader2 } from "lucide-react"
 
 interface LoginModalProps {
   isOpen: boolean
@@ -22,6 +22,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
   const [error, setError] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  const [isRedirecting, setIsRedirecting] = useState(false)
   const router = useRouter()
   const { data: session, status } = useSession()
 
@@ -50,6 +51,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
       setError("")
       setIsLoading(false)
       setIsGoogleLoading(false)
+      setIsRedirecting(false)
     }
   }, [isOpen, reset])
 
@@ -88,7 +90,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
       if (result?.error) {
         setError("Invalid email or password")
       } else {
-        // The useEffect will handle closing modal and redirecting
+        setIsRedirecting(true)
       }
     } catch (error) {
       setError("An error occurred. Please try again.")
@@ -108,9 +110,11 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
         prompt: "consent select_account",
         hd: "student.buksu.edu.ph"
       })
+      setIsRedirecting(true)
     } catch (error) {
       setError("Google sign-in failed. Please try again.")
       setIsGoogleLoading(false)
+      setIsRedirecting(false)
     }
   }
 
@@ -129,6 +133,12 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
     >
       <div className="relative w-full max-w-md mx-4 animate-in fade-in-0 zoom-in-95 duration-300">
         <Card className="relative shadow-2xl border-0">
+          {isRedirecting && (
+            <div className="absolute inset-0 z-20 rounded-2xl bg-white/85 flex flex-col items-center justify-center text-center px-8">
+              <Loader2 className="h-8 w-8 text-[#191970] animate-spin" />
+              <p className="mt-4 text-sm font-medium text-[#191970]">Signing you in... please wait</p>
+            </div>
+          )}
           <button
             onClick={onClose}
             className="absolute right-4 top-4 z-10 rounded-lg p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"

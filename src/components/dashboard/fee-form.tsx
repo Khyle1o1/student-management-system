@@ -18,6 +18,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Save, Loader2, CreditCard, Calendar, GraduationCap, Users, AlertTriangle } from "lucide-react"
 import { COLLEGES, COURSES_BY_COLLEGE, EVENT_SCOPE_TYPES, EVENT_SCOPE_LABELS, EVENT_SCOPE_DESCRIPTIONS } from "@/lib/constants/academic-programs"
+import Swal from "sweetalert2"
+import "sweetalert2/dist/sweetalert2.min.css"
 
 interface FeeFormProps {
   feeId?: string
@@ -164,38 +166,68 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
 
       // Validation - make sure required fields are not empty
       if (!formData.name.trim()) {
-        alert("Fee name is required")
+        await Swal.fire({
+          icon: "warning",
+          title: "Fee name required",
+          text: "Please enter a fee name before saving.",
+          confirmButtonColor: "#0f172a",
+        })
         setLoading(false)
         return
       }
       
       if (!formData.type) {
-        alert("Fee type is required")
+        await Swal.fire({
+          icon: "warning",
+          title: "Fee type required",
+          text: "Please select a fee type.",
+          confirmButtonColor: "#0f172a",
+        })
         setLoading(false)
         return
       }
       
       if (!formData.amount || parseFloat(formData.amount) <= 0) {
-        alert("Valid amount is required")
+        await Swal.fire({
+          icon: "warning",
+          title: "Valid amount required",
+          text: "Please enter a fee amount greater than 0.",
+          confirmButtonColor: "#0f172a",
+        })
         setLoading(false)
         return
       }
       
       if (!formData.schoolYear.trim()) {
-        alert("School year is required")
+        await Swal.fire({
+          icon: "warning",
+          title: "School year required",
+          text: "Please specify the school year for this fee.",
+          confirmButtonColor: "#0f172a",
+        })
         setLoading(false)
         return
       }
 
       // Scope validation
       if (formData.scope_type === "COLLEGE_WIDE" && !formData.scope_college) {
-        alert("College must be selected for college-wide fees")
+        await Swal.fire({
+          icon: "warning",
+          title: "College required",
+          text: "Please select a college for college-wide fees.",
+          confirmButtonColor: "#0f172a",
+        })
         setLoading(false)
         return
       }
 
       if (formData.scope_type === "COURSE_SPECIFIC" && (!formData.scope_college || !formData.scope_course)) {
-        alert("Both college and course must be selected for course-specific fees")
+        await Swal.fire({
+          icon: "warning",
+          title: "College and course required",
+          text: "Please select both a college and a course for course-specific fees.",
+          confirmButtonColor: "#0f172a",
+        })
         setLoading(false)
         return
       }
@@ -228,16 +260,32 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
       })
 
       if (response.ok) {
+        await Swal.fire({
+          icon: "success",
+          title: isEditing ? "Fee updated" : "Fee created",
+          text: "The fee has been saved successfully.",
+          confirmButtonColor: "#0f172a",
+        })
         router.push("/dashboard/fees")
         router.refresh()
       } else {
         const error = await response.json()
         console.error("API Error:", error)
-        alert(error.error || "An error occurred")
+        await Swal.fire({
+          icon: "error",
+          title: "Unable to save fee",
+          text: error.error || "An error occurred while saving the fee.",
+          confirmButtonColor: "#dc2626",
+        })
       }
     } catch (error) {
       console.error("Error submitting form:", error)
-      alert("An error occurred while saving the fee")
+      await Swal.fire({
+        icon: "error",
+        title: "Unexpected error",
+        text: "An error occurred while saving the fee. Please try again.",
+        confirmButtonColor: "#dc2626",
+      })
     } finally {
       setLoading(false)
     }

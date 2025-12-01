@@ -33,6 +33,8 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { EVENT_SCOPE_LABELS } from "@/lib/constants/academic-programs"
+import Swal from "sweetalert2"
+import "sweetalert2/dist/sweetalert2.min.css"
 
 interface Event {
   id: string
@@ -63,7 +65,9 @@ export function EventsTable() {
   const fetchEvents = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/events")
+      const response = await fetch("/api/events", {
+        cache: "no-store",
+      })
       if (response.ok) {
         const data = await response.json()
         setEvents(data.events || [])
@@ -110,24 +114,33 @@ export function EventsTable() {
   const activeCount = events.filter(e => String(e.status).toUpperCase() !== 'PENDING').length
 
   const handleDeleteEvent = async (eventId: string) => {
-    if (!confirm("Are you sure you want to delete this event? This action cannot be undone.")) {
-      return
-    }
-
     try {
       const response = await fetch(`/api/events/${eventId}`, {
         method: "DELETE",
+        cache: "no-store",
       })
 
       if (response.ok) {
-        await fetchEvents() // Refresh the list
-      } else {
-        alert("Error deleting event")
+        setEvents((prev) => prev.filter((event) => event.id !== eventId))
+        return true
       }
+      const data = await response.json().catch(() => ({}))
+      await Swal.fire({
+        icon: "error",
+        title: "Unable to delete",
+        text: data.error || "Something went wrong while deleting the event.",
+        confirmButtonColor: "#dc2626",
+      })
     } catch (error) {
       console.error("Error deleting event:", error)
-      alert("Error deleting event")
+      await Swal.fire({
+        icon: "error",
+        title: "Unable to delete",
+        text: "Please try again in a moment.",
+        confirmButtonColor: "#dc2626",
+      })
     }
+    return false
   }
 
   const getStatusBadgeColor = (status: string) => {
@@ -193,34 +206,162 @@ export function EventsTable() {
   }
 
   const approveEvent = async (id: string) => {
-    if (!confirm('Approve this event?')) return
     try {
       const res = await fetch(`/api/events/${id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'APPROVE' }) })
       if (res.ok) {
-        await fetchEvents()
-      } else {
-        const data = await res.json().catch(() => ({}))
-        alert(data.error || 'Failed to approve event')
+        setEvents((prev) =>
+          prev.map((event) =>
+            event.id === id ? { ...event, status: "APPROVED" } : event
+          )
+        )
+        return true
       }
+      const data = await res.json().catch(() => ({}))
+      await Swal.fire({
+        icon: "error",
+        title: "Approval failed",
+        text: data.error || "We couldn't approve this event. Please try again.",
+      })
     } catch (e) {
       console.error('Approve failed', e)
-      alert('Approve failed')
+      await Swal.fire({
+        icon: "error",
+        title: "Approval failed",
+        text: "Something went wrong while approving the event.",
+      })
     }
+    return false
   }
 
-  const rejectEvent = async (id: string) => {
-    const reason = window.prompt('Enter rejection reason (optional):') || null
+  const rejectEvent = async (id: string, reason: string | null) => {
     try {
       const res = await fetch(`/api/events/${id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'REJECT', reason }) })
       if (res.ok) {
-        await fetchEvents()
-      } else {
-        const data = await res.json().catch(() => ({}))
-        alert(data.error || 'Failed to reject event')
+        setEvents((prev) =>
+          prev.map((event) =>
+            event.id === id ? { ...event, status: "REJECTED" } : event
+          )
+        )
+        return true
       }
+      const data = await res.json().catch(() => ({}))
+      await Swal.fire({
+        icon: "error",
+        title: "Rejection failed",
+        text: data.error || "We couldn't reject this event.",
+      })
     } catch (e) {
       console.error('Reject failed', e)
-      alert('Reject failed')
+      await Swal.fire({
+        icon: "error",
+        title: "Rejection failed",
+        text: "Something went wrong while rejecting the event.",
+      })
+    }
+    return false
+  }
+
+  const showProcessingAlert = (title: string) => {
+    Swal.fire({
+      title,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading()
+      },
+    })
+  }
+
+  const handleDeleteClick = async (event: Event) => {
+    const result = await Swal.fire({
+      title: "Delete this event?",
+      text: `"${event.title}" and its records will be permanently removed.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Delete Event",
+      confirmButtonColor: "#dc2626",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+    })
+
+    if (!result.isConfirmed) return
+
+    showProcessingAlert("Deleting event...")
+    const success = await handleDeleteEvent(event.id)
+    Swal.close()
+
+    if (success) {
+      await Swal.fire({
+        icon: "success",
+        title: "Event deleted",
+        text: `"${event.title}" has been removed.`,
+        confirmButtonColor: "#0f172a",
+      })
+    }
+  }
+
+  const handleApproveClick = async (event: Event) => {
+    const result = await Swal.fire({
+      title: "Approve this event?",
+      text: `Attendees will be able to access "${event.title}" once approved.`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Approve Event",
+      confirmButtonColor: "#16a34a",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+    })
+
+    if (!result.isConfirmed) return
+
+    showProcessingAlert("Approving event...")
+    const success = await approveEvent(event.id)
+    Swal.close()
+
+    if (success) {
+      await Swal.fire({
+        icon: "success",
+        title: "Event approved",
+        text: `"${event.title}" is now live.`,
+        confirmButtonColor: "#16a34a",
+      })
+    }
+  }
+
+  const handleRejectClick = async (event: Event) => {
+    const result = await Swal.fire({
+      title: "Reject this event?",
+      text: `Share an optional note so the organizer understands what to fix for "${event.title}".`,
+      icon: "info",
+      input: "textarea",
+      inputPlaceholder: "Reason for rejection (optional)",
+      inputAttributes: {
+        maxlength: "500",
+      },
+      showCancelButton: true,
+      confirmButtonText: "Reject Event",
+      confirmButtonColor: "#dc2626",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+      preConfirm: (value) => value?.trim(),
+    })
+
+    if (!result.isConfirmed) return
+
+    showProcessingAlert("Submitting decision...")
+    const success = await rejectEvent(event.id, result.value || null)
+    Swal.close()
+
+    if (success) {
+      await Swal.fire({
+        icon: "success",
+        title: "Event rejected",
+        text: result.value
+          ? `Organizer note: ${result.value}`
+          : `"${event.title}" has been rejected.`,
+        confirmButtonColor: "#0f172a",
+      })
     }
   }
 
@@ -304,10 +445,22 @@ export function EventsTable() {
                             {/* Render Approve/Reject if event is pending; actual role gating is handled by API */}
                             {String(event.status).toUpperCase() === 'PENDING' && (
                               <>
-                                <DropdownMenuItem onClick={(e) => { e.preventDefault(); approveEvent(event.id) }} className="bg-green-50 text-green-700 font-medium focus:bg-green-100 focus:text-green-800">
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    handleApproveClick(event)
+                                  }}
+                                  className="bg-green-50 text-green-700 font-medium focus:bg-green-100 focus:text-green-800"
+                                >
                                   <span>Approve</span>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.preventDefault(); rejectEvent(event.id) }} className="bg-red-50 text-red-700 font-medium focus:bg-red-100 focus:text-red-800">
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    handleRejectClick(event)
+                                  }}
+                                  className="bg-red-50 text-red-700 font-medium focus:bg-red-100 focus:text-red-800"
+                                >
                                   <span>Reject</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
@@ -332,12 +485,22 @@ export function EventsTable() {
                                   const response = await fetch(`/api/events/${event.id}/report`);
                                   
                                   if (!response.ok) {
-                                    const error = await response.json();
+                                    const error = await response.json().catch(() => ({}));
                                     if (response.status === 404) {
-                                      alert('Event not found. The event may have been deleted. Please refresh the page.');
+                                      await Swal.fire({
+                                        icon: "warning",
+                                        title: "Event not found",
+                                        text: "The event may have been deleted. The list will be refreshed.",
+                                        confirmButtonColor: "#0f172a",
+                                      });
                                       fetchEvents(); // Refresh the events list
                                     } else {
-                                      alert(`Failed to generate report: ${error.error || 'Unknown error'}`);
+                                      await Swal.fire({
+                                        icon: "error",
+                                        title: "Report failed",
+                                        text: error.error || "Failed to generate report.",
+                                        confirmButtonColor: "#dc2626",
+                                      });
                                     }
                                     return;
                                   }
@@ -352,9 +515,21 @@ export function EventsTable() {
                                   a.click();
                                   window.URL.revokeObjectURL(url);
                                   document.body.removeChild(a);
+
+                                  await Swal.fire({
+                                    icon: "success",
+                                    title: "Report generated",
+                                    text: "The event report PDF has been downloaded.",
+                                    confirmButtonColor: "#0f172a",
+                                  });
                                 } catch (error) {
                                   console.error('Error generating report:', error);
-                                  alert('Failed to generate report. Please try again.');
+                                  await Swal.fire({
+                                    icon: "error",
+                                    title: "Report failed",
+                                    text: "Failed to generate report. Please try again.",
+                                    confirmButtonColor: "#dc2626",
+                                  });
                                 }
                               }}
                               className="flex items-center"
@@ -364,8 +539,8 @@ export function EventsTable() {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={(e) => {
-                                e.preventDefault();
-                                handleDeleteEvent(event.id);
+                                e.preventDefault()
+                                handleDeleteClick(event)
                               }}
                               className="text-red-600 flex items-center"
                             >

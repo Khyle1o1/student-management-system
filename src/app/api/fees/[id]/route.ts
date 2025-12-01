@@ -140,8 +140,8 @@ export async function DELETE(
     }
 
     const { id } = await params
-    
-    // First, delete all associated payment records
+
+    // First, delete all associated payment records for this fee
     const { error: paymentsError } = await supabaseAdmin
       .from('payments')
       .delete()
@@ -149,16 +149,13 @@ export async function DELETE(
 
     if (paymentsError) {
       console.error("Error deleting payment records:", paymentsError)
-      // Continue anyway - we still want to delete the fee
+      // Continue anyway - still attempt to remove the fee record itself
     }
 
-    // Then soft delete the fee by setting deleted_at timestamp and is_active to false
+    // Then hard delete the fee record itself
     const { error } = await supabaseAdmin
       .from('fee_structures')
-      .update({
-        deleted_at: new Date().toISOString(),
-        is_active: false,
-      })
+      .delete()
       .eq('id', id)
 
     if (error) {

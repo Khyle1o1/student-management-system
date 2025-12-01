@@ -42,6 +42,8 @@ import {
   ChevronLeft,
   ChevronRight
 } from "lucide-react"
+import Swal from "sweetalert2"
+import "sweetalert2/dist/sweetalert2.min.css"
 
 interface Student {
   id: string
@@ -192,6 +194,12 @@ export function PaymentManagement() {
       })
 
       if (response.ok) {
+        await Swal.fire({
+          icon: "success",
+          title: "Payment updated",
+          text: "The payment details have been saved.",
+          confirmButtonColor: "#0f172a",
+        })
         await fetchPayments(currentPage, debouncedSearchTerm) // Refresh the current page
         setSelectedPayment(null)
         setEditingPayment({
@@ -202,11 +210,22 @@ export function PaymentManagement() {
           notes: "",
         })
       } else {
-        alert("Error updating payment status")
+        const data = await response.json().catch(() => ({}))
+        await Swal.fire({
+          icon: "error",
+          title: "Unable to update payment",
+          text: data.error || "Error updating payment status.",
+          confirmButtonColor: "#dc2626",
+        })
       }
     } catch (error) {
       console.error("Error updating payment:", error)
-      alert("Error updating payment status")
+      await Swal.fire({
+        icon: "error",
+        title: "Unexpected error",
+        text: "An error occurred while updating the payment.",
+        confirmButtonColor: "#dc2626",
+      })
     }
   }
 
@@ -230,13 +249,30 @@ export function PaymentManagement() {
       })
 
       if (response.ok) {
+        await Swal.fire({
+          icon: "success",
+          title: "Payment status updated",
+          text: `Fee has been marked as ${newStatus}.`,
+          confirmButtonColor: "#0f172a",
+        })
         await fetchPayments(currentPage, debouncedSearchTerm) // Refresh the current page
       } else {
-        alert("Error updating payment status")
+        const data = await response.json().catch(() => ({}))
+        await Swal.fire({
+          icon: "error",
+          title: "Unable to update payment",
+          text: data.error || "Error updating payment status.",
+          confirmButtonColor: "#dc2626",
+        })
       }
     } catch (error) {
       console.error("Error updating payment:", error)
-      alert("Error updating payment status")
+      await Swal.fire({
+        icon: "error",
+        title: "Unexpected error",
+        text: "An error occurred while updating the payment status.",
+        confirmButtonColor: "#dc2626",
+      })
     }
   }
 

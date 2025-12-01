@@ -32,6 +32,8 @@ import {
   RefreshCw,
   Loader2
 } from "lucide-react"
+import Swal from "sweetalert2"
+import "sweetalert2/dist/sweetalert2.min.css"
 
 interface StudentDetailsModalProps {
   studentId: string | null

@@ -26,6 +26,8 @@ import {
   CreditCard
 } from "lucide-react"
 import Link from "next/link"
+import Swal from "sweetalert2"
+import "sweetalert2/dist/sweetalert2.min.css"
 
 interface Fee {
   id: string
@@ -86,23 +88,70 @@ export function FeesTable() {
   }, [searchTerm, fees])
 
   const handleDeleteFee = async (feeId: string) => {
-    if (!confirm("Are you sure you want to delete this fee? This action cannot be undone.")) {
-      return
-    }
-
     try {
       const response = await fetch(`/api/fees/${feeId}`, {
         method: "DELETE",
+        cache: "no-store",
       })
 
       if (response.ok) {
-        await fetchFees() // Refresh the list
-      } else {
-        alert("Error deleting fee")
+        setFees((prev) => prev.filter((fee) => fee.id !== feeId))
+        return true
       }
+      const data = await response.json().catch(() => ({}))
+      await Swal.fire({
+        icon: "error",
+        title: "Unable to delete",
+        text: data.error || "Something went wrong while deleting the fee.",
+        confirmButtonColor: "#dc2626",
+      })
     } catch (error) {
       console.error("Error deleting fee:", error)
-      alert("Error deleting fee")
+      await Swal.fire({
+        icon: "error",
+        title: "Unable to delete",
+        text: "Please try again in a moment.",
+        confirmButtonColor: "#dc2626",
+      })
+    }
+    return false
+  }
+
+  const showProcessingAlert = (title: string) => {
+    Swal.fire({
+      title,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading(),
+    })
+  }
+
+  const handleDeleteClick = async (fee: Fee) => {
+    const result = await Swal.fire({
+      title: "Delete this fee?",
+      text: `"${fee.name}" and its assignments will be permanently removed.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Delete Fee",
+      confirmButtonColor: "#dc2626",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+    })
+
+    if (!result.isConfirmed) return
+
+    showProcessingAlert("Deleting fee...")
+    const success = await handleDeleteFee(fee.id)
+    Swal.close()
+
+    if (success) {
+      await Swal.fire({
+        icon: "success",
+        title: "Fee deleted",
+        text: `"${fee.name}" has been removed.`,
+        confirmButtonColor: "#0f172a",
+      })
     }
   }
 
@@ -279,7 +328,7 @@ export function FeesTable() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDeleteFee(fee.id)}
+                      onClick={() => handleDeleteClick(fee)}
                       className="text-red-600 hover:text-red-700"
                     >
                       <Trash2 className="h-3 w-3 mr-1" />

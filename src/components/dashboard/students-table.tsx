@@ -45,8 +45,9 @@ import {
   Eye
 } from "lucide-react"
 import Link from "next/link"
-import { ConfirmModal } from "@/components/ui/confirm-modal"
 import { StudentDetailsModal } from "./student-details-modal"
+import Swal from "sweetalert2"
+import "sweetalert2/dist/sweetalert2.min.css"
 
 interface Student {
   id: string
@@ -81,9 +82,6 @@ export function StudentsTable() {
   const [hasPrevious, setHasPrevious] = useState(false)
   const [pageSize] = useState(20) // Fixed page size
   
-  // Modal states
-  const [showArchiveModal, setShowArchiveModal] = useState(false)
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
 
@@ -134,30 +132,58 @@ export function StudentsTable() {
     fetchStudents()
   }, [fetchStudents])
 
-  const handleArchiveStudent = async () => {
-    if (!selectedStudent) return
+  const handleArchiveStudent = async (student: Student) => {
+    const wasArchived = !!student.archived
+
+    // SweetAlert confirmation dialog
+    const result = await Swal.fire({
+      title: wasArchived ? "Unarchive this student?" : "Archive this student?",
+      text: wasArchived
+        ? `Are you sure you want to unarchive ${student.name}? They will be restored to the active students list.`
+        : `Are you sure you want to archive ${student.name}? They will be hidden from the active students list and automatically deleted after 2 years.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: wasArchived ? "Unarchive" : "Archive",
+      confirmButtonColor: wasArchived ? "#0f172a" : "#dc2626",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+    })
+
+    if (!result.isConfirmed) return
 
     try {
-      const response = await fetch(`/api/students/${selectedStudent.id}/archive`, {
+      const response = await fetch(`/api/students/${student.id}/archive`, {
         method: "POST",
       })
 
       if (response.ok) {
         await fetchStudents() // Refresh the current page
-        setShowArchiveModal(false)
-        setSelectedStudent(null)
+
+        await Swal.fire({
+          icon: "success",
+          title: wasArchived ? "Student unarchived" : "Student archived",
+          text: wasArchived
+            ? "The student has been restored to the active list."
+            : "The student has been moved to the archived list.",
+          confirmButtonColor: "#0f172a",
+        })
       } else {
-        alert("Error archiving student")
+        Swal.fire({
+          icon: "error",
+          title: "Unable to update student status",
+          text: "An error occurred while archiving/unarchiving the student.",
+          confirmButtonColor: "#dc2626",
+        })
       }
     } catch (error) {
       console.error("Error archiving student:", error)
-      alert("Error archiving student")
+      Swal.fire({
+        icon: "error",
+        title: "Unexpected error",
+        text: "An error occurred while archiving/unarchiving the student.",
+        confirmButtonColor: "#dc2626",
+      })
     }
-  }
-
-  const openArchiveModal = (student: Student) => {
-    setSelectedStudent(student)
-    setShowArchiveModal(true)
   }
 
   const openDetailsModal = (studentId: string) => {
@@ -243,33 +269,7 @@ export function StudentsTable() {
             </Button>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <Button asChild className="w-full sm:w-auto">
-            <Link href="/dashboard/students/new">
-              <Plus className="h-4 w-4 mr-2" />
-              Add New Student
-            </Link>
-          </Button>
-        </div>
       </div>
-
-      <ConfirmModal
-        isOpen={showArchiveModal}
-        onClose={() => {
-          setShowArchiveModal(false)
-          setSelectedStudent(null)
-        }}
-        onConfirm={handleArchiveStudent}
-        title={selectedStudent?.archived ? "Unarchive Student" : "Archive Student"}
-        description={
-          selectedStudent?.archived
-            ? `Are you sure you want to unarchive ${selectedStudent?.name}? They will be restored to the active students list.`
-            : `Are you sure you want to archive ${selectedStudent?.name}? They will be hidden from the active students list and automatically deleted after 2 years.`
-        }
-        confirmText={selectedStudent?.archived ? "Unarchive" : "Archive"}
-        cancelText="Cancel"
-        variant={selectedStudent?.archived ? "default" : "destructive"}
-      />
 
       <StudentDetailsModal
         studentId={selectedStudentId}
@@ -398,7 +398,7 @@ export function StudentsTable() {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onClick={() => openArchiveModal(student)}
+                              onClick={() => handleArchiveStudent(student)}
                               className={student.archived ? "text-green-600" : "text-orange-600"}
                             >
                               {student.archived ? (
@@ -477,7 +477,7 @@ export function StudentsTable() {
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            onClick={() => openArchiveModal(student)}
+                            onClick={() => handleArchiveStudent(student)}
                             className={student.archived ? "text-green-600" : "text-orange-600"}
                           >
                             {student.archived ? (

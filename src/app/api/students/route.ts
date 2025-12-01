@@ -41,6 +41,7 @@ export async function GET(request: Request) {
     const isAdmin = role === 'ADMIN'
     const isCollegeOrg = role === 'COLLEGE_ORG'
     const isCourseOrg = role === 'COURSE_ORG'
+    // In application auth, regular students use the USER role
     const isStudent = role === 'USER'
     
     const { searchParams } = new URL(request.url)

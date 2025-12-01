@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/select"
 import { Save, Loader2 } from "lucide-react"
 import { COLLEGES, COURSES_BY_COLLEGE } from "@/lib/constants/academic-programs"
+import Swal from "sweetalert2"
+import "sweetalert2/dist/sweetalert2.min.css"
 
 interface StudentFormProps {
   studentId?: string
@@ -80,7 +82,12 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
       // Validate required fields
       if (!formData.firstName || !formData.lastName || !formData.studentId || 
           !formData.yearLevel || !formData.course || !formData.college) {
-        alert("Please fill in all required fields")
+        await Swal.fire({
+          icon: "warning",
+          title: "Incomplete information",
+          text: "Please fill in all required fields before saving the student.",
+          confirmButtonColor: "#0f172a",
+        })
         setLoading(false)
         return
       }
@@ -120,20 +127,42 @@ export function StudentForm({ studentId, initialData }: StudentFormProps) {
         if (error.error && Array.isArray(error.error)) {
           // Handle Zod validation errors
           const errorMessages = error.error.map((err: any) => `${err.path.join('.')}: ${err.message}`).join('\n')
-          alert(errorMessages)
+          await Swal.fire({
+            icon: "error",
+            title: "Validation error",
+            html: errorMessages.replace(/\n/g, "<br/>"),
+            confirmButtonColor: "#dc2626",
+          })
         } else {
           // Handle other types of errors
           const errorMessage = error.error || error.message || "An error occurred while saving the student"
-          alert(errorMessage)
+          await Swal.fire({
+            icon: "error",
+            title: "Unable to save student",
+            text: errorMessage,
+            confirmButtonColor: "#dc2626",
+          })
         }
         return
       }
+
+      await Swal.fire({
+        icon: "success",
+        title: isEditing ? "Student updated" : "Student created",
+        text: "The student record has been saved successfully.",
+        confirmButtonColor: "#0f172a",
+      })
 
       router.push("/dashboard/students")
       router.refresh()
     } catch (error) {
       console.error("Error submitting form:", error)
-      alert("An error occurred while saving the student. Please check the console for more details.")
+      await Swal.fire({
+        icon: "error",
+        title: "Unexpected error",
+        text: "An error occurred while saving the student. Please check the console for more details.",
+        confirmButtonColor: "#dc2626",
+      })
     } finally {
       setLoading(false)
     }

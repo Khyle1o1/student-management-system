@@ -27,6 +27,8 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
+import Swal from "sweetalert2"
+import "sweetalert2/dist/sweetalert2.min.css"
 
 interface Fee {
   id: string
@@ -93,24 +95,33 @@ export function FeesCards() {
   }, [searchTerm, fees])
 
   const handleDeleteFee = async (feeId: string) => {
-    if (!confirm("Are you sure you want to delete this fee? This action cannot be undone.")) {
-      return
-    }
-
     try {
       const response = await fetch(`/api/fees/${feeId}`, {
         method: "DELETE",
+        cache: "no-store",
       })
 
       if (response.ok) {
-        await fetchFees() // Refresh the list
-      } else {
-        alert("Error deleting fee")
+        setFees((prev) => prev.filter((fee) => fee.id !== feeId))
+        return true
       }
+      const data = await response.json().catch(() => ({}))
+      await Swal.fire({
+        icon: "error",
+        title: "Unable to delete",
+        text: data.error || "Something went wrong while deleting the fee.",
+        confirmButtonColor: "#dc2626",
+      })
     } catch (error) {
       console.error("Error deleting fee:", error)
-      alert("Error deleting fee")
+      await Swal.fire({
+        icon: "error",
+        title: "Unable to delete",
+        text: "Please try again in a moment.",
+        confirmButtonColor: "#dc2626",
+      })
     }
+    return false
   }
 
   const openReport = async (feeId: string, feeName?: string) => {
@@ -125,12 +136,20 @@ export function FeesCards() {
         setReportData(data)
       } else {
         const data = await res.json().catch(() => ({}))
-        alert(data.error || 'Failed to load report')
+        await Swal.fire({
+          icon: "error",
+          title: "Report unavailable",
+          text: data.error || "Failed to load report",
+        })
         setReportOpen(false)
       }
     } catch (e) {
       console.error('Error loading report', e)
-      alert('Error loading report')
+      await Swal.fire({
+        icon: "error",
+        title: "Report unavailable",
+        text: "Error loading report",
+      })
       setReportOpen(false)
     } finally {
       setReportLoading(false)
@@ -138,34 +157,160 @@ export function FeesCards() {
   }
 
   const approveFee = async (id: string) => {
-    if (!confirm('Approve this fee?')) return
     try {
       const res = await fetch(`/api/fees/${id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'APPROVE' }) })
       if (res.ok) {
-        await fetchFees()
-      } else {
-        const data = await res.json().catch(() => ({}))
-        alert(data.error || 'Failed to approve fee')
+        setFees((prev) =>
+          prev.map((fee) =>
+            fee.id === id ? { ...fee, status: "APPROVED" } : fee
+          )
+        )
+        return true
       }
+      const data = await res.json().catch(() => ({}))
+      await Swal.fire({
+        icon: "error",
+        title: "Approval failed",
+        text: data.error || "We couldn't approve this fee. Please try again.",
+      })
     } catch (e) {
       console.error('Approve fee failed', e)
-      alert('Approve fee failed')
+      await Swal.fire({
+        icon: "error",
+        title: "Approval failed",
+        text: "Something went wrong while approving the fee.",
+      })
     }
+    return false
   }
 
-  const rejectFee = async (id: string) => {
-    const reason = window.prompt('Enter rejection reason (optional):') || null
+  const rejectFee = async (id: string, reason: string | null) => {
     try {
       const res = await fetch(`/api/fees/${id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'REJECT', reason }) })
       if (res.ok) {
-        await fetchFees()
-      } else {
-        const data = await res.json().catch(() => ({}))
-        alert(data.error || 'Failed to reject fee')
+        setFees((prev) =>
+          prev.map((fee) =>
+            fee.id === id ? { ...fee, status: "REJECTED" } : fee
+          )
+        )
+        return true
       }
+      const data = await res.json().catch(() => ({}))
+      await Swal.fire({
+        icon: "error",
+        title: "Rejection failed",
+        text: data.error || "We couldn't reject this fee.",
+      })
     } catch (e) {
       console.error('Reject fee failed', e)
-      alert('Reject fee failed')
+      await Swal.fire({
+        icon: "error",
+        title: "Rejection failed",
+        text: "Something went wrong while rejecting the fee.",
+      })
+    }
+    return false
+  }
+
+  const showProcessingAlert = (title: string) => {
+    Swal.fire({
+      title,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading(),
+    })
+  }
+
+  const handleDeleteClick = async (fee: Fee) => {
+    const result = await Swal.fire({
+      title: "Delete this fee?",
+      text: `"${fee.name}" and its assignments will be permanently removed.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Delete Fee",
+      confirmButtonColor: "#dc2626",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+    })
+
+    if (!result.isConfirmed) return
+
+    showProcessingAlert("Deleting fee...")
+    const success = await handleDeleteFee(fee.id)
+    Swal.close()
+
+    if (success) {
+      await Swal.fire({
+        icon: "success",
+        title: "Fee deleted",
+        text: `"${fee.name}" has been removed.`,
+        confirmButtonColor: "#0f172a",
+      })
+    }
+  }
+
+  const handleApproveClick = async (fee: Fee) => {
+    const result = await Swal.fire({
+      title: "Approve this fee?",
+      text: `"${fee.name}" will become payable for the assigned students.`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Approve Fee",
+      confirmButtonColor: "#16a34a",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+    })
+
+    if (!result.isConfirmed) return
+
+    showProcessingAlert("Approving fee...")
+    const success = await approveFee(fee.id)
+    Swal.close()
+
+    if (success) {
+      await Swal.fire({
+        icon: "success",
+        title: "Fee approved",
+        text: `"${fee.name}" is now active.`,
+        confirmButtonColor: "#16a34a",
+      })
+    }
+  }
+
+  const handleRejectClick = async (fee: Fee) => {
+    const result = await Swal.fire({
+      title: "Reject this fee?",
+      text: `Add an optional note for "${fee.name}" so the preparer knows what to fix.`,
+      icon: "info",
+      input: "textarea",
+      inputPlaceholder: "Reason for rejection (optional)",
+      inputAttributes: {
+        maxlength: "500",
+      },
+      showCancelButton: true,
+      confirmButtonText: "Reject Fee",
+      confirmButtonColor: "#dc2626",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+      preConfirm: (value) => value?.trim(),
+    })
+
+    if (!result.isConfirmed) return
+
+    showProcessingAlert("Submitting decision...")
+    const success = await rejectFee(fee.id, result.value || null)
+    Swal.close()
+
+    if (success) {
+      await Swal.fire({
+        icon: "success",
+        title: "Fee rejected",
+        text: result.value
+          ? `Organizer note: ${result.value}`
+          : `"${fee.name}" has been rejected.`,
+        confirmButtonColor: "#0f172a",
+      })
     }
   }
 
@@ -336,16 +481,16 @@ export function FeesCards() {
                       {/* Admin approval actions for pending fees */}
                       {session?.user?.role === 'ADMIN' && fee.status === 'PENDING' && (
                         <>
-                          <DropdownMenuItem onClick={() => approveFee(fee.id)} className="bg-green-50 text-green-700 font-medium focus:bg-green-100 focus:text-green-800">
+                          <DropdownMenuItem onClick={() => handleApproveClick(fee)} className="bg-green-50 text-green-700 font-medium focus:bg-green-100 focus:text-green-800">
                             <span>Approve</span>
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => rejectFee(fee.id)} className="bg-red-50 text-red-700 font-medium focus:bg-red-100 focus:text-red-800">
+                          <DropdownMenuItem onClick={() => handleRejectClick(fee)} className="bg-red-50 text-red-700 font-medium focus:bg-red-100 focus:text-red-800">
                             <span>Reject</span>
                           </DropdownMenuItem>
                         </>
                       )}
                       <DropdownMenuItem 
-                        onClick={() => handleDeleteFee(fee.id)}
+                        onClick={() => handleDeleteClick(fee)}
                         className="text-red-600 focus:text-red-700"
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
@@ -431,7 +576,11 @@ export function FeesCards() {
                         const res = await fetch(`/api/fees/${selectedFee.id}/report/pdf`)
                         if (!res.ok) {
                           const data = await res.json().catch(() => ({}))
-                          alert(data.error || 'Failed to generate PDF')
+                          await Swal.fire({
+                            icon: "error",
+                            title: "Download failed",
+                            text: data.error || "Failed to generate PDF",
+                          })
                           return
                         }
                         const blob = await res.blob()
@@ -445,7 +594,11 @@ export function FeesCards() {
                         window.URL.revokeObjectURL(url)
                       } catch (e) {
                         console.error('PDF download failed', e)
-                        alert('PDF download failed')
+                        await Swal.fire({
+                          icon: "error",
+                          title: "Download failed",
+                          text: "PDF download failed",
+                        })
                       }
                     }}
                   >

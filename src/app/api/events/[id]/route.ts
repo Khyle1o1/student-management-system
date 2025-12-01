@@ -189,4 +189,4 @@ export async function DELETE(
     console.error('Error in DELETE /api/events/[id]:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}
