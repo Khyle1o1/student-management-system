@@ -18,7 +18,7 @@ export async function GET() {
 
     const { data: events, error: eventsError } = await supabaseAdmin
       .from('intramurals_events')
-      .select('id, name, category, created_at, updated_at, is_tournament, bracket_type, randomize_locked')
+      .select('id, name, category, created_at, updated_at, is_tournament')
       .order('created_at', { ascending: false })
 
     if (eventsError) {
