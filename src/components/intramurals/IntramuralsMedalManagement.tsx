@@ -62,6 +62,8 @@ interface Event {
   id: string
   name: string
   category: "sports" | "socio-cultural"
+  start_time?: string | null
+  location?: string | null
   created_at: string
   updated_at: string
   medal_awards?: Array<{
@@ -95,7 +97,12 @@ export function IntramuralsMedalManagement() {
   // Event management
   const [showEventDialog, setShowEventDialog] = useState(false)
   const [editingEvent, setEditingEvent] = useState<Event | null>(null)
-  const [eventForm, setEventForm] = useState({ name: "", category: "sports" as "sports" | "socio-cultural" })
+  const [eventForm, setEventForm] = useState({
+    name: "",
+    category: "sports" as "sports" | "socio-cultural",
+    start_time: "",
+    location: "",
+  })
 
   // Medal assignment
   const [showMedalDialog, setShowMedalDialog] = useState(false)
@@ -104,6 +111,43 @@ export function IntramuralsMedalManagement() {
     gold_team_id: "",
     silver_team_id: "",
     bronze_team_id: "",
+  })
+
+  // Match schedule
+  interface Match {
+    id: string
+    event_id: string
+    team1_id: string
+    team2_id: string
+    match_time: string
+    location: string | null
+    status: "scheduled" | "in_progress" | "completed" | "cancelled" | "pending"
+    winner_id?: string | null
+    team1_score?: number | null
+    team2_score?: number | null
+    event?: { id: string; name: string; category: "sports" | "socio-cultural" }
+    team1?: { id: string; name: string }
+    team2?: { id: string; name: string }
+  }
+
+  const [matches, setMatches] = useState<Match[]>([])
+  const [showMatchDialog, setShowMatchDialog] = useState(false)
+  const [editingMatch, setEditingMatch] = useState<Match | null>(null)
+  const [matchForm, setMatchForm] = useState({
+    event_id: "",
+    team1_id: "",
+    team2_id: "",
+    match_time: "",
+    location: "",
+  })
+
+  // Match scoring
+  const [showScoreDialog, setShowScoreDialog] = useState(false)
+  const [scoringMatch, setScoringMatch] = useState<Match | null>(null)
+  const [scoreForm, setScoreForm] = useState({
+    team1_score: "",
+    team2_score: "",
+    winner_id: "",
   })
 
 
@@ -149,11 +193,24 @@ export function IntramuralsMedalManagement() {
   const fetchAllData = useCallback(async () => {
     try {
       setLoading(true)
-      await Promise.all([fetchTeams(), fetchEvents(), fetchSettings()])
+      await Promise.all([fetchTeams(), fetchEvents(), fetchSettings(), fetchMatches()])
     } finally {
       setLoading(false)
     }
   }, [fetchTeams, fetchEvents, fetchSettings])
+
+  const fetchMatches = useCallback(async () => {
+    try {
+      const response = await fetch("/api/intramurals/admin/matches")
+      if (response.ok) {
+        const data = await response.json()
+        setMatches(data.matches || [])
+      }
+    } catch (error) {
+      console.error("Error fetching matches:", error)
+      toast.error("Failed to fetch matches")
+    }
+  }, [])
 
   useEffect(() => {
     fetchAllData()
@@ -231,14 +288,18 @@ export function IntramuralsMedalManagement() {
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(eventForm),
+        body: JSON.stringify({
+          ...eventForm,
+          start_time: eventForm.start_time ? new Date(eventForm.start_time).toISOString() : null,
+          location: eventForm.location || null,
+        }),
       })
 
       if (response.ok) {
         toast.success(editingEvent ? "Event updated successfully" : "Event created successfully")
         setShowEventDialog(false)
         setEditingEvent(null)
-        setEventForm({ name: "", category: "sports" })
+        setEventForm({ name: "", category: "sports", start_time: "", location: "" })
         fetchEvents()
       } else {
         const error = await response.json()
@@ -414,6 +475,14 @@ export function IntramuralsMedalManagement() {
             <Medal className="mr-2 h-4 w-4" />
             Medal Assignment
           </TabsTrigger>
+          <TabsTrigger value="matches">
+            <Calendar className="mr-2 h-4 w-4" />
+            Match Schedule
+          </TabsTrigger>
+          <TabsTrigger value="event-schedule">
+            <Calendar className="mr-2 h-4 w-4" />
+            Event Schedule
+          </TabsTrigger>
         </TabsList>
 
         {/* Teams Tab */}
@@ -516,7 +585,7 @@ export function IntramuralsMedalManagement() {
                 </div>
                 <Button onClick={() => {
                   setEditingEvent(null)
-                  setEventForm({ name: "", category: "sports" })
+                  setEventForm({ name: "", category: "sports", start_time: "", location: "" })
                   setShowEventDialog(true)
                 }}>
                   <Plus className="mr-2 h-4 w-4" />
@@ -589,6 +658,10 @@ export function IntramuralsMedalManagement() {
                                   setEventForm({
                                     name: event.name,
                                     category: event.category,
+                                    start_time: event.start_time
+                                      ? new Date(event.start_time).toISOString().slice(0, 16)
+                                      : "",
+                                    location: event.location || "",
                                   })
                                   setShowEventDialog(true)
                                 }}
@@ -676,6 +749,184 @@ export function IntramuralsMedalManagement() {
                       )
                     })
                   )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Match Schedule Tab */}
+        <TabsContent value="matches" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Match Schedule</CardTitle>
+                  <CardDescription>
+                    Create and manage match schedules for sports events
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={() => {
+                    setEditingMatch(null)
+                    setMatchForm({
+                      event_id: "",
+                      team1_id: "",
+                      team2_id: "",
+                      match_time: "",
+                      location: "",
+                    })
+                    setShowMatchDialog(true)
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Match
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Event</TableHead>
+                    <TableHead>Teams</TableHead>
+                    <TableHead>Match Time</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {matches.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        No matches scheduled yet. Click &quot;Add Match&quot; to create one.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    matches.map((match) => (
+                      <TableRow key={match.id}>
+                        <TableCell className="font-medium">
+                          {match.event?.name || "—"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col text-sm">
+                            <span>{match.team1?.name}</span>
+                            <span className="text-muted-foreground">vs</span>
+                            <span>{match.team2?.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {format(new Date(match.match_time), "MMM dd, yyyy 'at' h:mm a")}
+                        </TableCell>
+                        <TableCell>{match.location || "TBA"}</TableCell>
+                        <TableCell className="capitalize text-sm">
+                          {match.status === "pending" ? "Scheduled" : match.status.replace("_", " ")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setScoringMatch(match)
+                                setScoreForm({
+                                  team1_score: match.team1_score?.toString() || "",
+                                  team2_score: match.team2_score?.toString() || "",
+                                  winner_id: match.winner_id || "",
+                                })
+                                setShowScoreDialog(true)
+                              }}
+                            >
+                              Add Score
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditingMatch(match)
+                                setMatchForm({
+                                  event_id: match.event_id,
+                                  team1_id: match.team1_id,
+                                  team2_id: match.team2_id,
+                                  match_time: match.match_time
+                                    ? new Date(match.match_time).toISOString().slice(0, 16)
+                                    : "",
+                                  location: match.location || "",
+                                })
+                                setShowMatchDialog(true)
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Event Schedule Tab (non-match events) */}
+        <TabsContent value="event-schedule" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Event Schedule</CardTitle>
+              <CardDescription>
+                Set schedule and locations for non-match intramurals events
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Event</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Date &amp; Time</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {events
+                    .filter((event) => event.category !== "sports")
+                    .map((event) => (
+                      <TableRow key={event.id}>
+                        <TableCell className="font-medium">{event.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">🎭 Socio-Cultural</Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {event.start_time
+                            ? format(new Date(event.start_time), "MMM dd, yyyy 'at' h:mm a")
+                            : "Not set"}
+                        </TableCell>
+                        <TableCell>{event.location || "Not set"}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setEditingEvent(event)
+                              setEventForm({
+                                name: event.name,
+                                category: event.category,
+                                start_time: event.start_time
+                                  ? new Date(event.start_time).toISOString().slice(0, 16)
+                                  : "",
+                                location: event.location || "",
+                              })
+                              setShowEventDialog(true)
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                 </TableBody>
               </Table>
             </CardContent>
@@ -779,6 +1030,24 @@ export function IntramuralsMedalManagement() {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label htmlFor="event-start-time">Date &amp; Time (Optional)</Label>
+              <Input
+                id="event-start-time"
+                type="datetime-local"
+                value={eventForm.start_time}
+                onChange={(e) => setEventForm({ ...eventForm, start_time: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="event-location">Location (Optional)</Label>
+              <Input
+                id="event-location"
+                value={eventForm.location}
+                onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })}
+                placeholder="e.g., Main Gym, Auditorium"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEventDialog(false)}>
@@ -879,6 +1148,268 @@ export function IntramuralsMedalManagement() {
             <Button onClick={handleAssignMedals}>
               <Save className="mr-2 h-4 w-4" />
               Save Medals
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Match Dialog */}
+      <Dialog open={showMatchDialog} onOpenChange={setShowMatchDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingMatch ? "Edit Match" : "Add New Match"}</DialogTitle>
+            <DialogDescription>
+              {editingMatch
+                ? "Update match schedule and details"
+                : "Create a new match between two teams"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="match-event">Event *</Label>
+              <Select
+                value={matchForm.event_id}
+                onValueChange={(value) => setMatchForm({ ...matchForm, event_id: value })}
+              >
+                <SelectTrigger id="match-event">
+                  <SelectValue placeholder="Select sports event" />
+                </SelectTrigger>
+                <SelectContent>
+                  {events
+                    .filter((event) => event.category === "sports")
+                    .map((event) => (
+                      <SelectItem key={event.id} value={event.id}>
+                        {event.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="match-team1">Team 1 *</Label>
+                <Select
+                  value={matchForm.team1_id}
+                  onValueChange={(value) => setMatchForm({ ...matchForm, team1_id: value })}
+                >
+                  <SelectTrigger id="match-team1">
+                    <SelectValue placeholder="Select first team" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams.map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="match-team2">Team 2 *</Label>
+                <Select
+                  value={matchForm.team2_id}
+                  onValueChange={(value) => setMatchForm({ ...matchForm, team2_id: value })}
+                >
+                  <SelectTrigger id="match-team2">
+                    <SelectValue placeholder="Select second team" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams.map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="match-time">Match Date &amp; Time *</Label>
+              <Input
+                id="match-time"
+                type="datetime-local"
+                value={matchForm.match_time}
+                onChange={(e) => setMatchForm({ ...matchForm, match_time: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="match-location">Location (Optional)</Label>
+              <Input
+                id="match-location"
+                value={matchForm.location}
+                onChange={(e) => setMatchForm({ ...matchForm, location: e.target.value })}
+                placeholder="e.g., Covered Court, Main Gym"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMatchDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!matchForm.event_id || !matchForm.team1_id || !matchForm.team2_id || !matchForm.match_time) {
+                  toast.error("Event, both teams, and match time are required")
+                  return
+                }
+                if (matchForm.team1_id === matchForm.team2_id) {
+                  toast.error("Teams must be different")
+                  return
+                }
+
+                try {
+                  const url = editingMatch
+                    ? `/api/intramurals/admin/matches/${editingMatch.id}`
+                    : "/api/intramurals/admin/matches"
+                  const method = editingMatch ? "PUT" : "POST"
+
+                  const response = await fetch(url, {
+                    method,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      ...matchForm,
+                      match_time: new Date(matchForm.match_time).toISOString(),
+                    }),
+                  })
+
+                  if (response.ok) {
+                    toast.success(editingMatch ? "Match updated successfully" : "Match created successfully")
+                    setShowMatchDialog(false)
+                    setEditingMatch(null)
+                    setMatchForm({
+                      event_id: "",
+                      team1_id: "",
+                      team2_id: "",
+                      match_time: "",
+                      location: "",
+                    })
+                    fetchMatches()
+                  } else {
+                    const error = await response.json()
+                    toast.error(error.error || "Failed to save match")
+                  }
+                } catch (error) {
+                  console.error("Error saving match:", error)
+                  toast.error("Failed to save match")
+                }
+              }}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {editingMatch ? "Update" : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Match Score Dialog */}
+      <Dialog open={showScoreDialog} onOpenChange={setShowScoreDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Score - {scoringMatch?.event?.name}</DialogTitle>
+            <DialogDescription>
+              Record the final score and winner for this match
+            </DialogDescription>
+          </DialogHeader>
+          {scoringMatch && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Team 1 ({scoringMatch.team1?.name}) Score</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={scoreForm.team1_score}
+                    onChange={(e) =>
+                      setScoreForm({ ...scoreForm, team1_score: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>Team 2 ({scoringMatch.team2?.name}) Score</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={scoreForm.team2_score}
+                    onChange={(e) =>
+                      setScoreForm({ ...scoreForm, team2_score: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Winner</Label>
+                <Select
+                  value={scoreForm.winner_id}
+                  onValueChange={(value) => setScoreForm({ ...scoreForm, winner_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select winner (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={scoringMatch.team1_id}>
+                      {scoringMatch.team1?.name || "Team 1"}
+                    </SelectItem>
+                    <SelectItem value={scoringMatch.team2_id}>
+                      {scoringMatch.team2?.name || "Team 2"}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowScoreDialog(false)
+                setScoringMatch(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!scoringMatch) return
+
+                const team1Score =
+                  scoreForm.team1_score.trim() === "" ? null : parseInt(scoreForm.team1_score, 10)
+                const team2Score =
+                  scoreForm.team2_score.trim() === "" ? null : parseInt(scoreForm.team2_score, 10)
+
+                if (team1Score === null || team2Score === null || isNaN(team1Score) || isNaN(team2Score)) {
+                  toast.error("Please enter scores for both teams")
+                  return
+                }
+
+                try {
+                  const response = await fetch(`/api/intramurals/admin/matches/${scoringMatch.id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      winner_id: scoreForm.winner_id || null,
+                      team1_score: team1Score,
+                      team2_score: team2Score,
+                    }),
+                  })
+
+                  if (response.ok) {
+                    toast.success("Match score saved")
+                    setShowScoreDialog(false)
+                    setScoringMatch(null)
+                    setScoreForm({ team1_score: "", team2_score: "", winner_id: "" })
+                    fetchMatches()
+                  } else {
+                    const error = await response.json()
+                    toast.error(error.error || "Failed to save score")
+                  }
+                } catch (error) {
+                  console.error("Error saving match score:", error)
+                  toast.error("Failed to save score")
+                }
+              }}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              Save Score
             </Button>
           </DialogFooter>
         </DialogContent>

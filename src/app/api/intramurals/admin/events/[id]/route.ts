@@ -22,7 +22,7 @@ export async function PUT(
     const { id } = await context.params
 
     const body = await request.json()
-    const { name, category } = body
+    const { name, category, start_time, location } = body
 
     if (!name || name.trim() === '') {
       return NextResponse.json(
@@ -43,6 +43,8 @@ export async function PUT(
       .update({
         name: name.trim(),
         category: category,
+        start_time: start_time || null,
+        location: location || null,
       })
       .eq('id', id)
       .select()

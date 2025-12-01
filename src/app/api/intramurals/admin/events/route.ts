@@ -18,7 +18,7 @@ export async function GET() {
 
     const { data: events, error: eventsError } = await supabaseAdmin
       .from('intramurals_events')
-      .select('id, name, category, created_at, updated_at, is_tournament')
+      .select('id, name, category, created_at, updated_at, is_tournament, start_time, location')
       .order('created_at', { ascending: false })
 
     if (eventsError) {
@@ -145,6 +145,8 @@ export async function POST(request: Request) {
       .insert({
         name: name.trim(),
         category: category,
+        start_time: body.start_time || null,
+        location: body.location || null,
       })
       .select()
       .single()

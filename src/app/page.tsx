@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import { LoginModal } from "@/components/ui/login-modal"
 import { IntramuralsStandings } from "@/components/intramurals/IntramuralsStandings"
+import { IntramuralsSchedule } from "@/components/intramurals/IntramuralsSchedule"
 
 const reasons = [
   {
@@ -179,10 +180,14 @@ export default function HomePage() {
           </div>
         </header>
 
-        {/* Intramurals Standings Section - Display at top when enabled */}
-        <IntramuralsStandings />
-
-
+        {/* Intramurals-only mode: when display on main page is ON, show only intramurals content */}
+        {isVisible && !visibilityLoading ? (
+          <main>
+            <IntramuralsStandings />
+            <IntramuralsSchedule />
+          </main>
+        ) : (
+          <>
         {/* Enhanced Hero Section */}
         <section className="relative bg-gradient-to-br from-[#191970]/10 via-white to-[#191970]/5 py-16 overflow-hidden">
           {/* Background Elements */}
@@ -604,6 +609,8 @@ export default function HomePage() {
 
         {/* Login Modal */}
         <LoginModal isOpen={isLoginModalOpen} onClose={closeLoginModal} />
+          </>
+        )}
       </div>
     )
   }
