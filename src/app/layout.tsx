@@ -10,6 +10,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "SmartU",
   description: "A comprehensive student management system for educational institutions",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({

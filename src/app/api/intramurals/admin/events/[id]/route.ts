@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase-admin"
+import { ensureDeletionNotLocked } from "@/lib/system-settings"
 
 export const dynamic = 'force-dynamic'
 
@@ -74,6 +75,11 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const lockResponse = await ensureDeletionNotLocked()
+    if (lockResponse) {
+      return lockResponse
+    }
+
     const session = await auth()
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

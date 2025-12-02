@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
 import { supabaseAdmin } from "@/lib/supabase-admin"
+import { ensureDeletionNotLocked } from "@/lib/system-settings"
 
 export async function GET(
   request: Request,
@@ -146,6 +147,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const lockResponse = await ensureDeletionNotLocked()
+    if (lockResponse) {
+      return lockResponse
+    }
+
     const session = await auth()
 
     if (!session) {

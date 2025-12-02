@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { feeSchema } from "@/lib/validations"
 import { z } from "zod"
+import { ensureDeletionNotLocked } from "@/lib/system-settings"
 
 export async function GET(
   request: NextRequest,
@@ -129,6 +130,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const lockResponse = await ensureDeletionNotLocked()
+    if (lockResponse) {
+      return lockResponse
+    }
+
     const session = await auth()
     
     if (!session) {

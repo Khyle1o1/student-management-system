@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { format } from 'date-fns'
 import { jsPDF } from 'jspdf'
+import { ensureDeletionNotLocked } from "@/lib/system-settings"
 
 // Certificate generation using jsPDF with template support
 async function generateCertificatePDF(certificate: any, template: any): Promise<Buffer> {
@@ -871,6 +872,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const lockResponse = await ensureDeletionNotLocked()
+    if (lockResponse) {
+      return lockResponse
+    }
+
     const session = await auth()
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

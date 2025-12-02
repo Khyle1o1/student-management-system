@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
+import { ensureDeletionNotLocked } from "@/lib/system-settings"
 
 const updateCertificateTemplateSchema = z.object({
   title: z.string().min(1, "Title is required").optional(),
@@ -236,6 +237,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const lockResponse = await ensureDeletionNotLocked()
+    if (lockResponse) {
+      return lockResponse
+    }
+
     const session = await auth()
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

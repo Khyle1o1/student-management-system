@@ -1,8 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
-import { BatchStudentImport } from "@/components/dashboard/batch-student-import"
-import { SystemBackupCard } from "@/components/dashboard/system-backup-card"
+import { SettingsClient } from "@/components/dashboard/settings-client"
 
 export default async function SettingsPage() {
   const session = await auth()
@@ -17,21 +16,7 @@ export default async function SettingsPage() {
 
   return (
     <DashboardShell>
-      <div className="space-y-4 sm:space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Settings</h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
-              Manage system settings and bulk operations
-            </p>
-          </div>
-        </div>
-        
-        <div className="grid gap-4 sm:gap-6">
-          <SystemBackupCard />
-          <BatchStudentImport />
-        </div>
-      </div>
+      <SettingsClient />
     </DashboardShell>
   )
-} 
+}

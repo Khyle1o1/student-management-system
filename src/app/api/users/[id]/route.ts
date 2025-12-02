@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { canManageUsers, canCreateRole, validateUserAssignment, type UserRole } from '@/lib/rbac';
 import { z } from 'zod';
+import { ensureDeletionNotLocked } from '@/lib/system-settings';
 
 // Validation schema for updating a user (ONLY administrative users)
 const updateUserSchema = z.object({
@@ -270,6 +271,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const lockResponse = await ensureDeletionNotLocked();
+    if (lockResponse) {
+      return lockResponse;
+    }
+
     const { id } = await params;
     const session = await auth();
     if (!session?.user) {

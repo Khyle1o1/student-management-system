@@ -28,6 +28,7 @@ import {
 import Link from "next/link"
 import Swal from "sweetalert2"
 import "sweetalert2/dist/sweetalert2.min.css"
+import { useSystemSettings } from "@/components/dashboard/dashboard-shell"
 
 interface Fee {
   id: string
@@ -50,6 +51,8 @@ export function FeesTable() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filteredFees, setFilteredFees] = useState<Fee[]>([])
+  const systemSettings = useSystemSettings()
+  const deletionLocked = !!systemSettings?.deletion_lock
 
   const fetchFees = async () => {
     try {
@@ -128,6 +131,16 @@ export function FeesTable() {
   }
 
   const handleDeleteClick = async (fee: Fee) => {
+    if (deletionLocked) {
+      await Swal.fire({
+        icon: "info",
+        title: "Deletion is locked",
+        text: "Deletion Lock Mode is enabled. Disable it in Settings to delete fees.",
+        confirmButtonColor: "#0f172a",
+      })
+      return
+    }
+
     const result = await Swal.fire({
       title: "Delete this fee?",
       text: `"${fee.name}" and its assignments will be permanently removed.`,
@@ -325,15 +338,17 @@ export function FeesTable() {
                         Edit
                       </Button>
                     </Link>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteClick(fee)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Delete
-                    </Button>
+                    {!deletionLocked && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteClick(fee)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Delete
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>

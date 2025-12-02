@@ -1,6 +1,6 @@
 "use client"
 
-import { ReactNode, useState, useEffect } from "react"
+import { ReactNode, useState, useEffect, createContext, useContext } from "react"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -42,6 +42,16 @@ interface DashboardShellProps {
   children: ReactNode
 }
 
+interface SystemSettings {
+  deletion_lock: boolean
+}
+
+export const SystemSettingsContext = createContext<SystemSettings | null>(null)
+
+export function useSystemSettings() {
+  return useContext(SystemSettingsContext)
+}
+
 interface DashboardStats {
   students: {
     total: number
@@ -76,6 +86,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [dbConnectionError, setDbConnectionError] = useState<string | null>(null)
   const [showDbError, setShowDbError] = useState(false)
+  const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null)
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -124,6 +135,27 @@ export function DashboardShell({ children }: DashboardShellProps) {
       }
     }
   }, [isAdmin, session?.user?.id]) // More specific dependencies
+
+  // Load global system settings (admin dashboard only)
+  useEffect(() => {
+    const fetchSystemSettings = async () => {
+      if (!isAdmin) return
+
+      try {
+        const response = await fetch("/api/system-settings", { cache: "no-store" })
+        if (response.ok) {
+          const data = await response.json()
+          setSystemSettings({
+            deletion_lock: !!data.settings?.deletion_lock,
+          })
+        }
+      } catch (error) {
+        console.error("Failed to fetch system settings:", error)
+      }
+    }
+
+    fetchSystemSettings()
+  }, [isAdmin])
 
   useEffect(() => {
     setIsMobileMenuOpen(false)
@@ -458,11 +490,13 @@ export function DashboardShell({ children }: DashboardShellProps) {
             </div>
           )}
 
-          <div className="max-w-6xl mx-auto lg:ml-12 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-visible transition-colors">
-            <div className="p-4 lg:p-6">
-              {children}
+          <SystemSettingsContext.Provider value={systemSettings}>
+            <div className="max-w-6xl mx-auto lg:ml-12 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-visible transition-colors">
+              <div className="p-4 lg:p-6">
+                {children}
+              </div>
             </div>
-          </div>
+          </SystemSettingsContext.Provider>
         </main>
       </div>
     </div>
