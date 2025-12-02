@@ -583,7 +583,7 @@ export function AdminDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-2">
+            <div className="space-y-2.5">
               {loading ? (
                 <div className="flex items-center justify-center py-10">
                   <Loader2 className="h-8 w-8 animate-spin text-gray-400 dark:text-gray-500" />

@@ -48,6 +48,7 @@ import {
 } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { format } from "date-fns"
+import Swal from "sweetalert2"
 
 interface Team {
   id: string
@@ -93,6 +94,8 @@ export function IntramuralsMedalManagement() {
   const [showTeamDialog, setShowTeamDialog] = useState(false)
   const [editingTeam, setEditingTeam] = useState<Team | null>(null)
   const [teamForm, setTeamForm] = useState({ name: "", logo: "", color: "" })
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
 
   // Event management
   const [showEventDialog, setShowEventDialog] = useState(false)
@@ -216,11 +219,111 @@ export function IntramuralsMedalManagement() {
     fetchAllData()
   }, [fetchAllData])
 
-  const handleSaveTeam = async () => {
-    if (!teamForm.name.trim()) {
-      toast.error("Team name is required")
+  const handleLogoUpload = async (file: File) => {
+    if (!file) {
+      console.log('No file provided')
       return
     }
+
+    console.log('File selected:', file.name, file.type, file.size)
+
+    // Show preview immediately
+    const previewUrl = URL.createObjectURL(file)
+    setLogoPreview(previewUrl)
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      setLogoPreview(null)
+      URL.revokeObjectURL(previewUrl)
+      return
+    }
+
+    // Validate file size (10MB limit)
+    const maxSize = 10 * 1024 * 1024 // 10MB
+    if (file.size > maxSize) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2)
+      toast.error(`File size (${fileSizeMB}MB) exceeds the 10MB limit`)
+      setLogoPreview(null)
+      URL.revokeObjectURL(previewUrl)
+      return
+    }
+    
+    console.log('File validation passed, starting upload...')
+
+    setUploadingLogo(true)
+    
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      console.log('Uploading file...')
+
+      const response = await fetch('/api/upload/image', {
+        method: 'POST',
+        body: formData,
+      })
+
+      console.log('Response status:', response.status)
+
+      let data
+      try {
+        data = await response.json()
+        console.log('Response data:', data)
+      } catch (parseError) {
+        console.error('Error parsing response:', parseError)
+        const text = await response.text()
+        console.error('Response text:', text)
+        throw new Error('Failed to parse server response')
+      }
+
+      if (response.ok) {
+        // Revoke the preview URL and use the uploaded URL
+        URL.revokeObjectURL(previewUrl)
+        setTeamForm({ ...teamForm, logo: data.url })
+        setLogoPreview(data.url)
+        toast.success('Logo uploaded successfully')
+      } else {
+        const errorMessage = data?.error || 'Failed to upload logo'
+        console.error('Upload error:', errorMessage, data)
+        toast.error(`Error uploading logo: ${errorMessage}`)
+        // Keep preview for now
+      }
+    } catch (error) {
+      console.error('Error uploading logo:', error)
+      toast.error('Failed to upload logo. Please try again.')
+      // Keep preview for now
+    } finally {
+      setUploadingLogo(false)
+    }
+  }
+
+  const handleLogoRemove = () => {
+    setTeamForm({ ...teamForm, logo: "" })
+    setLogoPreview(null)
+  }
+
+  const handleSaveTeam = async () => {
+    if (!teamForm.name.trim()) {
+      await Swal.fire({
+        icon: "error",
+        title: "Validation Error",
+        text: "Team name is required",
+        confirmButtonColor: "#dc2626",
+      })
+      return
+    }
+
+    // Show loading alert
+    Swal.fire({
+      title: editingTeam ? "Updating team..." : "Creating team...",
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading()
+      },
+    })
 
     try {
       const url = editingTeam
@@ -234,42 +337,106 @@ export function IntramuralsMedalManagement() {
         body: JSON.stringify(teamForm),
       })
 
+      Swal.close()
+
       if (response.ok) {
-        toast.success(editingTeam ? "Team updated successfully" : "Team created successfully")
         setShowTeamDialog(false)
         setEditingTeam(null)
         setTeamForm({ name: "", logo: "", color: "" })
+        setLogoPreview(null)
         fetchTeams()
+
+        await Swal.fire({
+          icon: "success",
+          title: editingTeam ? "Team updated!" : "Team created!",
+          text: editingTeam 
+            ? `"${teamForm.name}" has been updated successfully.`
+            : `"${teamForm.name}" has been created successfully.`,
+          confirmButtonColor: "#16a34a",
+        })
       } else {
         const error = await response.json()
-        toast.error(error.error || "Failed to save team")
+        await Swal.fire({
+          icon: "error",
+          title: "Failed to save team",
+          text: error.error || "An error occurred while saving the team.",
+          confirmButtonColor: "#dc2626",
+        })
       }
     } catch (error) {
       console.error("Error saving team:", error)
-      toast.error("Failed to save team")
+      Swal.close()
+      await Swal.fire({
+        icon: "error",
+        title: "Unexpected error",
+        text: "Failed to save team. Please try again.",
+        confirmButtonColor: "#dc2626",
+      })
     }
   }
 
   const handleDeleteTeam = async (teamId: string) => {
-    if (!confirm("Are you sure you want to delete this team? This will also remove all medal awards associated with this team.")) {
-      return
-    }
+    const team = teams.find(t => t.id === teamId)
+    const teamName = team?.name || "this team"
+
+    const result = await Swal.fire({
+      title: "Delete this team?",
+      text: `"${teamName}" and all its medal awards will be permanently removed.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Delete Team",
+      confirmButtonColor: "#dc2626",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+    })
+
+    if (!result.isConfirmed) return
+
+    // Show loading alert
+    Swal.fire({
+      title: "Deleting team...",
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading()
+      },
+    })
 
     try {
       const response = await fetch(`/api/intramurals/admin/teams/${teamId}`, {
         method: "DELETE",
       })
 
+      Swal.close()
+
       if (response.ok) {
-        toast.success("Team deleted successfully")
         fetchTeams()
         fetchEvents() // Refresh events to update medal awards
+
+        await Swal.fire({
+          icon: "success",
+          title: "Team deleted",
+          text: `"${teamName}" has been removed successfully.`,
+          confirmButtonColor: "#0f172a",
+        })
       } else {
-        toast.error("Failed to delete team")
+        await Swal.fire({
+          icon: "error",
+          title: "Failed to delete team",
+          text: "An error occurred while deleting the team.",
+          confirmButtonColor: "#dc2626",
+        })
       }
     } catch (error) {
       console.error("Error deleting team:", error)
-      toast.error("Failed to delete team")
+      Swal.close()
+      await Swal.fire({
+        icon: "error",
+        title: "Unexpected error",
+        text: "Failed to delete team. Please try again.",
+        confirmButtonColor: "#dc2626",
+      })
     }
   }
 
@@ -497,6 +664,7 @@ export function IntramuralsMedalManagement() {
                 <Button onClick={() => {
                   setEditingTeam(null)
                   setTeamForm({ name: "", logo: "", color: "" })
+                  setLogoPreview(null)
                   setShowTeamDialog(true)
                 }}>
                   <Plus className="mr-2 h-4 w-4" />
@@ -551,6 +719,7 @@ export function IntramuralsMedalManagement() {
                                   logo: team.logo || "",
                                   color: team.color || "",
                                 })
+                                setLogoPreview(team.logo || null)
                                 setShowTeamDialog(true)
                               }}
                             >
@@ -955,13 +1124,45 @@ export function IntramuralsMedalManagement() {
               />
             </div>
             <div>
-              <Label htmlFor="team-logo">Logo URL (Optional)</Label>
-              <Input
-                id="team-logo"
-                value={teamForm.logo}
-                onChange={(e) => setTeamForm({ ...teamForm, logo: e.target.value })}
-                placeholder="https://example.com/logo.png"
-              />
+              <Label htmlFor="team-logo">Team Logo (Optional)</Label>
+              <div className="space-y-2">
+                <Input
+                  id="team-logo"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      handleLogoUpload(file)
+                    }
+                  }}
+                  disabled={uploadingLogo}
+                  className="cursor-pointer"
+                />
+                {uploadingLogo && (
+                  <p className="text-sm text-muted-foreground">Uploading logo...</p>
+                )}
+                {(logoPreview || teamForm.logo) && (
+                  <div className="relative inline-block">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={logoPreview || teamForm.logo || ""}
+                      alt="Team logo preview"
+                      className="w-32 h-32 rounded-full border-2 border-slate-200"
+                      style={{ objectFit: 'cover', width: '150px', height: '150px' }}
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                      onClick={handleLogoRemove}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <Label htmlFor="team-color">Color (Optional)</Label>
@@ -983,7 +1184,13 @@ export function IntramuralsMedalManagement() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowTeamDialog(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowTeamDialog(false)
+                setLogoPreview(null)
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={handleSaveTeam}>

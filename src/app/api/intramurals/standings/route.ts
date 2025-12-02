@@ -7,6 +7,7 @@ interface TeamMedalCount {
   team_id: string
   team_name: string
   team_color: string | null
+  team_logo: string | null
   gold: number
   silver: number
   bronze: number
@@ -18,10 +19,20 @@ interface StandingsData {
   team_id: string
   team_name: string
   team_color: string | null
+  team_logo: string | null
   gold: number
   silver: number
   bronze: number
   total: number
+}
+
+interface EventBreakdownEntry {
+  event_id: string
+  event_name: string
+  category: 'sports' | 'socio_cultural'
+  gold: number
+  silver: number
+  bronze: number
 }
 
 // Helper function to calculate standings with ranking
@@ -56,6 +67,7 @@ function calculateStandings(medalCounts: TeamMedalCount[]): StandingsData[] {
       team_id: sorted[i].team_id,
       team_name: sorted[i].team_name,
       team_color: sorted[i].team_color,
+      team_logo: sorted[i].team_logo,
       gold: sorted[i].gold,
       silver: sorted[i].silver,
       bronze: sorted[i].bronze,
@@ -89,7 +101,7 @@ export async function GET() {
     // Fetch all teams
     const { data: teams, error: teamsError } = await supabaseAdmin
       .from('intramurals_teams')
-      .select('id, name, color')
+      .select('id, name, color, logo')
       .order('name')
 
     if (teamsError) {
@@ -127,11 +139,14 @@ export async function GET() {
     const socioMedalCounts: Map<string, TeamMedalCount> = new Map()
     const overallMedalCounts: Map<string, TeamMedalCount> = new Map()
 
+    const teamEventBreakdown: Record<string, EventBreakdownEntry[]> = {}
+
     teams?.forEach((team) => {
       const initialCount = {
         team_id: team.id,
         team_name: team.name,
         team_color: team.color,
+        team_logo: team.logo,
         gold: 0,
         silver: 0,
         bronze: 0,
@@ -140,6 +155,7 @@ export async function GET() {
       sportsMedalCounts.set(team.id, { ...initialCount })
       socioMedalCounts.set(team.id, { ...initialCount })
       overallMedalCounts.set(team.id, { ...initialCount })
+      teamEventBreakdown[team.id] = []
     })
 
     // Count medals from events
@@ -152,6 +168,26 @@ export async function GET() {
 
       const targetMap =
         event.category === 'sports' ? sportsMedalCounts : socioMedalCounts
+      const recordEventBreakdown = (
+        teamId: string,
+        medalType: 'gold' | 'silver' | 'bronze'
+      ) => {
+        if (!teamId) return
+        // Normalize category: anything not "sports" is treated as "socio_cultural"
+        const normalizedCategory: 'sports' | 'socio_cultural' =
+          event.category === 'sports' ? 'sports' : 'socio_cultural'
+        const targetArr = teamEventBreakdown[teamId]
+        if (!targetArr) return
+
+        targetArr.push({
+          event_id: event.id,
+          event_name: event.name,
+          category: normalizedCategory,
+          gold: medalType === 'gold' ? 1 : 0,
+          silver: medalType === 'silver' ? 1 : 0,
+          bronze: medalType === 'bronze' ? 1 : 0,
+        })
+      }
 
       // Count gold
       if (medalAward.gold_team_id) {
@@ -165,6 +201,7 @@ export async function GET() {
           overallGold.gold++
           overallGold.total++
         }
+        recordEventBreakdown(medalAward.gold_team_id, 'gold')
       }
 
       // Count silver
@@ -179,6 +216,7 @@ export async function GET() {
           overallSilver.silver++
           overallSilver.total++
         }
+        recordEventBreakdown(medalAward.silver_team_id, 'silver')
       }
 
       // Count bronze
@@ -193,6 +231,7 @@ export async function GET() {
           overallBronze.bronze++
           overallBronze.total++
         }
+        recordEventBreakdown(medalAward.bronze_team_id, 'bronze')
       }
     })
 
@@ -209,6 +248,7 @@ export async function GET() {
         socio_cultural: socioStandings,
         overall: overallStandings,
       },
+      breakdowns: teamEventBreakdown,
     })
   } catch (error) {
     console.error('Error in standings API:', error)

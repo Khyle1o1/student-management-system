@@ -1,9 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Trophy, Medal, Award, Clock, TrendingUp } from "lucide-react"
+import { Trophy, Medal, Award, Clock } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -12,16 +10,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts"
 import { format } from "date-fns"
 
 interface StandingsEntry {
@@ -29,10 +17,241 @@ interface StandingsEntry {
   team_id: string
   team_name: string
   team_color: string | null
+  team_logo: string | null
   gold: number
   silver: number
   bronze: number
   total: number
+}
+
+type StandingsScope = "overall" | "sports" | "socio_cultural"
+
+export interface MedalEventBreakdown {
+  event_id: string
+  event_name: string
+  category: "sports" | "socio_cultural"
+  gold: number
+  silver: number
+  bronze: number
+}
+
+interface SelectedTeamDetails {
+  team_id: string
+  team_name: string
+  team_color: string | null
+  team_logo: string | null
+  rank: number
+  gold: number
+  silver: number
+  bronze: number
+  total: number
+  scope: StandingsScope
+  // Optional extra metadata
+  total_points?: number
+  sportsMedals?: {
+    gold: number
+    silver: number
+    bronze: number
+    total: number
+  }
+  socioCulturalMedals?: {
+    gold: number
+    silver: number
+    bronze: number
+    total: number
+  }
+  eventsBreakdown?: MedalEventBreakdown[]
+}
+
+interface MedalDetailsModalProps {
+  isOpen: boolean
+  onClose: () => void
+  team: SelectedTeamDetails | null
+}
+
+const MedalDetailsModal: React.FC<MedalDetailsModalProps> = ({ isOpen, onClose, team }) => {
+  if (!isOpen || !team) return null
+
+  const {
+    team_name,
+    team_logo,
+    team_color,
+    rank,
+    gold,
+    silver,
+    bronze,
+    total,
+    total_points,
+    sportsMedals,
+    socioCulturalMedals,
+    eventsBreakdown,
+  } = team
+
+  const formatCategoryLabel = (category: MedalEventBreakdown["category"]) =>
+    category === "sports" ? "Sports" : "Socio-Cultural"
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 transform transition-all duration-200">
+        {/* Header */}
+        <div className="flex items-center gap-3 sm:gap-4 border-b px-4 sm:px-6 py-3 sm:py-4">
+          {team_logo ? (
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border border-slate-200 overflow-hidden flex items-center justify-center flex-shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={team_logo}
+                alt={team_name}
+                className="w-full h-full object-cover"
+                style={{ objectFit: "cover", width: "150%", height: "150%" }}
+              />
+            </div>
+          ) : (
+            <div
+              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+              style={{ backgroundColor: team_color || "#191970" }}
+            >
+              {team_name.substring(0, 2).toUpperCase()}
+            </div>
+          )}
+          <div className="min-w-0">
+            <h3 className="font-semibold text-[#191970] text-base sm:text-lg truncate">
+              {team_name}
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600">
+              Rank #{rank} &bull; Total Medals: {total}
+              {typeof total_points === "number" && (
+                <span className="ml-1">&bull; Points: {total_points}</span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="px-4 sm:px-6 py-4 space-y-4 sm:space-y-5">
+          {/* Medal summary */}
+          <div>
+            <h4 className="text-sm font-semibold text-[#191970] mb-2">Medal Summary</h4>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 text-center">
+              <div className="rounded-lg border border-yellow-100 bg-yellow-50 px-2 py-2 sm:py-3">
+                <div className="text-lg sm:text-xl">🥇</div>
+                <div className="text-xs sm:text-sm text-slate-600">Gold</div>
+                <div className="font-semibold text-[#191970] text-sm sm:text-base">
+                  {gold}
+                </div>
+              </div>
+              <div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-2 sm:py-3">
+                <div className="text-lg sm:text-xl">🥈</div>
+                <div className="text-xs sm:text-sm text-slate-600">Silver</div>
+                <div className="font-semibold text-[#191970] text-sm sm:text-base">
+                  {silver}
+                </div>
+              </div>
+              <div className="rounded-lg border border-amber-100 bg-amber-50 px-2 py-2 sm:py-3">
+                <div className="text-lg sm:text-xl">🥉</div>
+                <div className="text-xs sm:text-sm text-slate-600">Bronze</div>
+                <div className="font-semibold text-[#191970] text-sm sm:text-base">
+                  {bronze}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sports vs Socio-Cultural breakdown (shown only for Overall Tally) */}
+          {team.scope === "overall" && (sportsMedals || socioCulturalMedals) && (
+            <div>
+              <h4 className="text-sm font-semibold text-[#191970] mb-2">
+                Category Breakdown
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {sportsMedals && (
+                  <div className="rounded-lg border border-slate-100 px-3 py-2 bg-slate-50">
+                    <p className="text-xs font-semibold text-[#191970] mb-1">
+                      🏆 Sports Events
+                    </p>
+                    <p className="text-xs text-slate-600 mb-1">
+                      Total: <span className="font-semibold">{sportsMedals.total}</span>
+                    </p>
+                    <div className="flex justify-between text-[11px] sm:text-xs text-slate-700">
+                      <span>🥇 {sportsMedals.gold}</span>
+                      <span>🥈 {sportsMedals.silver}</span>
+                      <span>🥉 {sportsMedals.bronze}</span>
+                    </div>
+                  </div>
+                )}
+                {socioCulturalMedals && (
+                  <div className="rounded-lg border border-slate-100 px-3 py-2 bg-slate-50">
+                    <p className="text-xs font-semibold text-[#191970] mb-1">
+                      🎭 Socio-Cultural Events
+                    </p>
+                    <p className="text-xs text-slate-600 mb-1">
+                      Total:{" "}
+                      <span className="font-semibold">{socioCulturalMedals.total}</span>
+                    </p>
+                    <div className="flex justify-between text-[11px] sm:text-xs text-slate-700">
+                      <span>🥇 {socioCulturalMedals.gold}</span>
+                      <span>🥈 {socioCulturalMedals.silver}</span>
+                      <span>🥉 {socioCulturalMedals.bronze}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Optional per-event breakdown */}
+          {eventsBreakdown && eventsBreakdown.length > 0 && (
+            <div>
+              <h4 className="text-sm font-semibold text-[#191970] mb-2">
+                Events Breakdown
+              </h4>
+              <div className="max-h-52 overflow-y-auto border border-slate-100 rounded-lg">
+                <table className="w-full text-left text-xs sm:text-sm">
+                  <thead className="bg-slate-50 sticky top-0">
+                    <tr className="text-slate-700">
+                      <th className="px-3 py-2 font-semibold">Event</th>
+                      <th className="px-3 py-2 font-semibold hidden sm:table-cell">
+                        Category
+                      </th>
+                      <th className="px-3 py-2 font-semibold text-right">🥇</th>
+                      <th className="px-3 py-2 font-semibold text-right">🥈</th>
+                      <th className="px-3 py-2 font-semibold text-right">🥉</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {eventsBreakdown.map((event, index) => (
+                      <tr
+                        key={`${event.event_name}-${index}`}
+                        className="border-t text-slate-700"
+                      >
+                        <td className="px-3 py-2">{event.event_name}</td>
+                        <td className="px-3 py-2 hidden sm:table-cell text-slate-500">
+                          {formatCategoryLabel(event.category)}
+                        </td>
+                        <td className="px-3 py-2 text-right">{event.gold}</td>
+                        <td className="px-3 py-2 text-right">{event.silver}</td>
+                        <td className="px-3 py-2 text-right">{event.bronze}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t px-4 sm:px-6 py-3 sm:py-4 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center justify-center rounded-full px-4 py-1.5 text-xs sm:text-sm font-semibold text-white bg-[#191970] hover:bg-[#14144f] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#191970] transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 interface StandingsData {
@@ -43,12 +262,15 @@ interface StandingsData {
     socio_cultural: StandingsEntry[]
     overall: StandingsEntry[]
   }
+  breakdowns?: Record<string, MedalEventBreakdown[]>
 }
 
 export function IntramuralsStandings() {
   const [data, setData] = useState<StandingsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedTeam, setSelectedTeam] = useState<SelectedTeamDetails | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   useEffect(() => {
     const fetchStandings = async () => {
@@ -98,259 +320,324 @@ export function IntramuralsStandings() {
     return null // Don't show anything if not visible or error
   }
 
-  const getRankBadge = (rank: number) => {
+  const getRankIcon = (rank: number) => {
     if (rank === 1) {
       return (
-        <Badge className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-white px-3 py-1">
-          <Trophy className="w-3 h-3 mr-1" />
-          1st
-        </Badge>
+        <div className="flex items-center justify-center">
+          <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-500" />
+        </div>
       )
     }
     if (rank === 2) {
       return (
-        <Badge className="bg-gradient-to-r from-gray-300 to-gray-500 text-white px-3 py-1">
-          <Medal className="w-3 h-3 mr-1" />
-          2nd
-        </Badge>
+        <div className="flex items-center justify-center relative">
+          <Medal className="w-6 h-6 sm:w-8 sm:h-8 text-gray-300" />
+          <span className="absolute text-white font-bold text-xs sm:text-sm top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">2</span>
+        </div>
       )
     }
     if (rank === 3) {
       return (
-        <Badge className="bg-gradient-to-r from-amber-600 to-amber-800 text-white px-3 py-1">
-          <Award className="w-3 h-3 mr-1" />
-          3rd
-        </Badge>
+        <div className="flex items-center justify-center relative">
+          <Award className="w-6 h-6 sm:w-8 sm:h-8 text-amber-600" />
+          <span className="absolute text-white font-bold text-xs sm:text-sm top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">3</span>
+        </div>
       )
     }
-    return <span className="text-slate-600 font-semibold">#{rank}</span>
+    return (
+      <div className="flex items-center justify-center">
+        <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gray-400 flex items-center justify-center">
+          <span className="text-white font-bold text-xs sm:text-sm">{rank}</span>
+        </div>
+      </div>
+    )
   }
 
-  const getRowClassName = (rank: number) => {
-    if (rank === 1) {
-      return "bg-gradient-to-r from-yellow-50 to-yellow-100/50 border-l-4 border-yellow-400 animate-pulse"
+  const handleViewDetails = (entry: StandingsEntry, scope: StandingsScope) => {
+    if (!data) return
+
+    const sportsRow = data.standings.sports.find((s) => s.team_id === entry.team_id)
+    const socioRow = data.standings.socio_cultural.find(
+      (s) => s.team_id === entry.team_id
+    )
+
+    const allEvents = data.breakdowns?.[entry.team_id] ?? []
+    const scopedEvents: MedalEventBreakdown[] =
+      scope === "sports"
+        ? allEvents.filter((e) => e.category === "sports")
+        : scope === "socio_cultural"
+        ? allEvents.filter((e) => e.category === "socio_cultural")
+        : allEvents
+
+    const details: SelectedTeamDetails = {
+      team_id: entry.team_id,
+      team_name: entry.team_name,
+      team_color: entry.team_color,
+      team_logo: entry.team_logo,
+      rank: entry.rank,
+      gold: entry.gold,
+      silver: entry.silver,
+      bronze: entry.bronze,
+      total: entry.total,
+      scope,
+      total_points: entry.total,
+      sportsMedals:
+        scope === "socio_cultural" || !sportsRow
+          ? undefined
+          : {
+              gold: sportsRow.gold,
+              silver: sportsRow.silver,
+              bronze: sportsRow.bronze,
+              total: sportsRow.total,
+            },
+      socioCulturalMedals:
+        scope === "sports" || !socioRow
+          ? undefined
+          : {
+              gold: socioRow.gold,
+              silver: socioRow.silver,
+              bronze: socioRow.bronze,
+              total: socioRow.total,
+            },
+      eventsBreakdown: scopedEvents,
     }
-    if (rank === 2) {
-      return "bg-gradient-to-r from-gray-50 to-gray-100/50 border-l-4 border-gray-400"
-    }
-    if (rank === 3) {
-      return "bg-gradient-to-r from-amber-50 to-amber-100/50 border-l-4 border-amber-600"
-    }
-    return "hover:bg-slate-50 transition-colors"
+
+    setSelectedTeam(details)
+    setIsModalOpen(true)
   }
 
-  const StandingsTable = ({ 
-    title, 
-    standings, 
-    icon 
-  }: { 
+  const StandingsTable = ({
+    title,
+    standings,
+    scope,
+  }: {
     title: string
     standings: StandingsEntry[]
-    icon: React.ReactNode
+    scope: StandingsScope
   }) => {
-    // Prepare chart data
-    const chartData = standings.slice(0, 10).map((entry) => ({
-      name: entry.team_name.length > 15 
-        ? entry.team_name.substring(0, 15) + "..." 
-        : entry.team_name,
-      Gold: entry.gold,
-      Silver: entry.silver,
-      Bronze: entry.bronze,
-      Total: entry.total,
-    }))
+    if (standings.length === 0) {
+      return null
+    }
 
     return (
-      <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
-        <CardHeader className="bg-gradient-to-r from-[#191970] to-[#191970]/90 text-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              {icon}
-              <div>
-                <CardTitle className="text-2xl">{title}</CardTitle>
-                <CardDescription className="text-white/80">
-                  Medal Count Standings
-                </CardDescription>
-              </div>
+      <div className="mb-6 sm:mb-8">
+        <h2 className="text-xl sm:text-2xl font-bold text-[#191970] mb-3 sm:mb-4 px-2 sm:px-0">{title}</h2>
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <div className="inline-block min-w-full align-middle">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50 border-b-2 border-slate-200">
+                    <TableHead className="font-bold text-[#191970] text-center w-16 sm:w-20 px-2 sm:px-4">
+                      <span className="text-xs sm:text-sm">Rank</span>
+                    </TableHead>
+                    <TableHead className="font-bold text-[#191970] px-2 sm:px-4">
+                      <span className="text-xs sm:text-sm">College</span>
+                    </TableHead>
+                    <TableHead className="font-bold text-[#191970] text-center px-2 sm:px-4">
+                      <div className="flex items-center justify-center gap-1 sm:gap-2">
+                        <span className="text-yellow-600 text-sm sm:text-base">🥇</span>
+                        <span className="text-xs sm:text-sm">Gold</span>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-bold text-[#191970] text-center px-2 sm:px-4">
+                      <div className="flex items-center justify-center gap-1 sm:gap-2">
+                        <span className="text-gray-400 text-sm sm:text-base">🥈</span>
+                        <span className="text-xs sm:text-sm">Silver</span>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-bold text-[#191970] text-center px-2 sm:px-4">
+                      <div className="flex items-center justify-center gap-1 sm:gap-2">
+                        <span className="text-amber-700 text-sm sm:text-base">🥉</span>
+                        <span className="text-xs sm:text-sm">Bronze</span>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-bold text-[#191970] text-center px-2 sm:px-4 w-28 sm:w-32">
+                      <span className="text-xs sm:text-sm">Actions</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {standings.map((entry) => (
+                    <TableRow
+                      key={`${title}-${entry.team_id}`}
+                      className="hover:bg-slate-50 transition-colors border-b border-slate-100"
+                    >
+                      <TableCell className="text-center px-2 sm:px-4">
+                        {getRankIcon(entry.rank)}
+                      </TableCell>
+                      <TableCell className="px-2 sm:px-4">
+                        <div className="flex items-center space-x-2 sm:space-x-3">
+                          {entry.team_logo ? (
+                            <div className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full border-slate-200 overflow-hidden flex items-center justify-center flex-shrink-0">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={entry.team_logo}
+                                alt={entry.team_name}
+                                className="w-full h-full object-cover"
+                                style={{
+                                  objectFit: "cover",
+                                  width: "150%",
+                                  height: "150%",
+                                }}
+                                onError={(e) => {
+                                  // Hide image and show fallback
+                                  const target = e.target as HTMLImageElement
+                                  target.style.display = "none"
+                                  const parent = target.parentElement
+                                  if (parent) {
+                                    const fallback = parent.querySelector(
+                                      ".logo-fallback"
+                                    ) as HTMLElement
+                                    if (fallback) fallback.style.display = "flex"
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : null}
+                          <div
+                            className={`w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm logo-fallback flex-shrink-0 ${
+                              entry.team_logo ? "hidden" : ""
+                            }`}
+                            style={{
+                              backgroundColor: entry.team_color || "#191970",
+                            }}
+                          >
+                            {entry.team_name.substring(0, 2).toUpperCase()}
+                          </div>
+                          <span className="font-medium text-[#191970] text-xs sm:text-sm md:text-base truncate">
+                            {entry.team_name}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center px-2 sm:px-4">
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="text-yellow-600 text-sm sm:text-base">
+                            🥇
+                          </span>
+                          <span className="font-semibold text-xs sm:text-sm md:text-base">
+                            {entry.gold}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center px-2 sm:px-4">
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="text-gray-400 text-sm sm:text-base">
+                            🥈
+                          </span>
+                          <span className="font-semibold text-xs sm:text-sm md:text-base">
+                            {entry.silver}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center px-2 sm:px-4">
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="text-amber-700 text-sm sm:text-base">
+                            🥉
+                          </span>
+                          <span className="font-semibold text-xs sm:text-sm md:text-base">
+                            {entry.bronze}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center px-2 sm:px-4">
+                        <button
+                          type="button"
+                          onClick={() => handleViewDetails(entry, scope)}
+                          className="inline-flex items-center justify-center rounded-full border border-[#191970]/20 bg-white px-3 py-1 text-[11px] sm:text-xs font-semibold text-[#191970] hover:bg-[#191970] hover:text-white transition-colors"
+                        >
+                          View Details
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          {standings.length === 0 ? (
-            <div className="text-center py-12 text-slate-500">
-              <Trophy className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No standings available yet</p>
-            </div>
-          ) : (
-            <>
-              {/* Standings Table */}
-              <div className="overflow-x-auto mb-6">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-100">
-                      <TableHead className="font-bold">Rank</TableHead>
-                      <TableHead className="font-bold">Team</TableHead>
-                      <TableHead className="font-bold text-center">
-                        <span className="text-yellow-600">🥇</span> Gold
-                      </TableHead>
-                      <TableHead className="font-bold text-center">
-                        <span className="text-gray-400">🥈</span> Silver
-                      </TableHead>
-                      <TableHead className="font-bold text-center">
-                        <span className="text-amber-700">🥉</span> Bronze
-                      </TableHead>
-                      <TableHead className="font-bold text-center">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {standings.map((entry, index) => (
-                      <TableRow
-                        key={entry.team_id}
-                        className={getRowClassName(entry.rank)}
-                        style={{
-                          animationDelay: `${index * 50}ms`,
-                        }}
-                      >
-                        <TableCell className="font-semibold">
-                          {getRankBadge(entry.rank)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            {entry.team_color && (
-                              <div
-                                className="w-4 h-4 rounded-full"
-                                style={{ backgroundColor: entry.team_color }}
-                              />
-                            )}
-                            <span className="font-medium">{entry.team_name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center font-semibold text-yellow-600">
-                          {entry.gold}
-                        </TableCell>
-                        <TableCell className="text-center font-semibold text-gray-500">
-                          {entry.silver}
-                        </TableCell>
-                        <TableCell className="text-center font-semibold text-amber-700">
-                          {entry.bronze}
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-[#191970]">
-                          {entry.total}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Bar Chart */}
-              {chartData.length > 0 && (
-                <div className="mt-6 pt-6 border-t">
-                  <h4 className="text-lg font-semibold mb-4 flex items-center">
-                    <TrendingUp className="w-5 h-5 mr-2 text-[#191970]" />
-                    Medal Distribution (Top 10)
-                  </h4>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="name" 
-                        angle={-45}
-                        textAnchor="end"
-                        height={100}
-                        fontSize={12}
-                      />
-                      <YAxis />
-                      <Tooltip 
-                        contentStyle={{
-                          backgroundColor: "white",
-                          border: "1px solid #e2e8f0",
-                          borderRadius: "8px",
-                        }}
-                      />
-                      <Legend />
-                      <Bar dataKey="Gold" fill="#fbbf24" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Silver" fill="#9ca3af" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Bronze" fill="#d97706" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
   return (
-    <section className="py-16 bg-gradient-to-b from-white to-slate-50">
-      <div className="container mx-auto px-4">
-        <div className="text-center mb-12 space-y-4">
-          <Badge className="bg-gradient-to-r from-[#191970] to-[#191970]/80 text-white px-6 py-3 rounded-full font-semibold text-sm">
-            🏁 Intramurals 2025
-          </Badge>
-          <h2 className="text-4xl font-bold text-[#191970]">
-            Official Medal Tally
-          </h2>
-          <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-            Track the latest standings across Sports Events and Socio-Cultural Events. 
-            Rankings are based on medal counts (Gold, Silver, Bronze).
-          </p>
-          {data.last_updated && (
-            <div className="flex items-center justify-center space-x-2 text-sm text-slate-500">
-              <Clock className="w-4 h-4" />
-              <span>
-                Last updated: {format(new Date(data.last_updated), "MMM dd, yyyy 'at' h:mm a")}
-              </span>
+    <section className="bg-white">
+      {/* Dark Blue Header with Trophy Icon */}
+      <div className="py-6 sm:py-8 md:py-12">
+        <div className="container mx-auto px-4">
+          <div className="text-center">
+            <div className="flex justify-center mb-3 sm:mb-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/intrams.png"
+                alt="Trophy"
+                className="object-contain"
+                style={{ 
+                  maxWidth: '100%', 
+                  height: 'auto',
+                  maxHeight: '200px',
+                  width: 'auto'
+                }}
+              />
             </div>
-          )}
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-8 mb-8">
-          {/* Sports Events Standing */}
-          <div className="lg:col-span-1 animate-fade-in-up" style={{ animationDelay: "0ms" }}>
-            <StandingsTable
-              title="🏆 Sports Events"
-              standings={data.standings.sports}
-              icon={<Trophy className="w-6 h-6" />}
-            />
-          </div>
-
-          {/* Socio-Cultural Events Standing */}
-          <div className="lg:col-span-1 animate-fade-in-up" style={{ animationDelay: "100ms" }}>
-            <StandingsTable
-              title="🎭 Socio-Cultural Events"
-              standings={data.standings.socio_cultural}
-              icon={<Award className="w-6 h-6" />}
-            />
-          </div>
-
-          {/* Overall Standing */}
-          <div className="lg:col-span-1 animate-fade-in-up" style={{ animationDelay: "200ms" }}>
-            <StandingsTable
-              title="🥇 Overall Standing"
-              standings={data.standings.overall}
-              icon={<Medal className="w-6 h-6" />}
-            />
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#191970] mb-2 sm:mb-3 px-2">
+              Official Leaderboard
+            </h1>
+            <p className="text-[#191970] text-sm sm:text-base md:text-lg max-w-1xl mx-auto px-2">
+              Current standings for Bukidnon State University-Main Campus Intramurals 2026. Points are updated in real-time as matches conclude.
+            </p>
+            {data.last_updated && (
+              <div className="flex items-center justify-center space-x-2 text-[#191970] text-xs sm:text-sm mt-3 sm:mt-4 px-2">
+                <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="break-words">
+                  Last updated: {format(new Date(data.last_updated), "MMM dd, yyyy 'at' h:mm a")}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <style jsx>{`
-        @keyframes fade-in-up {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fade-in-up {
-          animation: fade-in-up 0.6s ease-out forwards;
-        }
-      `}</style>
+      {/* Leaderboard Tables */}
+      <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 md:py-8">
+        {data.standings.overall.length === 0 && 
+         data.standings.sports.length === 0 && 
+         data.standings.socio_cultural.length === 0 ? (
+          <div className="text-center py-12 text-slate-500">
+            <Trophy className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>No standings available yet</p>
+          </div>
+        ) : (
+          <>
+            {/* Overall/Total Tally - Shown First */}
+            <StandingsTable 
+              title="🥇 Overall Tally" 
+              standings={data.standings.overall}
+              scope="overall" 
+            />
+            
+            {/* Sports Events Tally */}
+            <StandingsTable 
+              title="🏆 Sports Events Tally" 
+              standings={data.standings.sports}
+              scope="sports" 
+            />
+            
+            {/* Socio-Cultural Events Tally */}
+            <StandingsTable 
+              title="🎭 Socio-Cultural Events Tally" 
+              standings={data.standings.socio_cultural}
+              scope="socio_cultural" 
+            />
+          </>
+        )}
+      </div>
+
+      <MedalDetailsModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        team={selectedTeam}
+      />
     </section>
   )
 }

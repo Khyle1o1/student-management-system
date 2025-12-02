@@ -147,7 +147,7 @@ export async function DELETE(
 ) {
   try {
     const session = await auth()
-    
+
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -158,10 +158,10 @@ export async function DELETE(
 
     const { id } = await params
 
-    // Check if event exists
+    // Check if event exists (include basic fields for activity logging)
     const { data: existingEvent, error: checkError } = await supabaseAdmin
       .from('events')
-      .select('id')
+      .select('id, title, date')
       .eq('id', id)
       .single()
 
@@ -181,6 +181,34 @@ export async function DELETE(
     if (error) {
       console.error('Error deleting event:', error)
       return NextResponse.json({ error: 'Failed to delete event' }, { status: 500 })
+    }
+
+    // Log system activity so deletion appears in the admin activity timeline
+    try {
+      const now = new Date().toISOString()
+      const eventTitle = (existingEvent as any)?.title || 'Untitled Event'
+      const eventDate = (existingEvent as any)?.date
+
+      await supabaseAdmin
+        .from('notifications')
+        .insert({
+          user_id: session.user.id,
+          type: 'SYSTEM_ACTIVITY',
+          title: 'Event Deleted',
+          message: `${session.user.name || 'Admin'} deleted event "${eventTitle}"${eventDate ? ` scheduled on ${new Date(eventDate).toLocaleDateString()}` : ''}`,
+          data: {
+            action: 'EVENT_DELETED',
+            event_id: (existingEvent as any)?.id,
+            event_title: eventTitle,
+            event_date: eventDate || null,
+            occurred_at: now,
+          },
+          is_read: false,
+          created_at: now,
+        })
+    } catch (logError) {
+      console.error('Failed to log system activity for event deletion:', logError)
+      // Do not fail the deletion if logging fails
     }
 
     return NextResponse.json({ message: 'Event deleted successfully' })
