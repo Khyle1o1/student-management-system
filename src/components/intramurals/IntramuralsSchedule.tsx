@@ -118,11 +118,11 @@ export function IntramuralsSchedule() {
                           </h3>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2 text-sm font-semibold text-slate-800">
+                      <div className="flex items-center justify-center space-x-2 text-sm font-semibold text-slate-800">
                         <Users className="w-4 h-4 text-[#191970]" />
-                        <span>{match.team1.name}</span>
-                        <span className="text-slate-400">vs</span>
-                        <span>{match.team2.name}</span>
+                        <span className="truncate max-w-[40%] text-right">{match.team1.name}</span>
+                        <span className="text-red-500 mx-1">VS</span>
+                        <span className="truncate max-w-[40%] text-left">{match.team2.name}</span>
                       </div>
                       <div className="flex items-center justify-between text-xs text-slate-600">
                         <div className="flex items-center space-x-1">

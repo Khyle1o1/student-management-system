@@ -575,7 +575,7 @@ export function IntramuralsStandings() {
                 style={{ 
                   maxWidth: '100%', 
                   height: 'auto',
-                  maxHeight: '200px',
+                  maxHeight: '300px',
                   width: 'auto'
                 }}
               />
