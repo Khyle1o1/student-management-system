@@ -32,7 +32,8 @@ import {
   Search,
   ExternalLink
 } from "lucide-react"
-import { toast } from "react-hot-toast"
+import Swal from "sweetalert2"
+import "sweetalert2/dist/sweetalert2.min.css"
 import { format } from "date-fns"
 
 interface Form {
@@ -77,7 +78,16 @@ export function FormsTable() {
       setTotal(data.total || 0)
     } catch (error) {
       console.error('Error fetching forms:', error)
-      toast.error('Failed to load forms')
+      Swal.fire({
+        icon: "error",
+        title: "Failed to load forms",
+        text: "Please try again in a moment.",
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true,
+      })
     } finally {
       setLoading(false)
     }
@@ -97,11 +107,29 @@ export function FormsTable() {
 
       if (!response.ok) throw new Error('Failed to delete form')
       
-      toast.success('Form deleted successfully')
+      Swal.fire({
+        icon: "success",
+        title: "Form deleted",
+        text: "The form was deleted successfully.",
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      })
       fetchForms()
     } catch (error) {
       console.error('Error deleting form:', error)
-      toast.error('Failed to delete form')
+      Swal.fire({
+        icon: "error",
+        title: "Failed to delete form",
+        text: "Something went wrong while deleting. Please try again.",
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true,
+      })
     }
   }
 
@@ -129,18 +157,45 @@ export function FormsTable() {
       if (!duplicateResponse.ok) throw new Error('Failed to duplicate form')
       
       const duplicatedForm = await duplicateResponse.json()
-      toast.success('Form duplicated successfully')
+      Swal.fire({
+        icon: "success",
+        title: "Form duplicated",
+        text: "You are now editing the duplicated form.",
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      })
       router.push(`/dashboard/forms/${duplicatedForm.id}/edit`)
     } catch (error) {
       console.error('Error duplicating form:', error)
-      toast.error('Failed to duplicate form')
+      Swal.fire({
+        icon: "error",
+        title: "Failed to duplicate form",
+        text: "Please try again.",
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true,
+      })
     }
   }
 
   const copyFormLink = (formId: string) => {
     const link = `${window.location.origin}/forms/${formId}`
     navigator.clipboard.writeText(link)
-    toast.success('Form link copied to clipboard!')
+    Swal.fire({
+      icon: "success",
+      title: "Form link copied",
+      text: "You can now paste the form link anywhere.",
+      toast: true,
+      position: "top-end",
+      showConfirmButton: false,
+      timer: 2500,
+      timerProgressBar: true,
+    })
   }
 
   const getStatusBadge = (status: string) => {

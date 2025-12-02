@@ -6,7 +6,8 @@ import { supabase } from "@/lib/supabase"
 
 const updateStatusSchema = z.object({
   status: z.enum(['PAID', 'UNPAID', 'PENDING', 'OVERDUE']),
-  receiptNumber: z.string().trim().min(1, 'Receipt number is required').optional()
+  receiptNumber: z.string().trim().min(1, 'Receipt number is required').optional(),
+  paymentMethod: z.enum(['BANK_TRANSFER', 'GCASH', 'ON_SITE']).optional(),
 })
 
 export async function PATCH(
@@ -21,7 +22,7 @@ export async function PATCH(
 
     const { id } = await params
     const body = await request.json()
-    const { status, receiptNumber } = updateStatusSchema.parse(body)
+    const { status, receiptNumber, paymentMethod } = updateStatusSchema.parse(body)
 
     // Fetch existing payment for checks and joins
     const { data: existing, error: fetchError } = await supabaseAdmin
@@ -38,9 +39,44 @@ export async function PATCH(
       return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
     }
 
-    // Enforce rules: require receipt when marking PAID
-    if (status === 'PAID' && !receiptNumber) {
-      return NextResponse.json({ error: 'Receipt number is required to mark as Paid' }, { status: 400 })
+    // Enforce rules: require receipt + payment method when marking PAID
+    if (status === 'PAID') {
+      if (!receiptNumber) {
+        return NextResponse.json(
+          { error: 'Receipt number is required to mark as Paid' },
+          { status: 400 }
+        )
+      }
+      if (!paymentMethod) {
+        return NextResponse.json(
+          { error: 'Payment method is required to mark as Paid' },
+          { status: 400 }
+        )
+      }
+
+      // Ensure receipt number is unique across payments (excluding this record)
+      const { data: existingWithReceipt, error: receiptCheckError } = await supabaseAdmin
+        .from('payments')
+        .select('id')
+        .eq('reference', receiptNumber)
+        .neq('id', id)
+        .is('deleted_at', null)
+        .limit(1)
+
+      if (receiptCheckError) {
+        console.error('Error checking receipt uniqueness:', receiptCheckError)
+        return NextResponse.json(
+          { error: 'Failed to validate receipt number, please try again.' },
+          { status: 500 }
+        )
+      }
+
+      if (existingWithReceipt && existingWithReceipt.length > 0) {
+        return NextResponse.json(
+          { error: 'This receipt number is already used for another payment.' },
+          { status: 400 }
+        )
+      }
     }
 
     // Prevent reverting PAID -> UNPAID unless ADMIN (super admin)
@@ -84,6 +120,7 @@ export async function PATCH(
     }
     if (status === 'PAID') {
       updateData.reference = receiptNumber
+      updateData.payment_method = paymentMethod || null
       updateData.approved_by = session.user.id
       updateData.approved_at = new Date().toISOString()
     }

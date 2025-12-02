@@ -156,6 +156,11 @@
   animation-duration: 300ms;
 }
 
+/* Ensure SweetAlert dialogs appear above Radix UI dialogs and overlays */
+.swal2-container {
+  z-index: 99999 !important;
+}
+
 /* Smooth transitions for all interactive elements */
 .transition-all {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

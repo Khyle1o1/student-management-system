@@ -580,6 +580,11 @@ export function FeesCards() {
                             icon: "error",
                             title: "Download failed",
                             text: data.error || "Failed to generate PDF",
+                            toast: true,
+                            position: "top-end",
+                            showConfirmButton: false,
+                            timer: 4000,
+                            timerProgressBar: true,
                           })
                           return
                         }
@@ -592,12 +597,29 @@ export function FeesCards() {
                         a.click()
                         a.remove()
                         window.URL.revokeObjectURL(url)
+
+                        // Success toast
+                        await Swal.fire({
+                          icon: "success",
+                          title: "PDF download started",
+                          text: "Your fee report PDF is being downloaded.",
+                          toast: true,
+                          position: "top-end",
+                          showConfirmButton: false,
+                          timer: 3000,
+                          timerProgressBar: true,
+                        })
                       } catch (e) {
                         console.error('PDF download failed', e)
                         await Swal.fire({
                           icon: "error",
                           title: "Download failed",
                           text: "PDF download failed",
+                          toast: true,
+                          position: "top-end",
+                          showConfirmButton: false,
+                          timer: 4000,
+                          timerProgressBar: true,
                         })
                       }
                     }}

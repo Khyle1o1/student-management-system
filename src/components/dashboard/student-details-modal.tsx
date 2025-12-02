@@ -79,6 +79,7 @@ interface StudentDetails {
       status: string
       payment_date: string
       reference?: string
+      payment_method?: string
       fee: {
         id: string
         name: string
@@ -94,7 +95,17 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
   const [student, setStudent] = useState<StudentDetails | null>(null)
   const [loading, setLoading] = useState(false)
   const [updatingPayment, setUpdatingPayment] = useState<string | null>(null)
-  const [receiptModal, setReceiptModal] = useState<{ open: boolean; paymentId: string | null; receipt: string }>({ open: false, paymentId: null, receipt: "" })
+  const [receiptModal, setReceiptModal] = useState<{
+    open: boolean
+    paymentId: string | null
+    receipt: string
+    paymentMethod: "BANK_TRANSFER" | "GCASH" | "ON_SITE" | ""
+  }>({
+    open: false,
+    paymentId: null,
+    receipt: "",
+    paymentMethod: "",
+  })
 
   const fetchStudentDetails = useCallback(async () => {
     if (!studentId) return
@@ -119,34 +130,92 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
     }
   }, [studentId, open, fetchStudentDetails])
 
-  const handleUpdatePaymentStatus = async (paymentId: string, newStatus: string, receiptNumber?: string) => {
+  const handleUpdatePaymentStatus = async (
+    paymentId: string,
+    newStatus: string,
+    receiptNumber?: string,
+    paymentMethod?: "BANK_TRANSFER" | "GCASH" | "ON_SITE"
+  ) => {
     setUpdatingPayment(paymentId)
     try {
       const response = await fetch(`/api/payments/${paymentId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus, receiptNumber })
+        body: JSON.stringify({ status: newStatus, receiptNumber, paymentMethod })
       })
 
       if (response.ok) {
         // Refresh student details
         await fetchStudentDetails()
+
+        // Success toast (auto-close)
+        Swal.fire({
+          icon: 'success',
+          title: 'Payment updated',
+          text:
+            newStatus === 'PAID'
+              ? 'Payment has been marked as Paid successfully.'
+              : 'Payment status has been updated successfully.',
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true,
+        })
+      } else {
+        const data = await response.json().catch(() => ({}))
+        const message =
+          (data && (data.error || data.message)) ||
+          'Failed to update payment status. Please try again.'
+
+        // Error toast (auto-close)
+        Swal.fire({
+          icon: 'error',
+          title: 'Payment update failed',
+          text: typeof message === 'string' ? message : 'Unknown error occurred',
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 4000,
+          timerProgressBar: true,
+        })
       }
     } catch (error) {
       console.error("Error updating payment status:", error)
+      Swal.fire({
+        icon: 'error',
+        title: 'Network error',
+        text: 'Unable to reach the server. Please check your connection and try again.',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true,
+      })
     } finally {
       setUpdatingPayment(null)
     }
   }
 
   const openReceiptPrompt = (paymentId: string) => {
-    setReceiptModal({ open: true, paymentId, receipt: "" })
+    setReceiptModal({ open: true, paymentId, receipt: "", paymentMethod: "" })
   }
 
   const submitReceipt = async () => {
-    if (!receiptModal.paymentId || !receiptModal.receipt.trim()) return
-    await handleUpdatePaymentStatus(receiptModal.paymentId, 'PAID', receiptModal.receipt.trim())
-    setReceiptModal({ open: false, paymentId: null, receipt: "" })
+    if (
+      !receiptModal.paymentId ||
+      !receiptModal.receipt.trim() ||
+      !receiptModal.paymentMethod
+    )
+      return
+
+    await handleUpdatePaymentStatus(
+      receiptModal.paymentId,
+      'PAID',
+      receiptModal.receipt.trim(),
+      receiptModal.paymentMethod
+    )
+    setReceiptModal({ open: false, paymentId: null, receipt: "", paymentMethod: "" })
   }
 
   const formatDate = (dateString: string) => {
@@ -445,7 +514,17 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
         )}
       </DialogContent>
       {receiptModal.open && (
-        <Dialog open={receiptModal.open} onOpenChange={() => setReceiptModal({ open: false, paymentId: null, receipt: "" })}>
+        <Dialog
+          open={receiptModal.open}
+          onOpenChange={() =>
+            setReceiptModal({
+              open: false,
+              paymentId: null,
+              receipt: "",
+              paymentMethod: "",
+            })
+          }
+        >
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Enter Receipt Number</DialogTitle>
@@ -458,9 +537,52 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
                 value={receiptModal.receipt}
                 onChange={(e) => setReceiptModal({ ...receiptModal, receipt: e.target.value })}
               />
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">
+                  Payment Method
+                </label>
+                <select
+                  className="w-full border rounded px-3 py-2 text-sm bg-white"
+                  value={receiptModal.paymentMethod}
+                  onChange={(e) =>
+                    setReceiptModal({
+                      ...receiptModal,
+                      paymentMethod: e.target.value as
+                        | "BANK_TRANSFER"
+                        | "GCASH"
+                        | "ON_SITE"
+                        | "",
+                    })
+                  }
+                >
+                  <option value="">Select payment method</option>
+                  <option value="BANK_TRANSFER">Bank Transfer</option>
+                  <option value="GCASH">GCash</option>
+                  <option value="ON_SITE">On Site</option>
+                </select>
+              </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setReceiptModal({ open: false, paymentId: null, receipt: "" })}>Cancel</Button>
-                <Button size="sm" onClick={submitReceipt} disabled={!receiptModal.receipt.trim()}>Confirm Paid</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setReceiptModal({
+                      open: false,
+                      paymentId: null,
+                      receipt: "",
+                      paymentMethod: "",
+                    })
+                  }
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={submitReceipt}
+                  disabled={!receiptModal.receipt.trim() || !receiptModal.paymentMethod}
+                >
+                  Confirm Paid
+                </Button>
               </div>
             </div>
           </DialogContent>

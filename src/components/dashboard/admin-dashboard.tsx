@@ -38,6 +38,8 @@ import {
 import Link from "next/link"
 import { useState, useEffect, useMemo } from "react"
 import { addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isToday, isSameDay, startOfDay, addDays, format } from "date-fns"
+import Swal from "sweetalert2"
+import "sweetalert2/dist/sweetalert2.min.css"
 
 interface DashboardStats {
   students: {
@@ -287,6 +289,7 @@ export function AdminDashboard() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const handlePrevMonth = () => setCalendarMonth((prev) => subMonths(prev, 1))
   const handleNextMonth = () => setCalendarMonth((prev) => addMonths(prev, 1))
+  const [downloadingTimeline, setDownloadingTimeline] = useState(false)
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -576,11 +579,81 @@ export function AdminDashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         {/* Timeline */}
         <Card className="xl:col-span-2 rounded-2xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm transition-colors">
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
               <Activity className="h-5 w-5 text-blue-600 dark:text-blue-300" />
               Activity Timeline
             </CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs"
+              disabled={downloadingTimeline || loading || activities.length === 0}
+              onClick={async () => {
+                if (downloadingTimeline || activities.length === 0) return
+                try {
+                  setDownloadingTimeline(true)
+                  const res = await fetch("/api/dashboard/activity-timeline/pdf")
+                  if (!res.ok) {
+                    const data = await res.json().catch(() => ({}))
+                    Swal.fire({
+                      icon: "error",
+                      title: "Download failed",
+                      text: data.error || "Failed to generate activity timeline PDF.",
+                      toast: true,
+                      position: "top-end",
+                      showConfirmButton: false,
+                      timer: 4000,
+                      timerProgressBar: true,
+                    })
+                    return
+                  }
+                  const blob = await res.blob()
+                  const url = window.URL.createObjectURL(blob)
+                  const a = document.createElement("a")
+                  a.href = url
+                  a.download = "activity-timeline.pdf"
+                  document.body.appendChild(a)
+                  a.click()
+                  a.remove()
+                  window.URL.revokeObjectURL(url)
+
+                  Swal.fire({
+                    icon: "success",
+                    title: "PDF download started",
+                    text: "Your activity timeline PDF is being downloaded.",
+                    toast: true,
+                    position: "top-end",
+                    showConfirmButton: false,
+                    timer: 3000,
+                    timerProgressBar: true,
+                  })
+                } catch (error) {
+                  console.error("Activity timeline PDF download failed", error)
+                  Swal.fire({
+                    icon: "error",
+                    title: "Download failed",
+                    text: "Unable to download activity timeline PDF.",
+                    toast: true,
+                    position: "top-end",
+                    showConfirmButton: false,
+                    timer: 4000,
+                    timerProgressBar: true,
+                  })
+                } finally {
+                  setDownloadingTimeline(false)
+                }
+              }}
+            >
+              {downloadingTimeline ? (
+                <>
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                "Download PDF"
+              )}
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="space-y-2.5">
@@ -589,7 +662,9 @@ export function AdminDashboard() {
                   <Loader2 className="h-8 w-8 animate-spin text-gray-400 dark:text-gray-500" />
                 </div>
               ) : activities.length === 0 ? (
-                <p className="text-center text-gray-500 dark:text-slate-400 py-6">No recent activity</p>
+                <p className="text-center text-gray-500 dark:text-slate-400 py-6">
+                  No recent activity
+                </p>
               ) : (
                 activities.slice(0, 8).map((activity) => (
                   <ActivityItem

@@ -23,7 +23,8 @@ import {
   ChevronUp,
   LayoutList
 } from "lucide-react"
-import { toast } from "react-hot-toast"
+import Swal from "sweetalert2"
+import "sweetalert2/dist/sweetalert2.min.css"
 
 interface Section {
   id: string
@@ -305,23 +306,59 @@ export function FormBuilder({ formId, initialData, onSave, onCancel }: FormBuild
 
   const handleSave = async (publishNow: boolean = false) => {
     if (!title.trim()) {
-      toast.error('Please enter a form title')
+      Swal.fire({
+        icon: "error",
+        title: "Missing title",
+        text: "Please enter a form title.",
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      })
       return
     }
 
     if (questions.length === 0) {
-      toast.error('Please add at least one question')
+      Swal.fire({
+        icon: "error",
+        title: "No questions",
+        text: "Please add at least one question to the form.",
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      })
       return
     }
 
     // Validate questions
     for (const question of questions) {
       if (!question.question.trim()) {
-        toast.error('All questions must have text')
+        Swal.fire({
+          icon: "error",
+          title: "Incomplete question",
+          text: "All questions must have text.",
+          toast: true,
+          position: "top-end",
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true,
+        })
         return
       }
       if (['multiple_choice', 'checkbox', 'dropdown'].includes(question.type) && (!question.options || question.options.length === 0)) {
-        toast.error(`Question "${question.question}" must have at least one option`)
+        Swal.fire({
+          icon: "error",
+          title: "Missing options",
+          text: `Question "${question.question}" must have at least one option.`,
+          toast: true,
+          position: "top-end",
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true,
+        })
         return
       }
     }
@@ -352,7 +389,18 @@ export function FormBuilder({ formId, initialData, onSave, onCancel }: FormBuild
       }
 
       const savedForm = await response.json()
-      toast.success(publishNow ? 'Form published successfully!' : 'Form saved successfully!')
+      Swal.fire({
+        icon: "success",
+        title: publishNow ? "Form published" : "Form saved",
+        text: publishNow
+          ? "Your evaluation form is now live for respondents."
+          : "Your form has been saved successfully.",
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      })
       
       if (onSave) {
         onSave(savedForm.id)
@@ -361,7 +409,16 @@ export function FormBuilder({ formId, initialData, onSave, onCancel }: FormBuild
       }
     } catch (error) {
       console.error('Error saving form:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to save form')
+      Swal.fire({
+        icon: "error",
+        title: "Failed to save form",
+        text: error instanceof Error ? error.message : "Something went wrong. Please try again.",
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true,
+      })
     } finally {
       setSaving(false)
     }
