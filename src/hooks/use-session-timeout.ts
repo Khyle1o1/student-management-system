@@ -14,6 +14,8 @@ import { useToast } from '@/hooks/use-toast'
 /**
  * Hook to manage session timeout based on user inactivity
  * Monitors user activity and automatically logs out after timeout period
+ * 
+ * Resilient to mobile/desktop mode switches - prevents false logout
  */
 export function useSessionTimeout() {
   const { data: session, status } = useSession()
@@ -22,6 +24,9 @@ export function useSessionTimeout() {
   const checkIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const hasCheckedInitialSession = useRef(false)
   const isSigningOut = useRef(false)
+  const lastViewportSize = useRef<{ width: number; height: number } | null>(null)
+  const lastUserAgent = useRef<string | null>(null)
+  const isModeSwitching = useRef(false)
 
   /**
    * Handle session expiry - sign out and redirect to login
@@ -68,26 +73,89 @@ export function useSessionTimeout() {
 
   /**
    * Check if session has expired
+   * Skips check during mode switches to prevent false expiration
    */
   const checkSessionExpiry = useCallback(() => {
+    // Don't check expiration during mode switch
+    if (isModeSwitching.current) {
+      return
+    }
+    
     if (status === 'authenticated' && isSessionExpired()) {
       handleSessionExpiry()
     }
   }, [status, handleSessionExpiry])
+
+  /**
+   * Detect if viewport or user-agent changed (indicating mode switch)
+   */
+  const detectModeSwitch = useCallback((): boolean => {
+    if (typeof window === 'undefined') return false
+    
+    const currentViewport = {
+      width: window.innerWidth,
+      height: window.innerHeight
+    }
+    const currentUserAgent = navigator.userAgent
+    
+    // Initialize on first call
+    if (lastViewportSize.current === null || lastUserAgent.current === null) {
+      lastViewportSize.current = currentViewport
+      lastUserAgent.current = currentUserAgent
+      return false
+    }
+    
+    // Check for significant viewport change (mode switch indicator)
+    const viewportChanged = 
+      Math.abs(currentViewport.width - lastViewportSize.current.width) > 200 ||
+      Math.abs(currentViewport.height - lastViewportSize.current.height) > 200
+    
+    // Check for user-agent change (desktop mode toggle)
+    const userAgentChanged = currentUserAgent !== lastUserAgent.current
+    
+    // Update refs
+    lastViewportSize.current = currentViewport
+    lastUserAgent.current = currentUserAgent
+    
+    return viewportChanged || userAgentChanged
+  }, [])
 
   // Check session on initial mount
   useEffect(() => {
     if (status === 'authenticated' && !hasCheckedInitialSession.current) {
       hasCheckedInitialSession.current = true
       
+      // Initialize viewport/user-agent tracking
+      if (typeof window !== 'undefined') {
+        lastViewportSize.current = {
+          width: window.innerWidth,
+          height: window.innerHeight
+        }
+        lastUserAgent.current = navigator.userAgent
+      }
+      
       const lastActivity = getLastActivity()
       
       if (lastActivity === null) {
-        // First time loading - set initial activity
+        // First time loading or mode switch - set initial activity
         updateLastActivity()
       } else if (isSessionExpired()) {
-        // Session has expired
-        handleSessionExpiry()
+        // Only expire if not in a mode switch scenario
+        // Check if this might be a mode switch (no activity but recent page load)
+        // Use performance.timeOrigin (modern) or fallback to current time
+        const pageLoadTime = typeof performance !== 'undefined' && performance.timeOrigin 
+          ? performance.timeOrigin 
+          : Date.now() - (typeof performance !== 'undefined' && (performance as any).timing?.navigationStart 
+            ? (performance as any).timing.navigationStart 
+            : Date.now())
+        const timeSincePageLoad = Date.now() - pageLoadTime
+        if (timeSincePageLoad < 60000) {
+          // Recent page load - might be mode switch, don't expire
+          updateLastActivity()
+        } else {
+          // Session has expired
+          handleSessionExpiry()
+        }
       } else {
         // Session is still valid - update activity
         updateLastActivity()
@@ -148,7 +216,7 @@ export function useSessionTimeout() {
     }
   }, [status, handleActivity, checkSessionExpiry])
 
-  // Handle page visibility changes (tab switching, minimizing)
+  // Handle page visibility changes (tab switching, minimizing, mode switches)
   useEffect(() => {
     if (status !== 'authenticated') {
       return
@@ -156,11 +224,33 @@ export function useSessionTimeout() {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        // User came back to the tab - check if session expired
-        if (isSessionExpired()) {
-          handleSessionExpiry()
+        // User came back to the tab - check for mode switch first
+        const modeSwitched = detectModeSwitch()
+        
+        if (modeSwitched) {
+          // Mode switch detected - don't expire session, just update activity
+          isModeSwitching.current = true
+          updateLastActivity()
+          
+          // Reset mode switching flag after a short delay
+          setTimeout(() => {
+            isModeSwitching.current = false
+          }, 2000)
+          
+          return // Don't check expiration during mode switch
+        }
+        
+        // Normal visibility change - check if session expired
+        // But only if not in a mode switch scenario
+        if (!isModeSwitching.current) {
+          if (isSessionExpired()) {
+            handleSessionExpiry()
+          } else {
+            // Update activity timestamp
+            updateLastActivity()
+          }
         } else {
-          // Update activity timestamp
+          // Mode switch in progress - just update activity
           updateLastActivity()
         }
       } else {
@@ -169,12 +259,28 @@ export function useSessionTimeout() {
       }
     }
 
+    // Also handle resize events (viewport changes during mode switch)
+    const handleResize = () => {
+      const modeSwitched = detectModeSwitch()
+      if (modeSwitched && status === 'authenticated') {
+        // Viewport changed significantly - might be mode switch
+        isModeSwitching.current = true
+        updateLastActivity()
+        
+        setTimeout(() => {
+          isModeSwitching.current = false
+        }, 2000)
+      }
+    }
+
     document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('resize', handleResize)
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('resize', handleResize)
     }
-  }, [status, handleSessionExpiry])
+  }, [status, handleSessionExpiry, detectModeSwitch])
 
   // Handle beforeunload - update last activity before tab/window closes
   useEffect(() => {

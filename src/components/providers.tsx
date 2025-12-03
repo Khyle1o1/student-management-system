@@ -18,7 +18,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }))
 
   return (
-    <SessionProvider>
+    <SessionProvider
+      // Configure session refetch to be resilient to mode switches
+      refetchInterval={5 * 60} // Refetch every 5 minutes (in seconds)
+      refetchOnWindowFocus={true} // Refetch when window gains focus (but won't invalidate on mode switch)
+    >
       <QueryClientProvider client={queryClient}>
         <ThemeProvider
           attribute="class"

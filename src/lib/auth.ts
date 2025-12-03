@@ -394,9 +394,29 @@ export const authOptions: NextAuthOptions = {
       name: `next-auth.session-token`,
       options: {
         httpOnly: true,
+        sameSite: 'lax', // Changed from 'strict' to 'lax' to allow mode switches
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        // Don't set domain to allow cookies across mode switches
+        // maxAge is handled by session.maxAge above
+      }
+    },
+    callbackUrl: {
+      name: `next-auth.callback-url`,
+      options: {
+        httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production'
+        secure: process.env.NODE_ENV === 'production',
+      }
+    },
+    csrfToken: {
+      name: `next-auth.csrf-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
       }
     },
   },
