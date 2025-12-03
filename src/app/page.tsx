@@ -483,62 +483,81 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#0B1121] text-slate-200 font-sans selection:bg-blue-500/30">
       <style dangerouslySetInnerHTML={{__html: `
-        /* Global dark mode styles for intramurals modal */
-        body .fixed.inset-0 .bg-white {
+        /* Dark mode styles for intramurals-related modals only */
+        body .intramurals-dark-mode .fixed.inset-0 .bg-white {
           background-color: #131c2e !important;
           border-color: rgba(255, 255, 255, 0.1) !important;
         }
-        body .fixed.inset-0 .border-slate-200,
-        body .fixed.inset-0 .border-slate-100 {
+        body .intramurals-dark-mode .fixed.inset-0 .border-slate-200,
+        body .intramurals-dark-mode .fixed.inset-0 .border-slate-100 {
           border-color: rgba(255, 255, 255, 0.1) !important;
         }
-        body .fixed.inset-0 .bg-yellow-50 {
+        body .intramurals-dark-mode .fixed.inset-0 .bg-yellow-50 {
           background-color: rgba(251, 191, 36, 0.15) !important;
           border-color: rgba(251, 191, 36, 0.3) !important;
         }
-        body .fixed.inset-0 .bg-slate-50 {
+        body .intramurals-dark-mode .fixed.inset-0 .bg-slate-50 {
           background-color: rgba(255, 255, 255, 0.05) !important;
           border-color: rgba(255, 255, 255, 0.1) !important;
         }
-        body .fixed.inset-0 .bg-amber-50 {
+        body .intramurals-dark-mode .fixed.inset-0 .bg-amber-50 {
           background-color: rgba(217, 119, 6, 0.15) !important;
           border-color: rgba(217, 119, 6, 0.3) !important;
         }
-        body .fixed.inset-0 .text-\\[\\#191970\\] {
+        body .intramurals-dark-mode .fixed.inset-0 .text-\\[\\#191970\\] {
           color: #60a5fa !important;
         }
-        body .fixed.inset-0 .text-slate-600,
-        body .fixed.inset-0 .text-slate-700,
-        body .fixed.inset-0 .text-slate-500 {
+        body .intramurals-dark-mode .fixed.inset-0 .text-slate-600,
+        body .intramurals-dark-mode .fixed.inset-0 .text-slate-700,
+        body .intramurals-dark-mode .fixed.inset-0 .text-slate-500 {
           color: #cbd5e1 !important;
         }
-        body .fixed.inset-0 h3,
-        body .fixed.inset-0 h4 {
+        body .intramurals-dark-mode .fixed.inset-0 h3,
+        body .intramurals-dark-mode .fixed.inset-0 h4 {
           color: #ffffff !important;
         }
-        body .fixed.inset-0 table thead {
+        body .intramurals-dark-mode .fixed.inset-0 table thead {
           background-color: rgba(255, 255, 255, 0.05) !important;
         }
-        body .fixed.inset-0 table thead th {
+        body .intramurals-dark-mode .fixed.inset-0 table thead th {
           color: #e2e8f0 !important;
         }
-        body .fixed.inset-0 table tbody tr {
+        body .intramurals-dark-mode .fixed.inset-0 table tbody tr {
           border-color: rgba(255, 255, 255, 0.1) !important;
         }
-        body .fixed.inset-0 table tbody tr:hover {
+        body .intramurals-dark-mode .fixed.inset-0 table tbody tr:hover {
           background-color: rgba(255, 255, 255, 0.05) !important;
         }
-        body .fixed.inset-0 table tbody td {
+        body .intramurals-dark-mode .fixed.inset-0 table tbody td {
           color: #cbd5e1 !important;
         }
-        body .fixed.inset-0 button.bg-white,
-        body .fixed.inset-0 button[class*="bg-"] {
+        body .intramurals-dark-mode .fixed.inset-0 button.bg-white,
+        body .intramurals-dark-mode .fixed.inset-0 button[class*="bg-"] {
           background-color: rgba(59, 130, 246, 0.2) !important;
           border-color: rgba(59, 130, 246, 0.3) !important;
           color: #ffffff !important;
         }
-        body .fixed.inset-0 button:hover {
+        body .intramurals-dark-mode .fixed.inset-0 button:hover {
           background-color: rgba(59, 130, 246, 0.3) !important;
+        }
+        /* Ensure login modal keeps its light card styling */
+        body .login-modal-overlay .bg-white {
+          background-color: #ffffff !important;
+          border-color: rgba(148, 163, 184, 0.4) !important;
+        }
+        body .login-modal-overlay .bg-blue-50 {
+          background-color: #eff6ff !important;
+          border-color: rgba(59, 130, 246, 0.2) !important;
+        }
+        body .login-modal-overlay .bg-gray-50 {
+          background-color: #f9fafb !important;
+        }
+        body .login-modal-overlay .text-\\[\\#191970\\] {
+          color: #191970 !important;
+        }
+        body .login-modal-overlay .text-gray-500,
+        body .login-modal-overlay .text-gray-600 {
+          color: #6b7280 !important;
         }
         /* IntramuralsSchedule dark mode styles */
         .intramurals-dark-mode .bg-gradient-to-b.from-white.to-slate-50 {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import { Bell, X, Check, CheckCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,6 +24,7 @@ interface Notification {
 
 export default function NotificationBell() {
   const { data: session } = useSession()
+  const router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -147,6 +149,37 @@ export default function NotificationBell() {
     return `${Math.floor(diffInMinutes / 1440)}d ago`
   }
 
+  const handleNotificationClick = (notification: Notification) => {
+    const type = notification.type
+    const data = notification.data || {}
+
+    // Navigate based on notification type
+    if (type === 'EVENT_PENDING' || type === 'SYSTEM_ACTIVITY') {
+      router.push('/dashboard/events?tab=pending')
+    } else if (type === 'EVENT_APPROVED' || type === 'EVENT_REJECTED') {
+      router.push('/dashboard/events')
+    } else if (type === 'FEE_APPROVED' || type === 'FEE_REJECTED') {
+      router.push('/dashboard/fees')
+    } else if (type === 'ATTENDANCE_CONFIRMED') {
+      router.push('/dashboard/attendance/student')
+    } else if (type === 'EVALUATION_REQUIRED' && data.event_id) {
+      router.push(`/dashboard/forms/evaluations/${data.event_id}`)
+    } else if (type === 'CERTIFICATE_READY') {
+      router.push('/dashboard/certificates')
+    } else {
+      // Default: go to main dashboard
+      router.push('/dashboard')
+    }
+
+    if (!notification.is_read) {
+      // Optimistically mark as read
+      markAsRead(notification.id)
+    }
+
+    // Close dropdown
+    setOpen(false)
+  }
+
   useEffect(() => {
     // Check for pending notifications (evaluations, certificates) on mount
     // Only for students (USER role) - admins don't need this check
@@ -235,9 +268,11 @@ export default function NotificationBell() {
           ) : (
             <div className="space-y-1">
               {notifications.map((notification) => (
-                <div
+                <button
                   key={notification.id}
-                  className={`p-3 border-b last:border-b-0 hover:bg-gray-50 ${
+                  type="button"
+                  onClick={() => handleNotificationClick(notification)}
+                  className={`w-full text-left p-3 border-b last:border-b-0 hover:bg-gray-50 focus:outline-none ${
                     !notification.is_read ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
                   }`}
                 >
@@ -263,7 +298,7 @@ export default function NotificationBell() {
                         </span>
                       </div>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 ml-2">
                       {!notification.is_read && (
                         <Button
                           variant="ghost"
@@ -284,7 +319,7 @@ export default function NotificationBell() {
                       </Button>
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}

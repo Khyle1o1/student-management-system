@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth, getStudentByEmail } from "@/lib/auth"
 import { markAllNotificationsAsRead } from "@/lib/notifications"
 
@@ -55,17 +55,20 @@ export async function GET(request: Request) {
     }
 
     // Build query based on user role
-    console.log('🔔 [NOTIFICATIONS API] Building query for role:', session.user.role)
-    let query = supabase
+    const role = session.user.role
+    console.log('🔔 [NOTIFICATIONS API] Building query for role:', role)
+    // Use service-role client so we don't depend on RLS for basic reads,
+    // then manually scope rows based on the authenticated user's role.
+    let query = supabaseAdmin
       .from('notifications')
       .select('*', { count: 'exact' })
 
     // Filter notifications based on user role
-    if (session.user.role === 'USER' && studentId) {
+    if (role === 'USER' && studentId) {
       // Students see only their notifications
       console.log('🔔 [NOTIFICATIONS API] Filtering by student_id:', studentId)
       query = query.eq('student_id', studentId)
-    } else if (session.user.role === 'ADMIN') {
+    } else if (role === 'ADMIN') {
       // Admins can see all notifications or their own user notifications
       // For now, let's show all notifications for admins
       console.log('🔔 [NOTIFICATIONS API] Admin user - showing all notifications')
@@ -73,6 +76,12 @@ export async function GET(request: Request) {
       // Other roles see only their user notifications
       console.log('🔔 [NOTIFICATIONS API] Filtering by user_id:', session.user.id)
       query = query.eq('user_id', session.user.id)
+
+      // For organization accounts, only show meaningful outcome notifications
+      // (e.g. when their event/fee is approved or rejected), not system logs.
+      if (role === 'COLLEGE_ORG' || role === 'COURSE_ORG') {
+        query = query.in('type', ['EVENT_APPROVED', 'EVENT_REJECTED', 'FEE_APPROVED', 'FEE_REJECTED'])
+      }
     }
 
     // Filter unread notifications if requested

@@ -128,7 +128,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm login-modal-overlay"
       onClick={handleBackdropClick}
     >
       <div className="relative w-full max-w-md mx-4 animate-in fade-in-0 zoom-in-95 duration-300">

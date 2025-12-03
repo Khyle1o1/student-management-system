@@ -103,8 +103,28 @@ export async function POST(
         console.warn('Fee approval: failed to assign payments:', assignErr)
       }
 
-      // Log system activity for approval
+      // Notify fee creator (college_org / course_org) that their fee is now approved
       try {
+        const feeCreatorId = (fee as any).created_by
+        if (feeCreatorId && feeCreatorId !== session.user.id) {
+          await supabaseAdmin.from('notifications').insert({
+            user_id: feeCreatorId,
+            type: 'FEE_APPROVED',
+            title: 'Fee Approved ✅',
+            message: `Your fee "${(updated as any).name}" has been approved and is now active.`,
+            data: {
+              action: 'FEE_APPROVED',
+              fee_id: (updated as any).id,
+              scope_type: (updated as any).scope_type,
+              scope_college: (updated as any).scope_college,
+              scope_course: (updated as any).scope_course,
+            },
+            is_read: false,
+            created_at: new Date().toISOString(),
+          })
+        }
+
+        // Log system activity for admin
         await supabaseAdmin.from('notifications').insert({
           user_id: session.user.id,
           type: 'SYSTEM_ACTIVITY',
@@ -121,7 +141,7 @@ export async function POST(
           created_at: new Date().toISOString(),
         })
       } catch (e) {
-        console.warn('Failed to log fee approval activity:', e)
+        console.warn('Failed to create fee approval notifications:', e)
       }
 
       return NextResponse.json({ success: true, fee: updated })
@@ -138,6 +158,24 @@ export async function POST(
         return NextResponse.json({ error: 'Failed to reject fee' }, { status: 500 })
       }
       try {
+        const feeCreatorId = (fee as any).created_by
+
+        // Notify creator about rejection
+        if (feeCreatorId && feeCreatorId !== session.user.id) {
+          await supabaseAdmin.from('notifications').insert({
+            user_id: feeCreatorId,
+            type: 'FEE_REJECTED',
+            title: 'Fee Rejected ❌',
+            message: data.reason
+              ? `Your fee "${(updated as any).name}" was rejected. Reason: ${data.reason}`
+              : `Your fee "${(updated as any).name}" was rejected.`,
+            data: { action: 'FEE_REJECTED', fee_id: (updated as any).id, reason: data.reason || null },
+            is_read: false,
+            created_at: new Date().toISOString(),
+          })
+        }
+
+        // System activity for admin
         await supabaseAdmin.from('notifications').insert({
           user_id: session.user.id,
           type: 'SYSTEM_ACTIVITY',
@@ -147,7 +185,9 @@ export async function POST(
           is_read: true,
           created_at: new Date().toISOString(),
         })
-      } catch {}
+      } catch (e) {
+        console.warn('Failed to create fee rejection notifications:', e)
+      }
       return NextResponse.json({ success: true, fee: updated })
     }
   } catch (error) {
