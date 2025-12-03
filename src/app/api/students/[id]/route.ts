@@ -7,7 +7,8 @@ import { z } from "zod"
 const updateStudentSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
-  phone: z.string().optional(),
+  phone: z.string().optional().nullable(),
+  student_id: z.string().min(1).optional(),
   college: z.string().min(1),
   year_level: z.number().min(1),
   course: z.string().min(1)
@@ -153,18 +154,40 @@ export async function PUT(
       }
     }
 
+    // Check if student_id is already taken by another student (if provided and changed)
+    if (data.student_id && data.student_id !== existingStudent.student_id) {
+      const { data: studentIdCheck } = await supabaseAdmin
+        .from('students')
+        .select('id')
+        .eq('student_id', data.student_id)
+        .neq('id', id)
+        .single()
+
+      if (studentIdCheck) {
+        return NextResponse.json({ error: 'Student ID already taken' }, { status: 400 })
+      }
+    }
+
+    // Prepare update data
+    const updateData: any = {
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      college: data.college,
+      year_level: data.year_level,
+      course: data.course,
+      updated_at: new Date().toISOString()
+    }
+
+    // Only update student_id if provided
+    if (data.student_id) {
+      updateData.student_id = data.student_id
+    }
+
     // Update student record
     const { data: updatedStudent, error: updateError } = await supabaseAdmin
       .from('students')
-      .update({
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        college: data.college,
-        year_level: data.year_level,
-        course: data.course,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', id)
       .select(`
         *,
@@ -182,24 +205,37 @@ export async function PUT(
       return NextResponse.json({ error: 'Failed to update student' }, { status: 500 })
     }
 
-    // Update associated user record
-    const { error: userUpdateError } = await supabaseAdmin
-      .from('users')
-      .update({
-        email: data.email,
-        name: data.name
-      })
-      .eq('id', existingStudent.user_id)
+    // Update associated user record only if it exists and is an admin user
+    // Students may have user_id pointing to a user with role 'USER', which is no longer valid
+    // Only update if the user exists and has a valid admin role
+    if (existingStudent.user_id) {
+      const { data: existingUser, error: userFetchError } = await supabaseAdmin
+        .from('users')
+        .select('role')
+        .eq('id', existingStudent.user_id)
+        .single()
 
-    if (userUpdateError) {
-      console.error('Error updating user:', userUpdateError)
-      // Rollback student update
-      await supabaseAdmin
-        .from('students')
-        .update(existingStudent)
-        .eq('id', id)
+      // Only update if user exists and has a valid admin role (not 'USER')
+      if (!userFetchError && existingUser && ['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG'].includes(existingUser.role)) {
+        const { error: userUpdateError } = await supabaseAdmin
+          .from('users')
+          .update({
+            email: data.email,
+            name: data.name
+          })
+          .eq('id', existingStudent.user_id)
 
-      return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
+        if (userUpdateError) {
+          console.error('Error updating user:', userUpdateError)
+          // Don't rollback student update - user update failure is not critical
+          // The student record is already updated successfully
+          console.warn('Student updated but user update failed. This is non-critical.')
+        }
+      } else {
+        // User doesn't exist or has invalid role - skip user update
+        // This is fine for students who don't have admin user accounts
+        console.log('Skipping user update - user not found or has invalid role')
+      }
     }
 
     // Log system activity: student updated

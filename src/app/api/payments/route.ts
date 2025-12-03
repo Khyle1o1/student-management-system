@@ -251,6 +251,41 @@ export async function POST(request: NextRequest) {
       .is('deleted_at', null)
       .single()
 
+    // If status is PAID and reference is provided, validate receipt number uniqueness per student
+    if (data.status === 'PAID' && data.reference) {
+      const { data: existingWithReceipt, error: receiptCheckError } = await supabaseAdmin
+        .from('payments')
+        .select('id, student_id')
+        .eq('reference', data.reference)
+        .is('deleted_at', null)
+        .limit(1)
+
+      if (receiptCheckError) {
+        console.error('Error checking receipt uniqueness:', receiptCheckError)
+        return NextResponse.json(
+          { error: 'Failed to validate receipt number, please try again.' },
+          { status: 500 }
+        )
+      }
+
+      // Check if receipt number is used by a different student
+      if (existingWithReceipt && existingWithReceipt.length > 0) {
+        const conflictingPayment = existingWithReceipt[0]
+        
+        // Exclude the current payment if we're updating
+        if (existingPayment && conflictingPayment.id === existingPayment.id) {
+          // This is the same payment, allow it
+        } else if (conflictingPayment.student_id !== student.id) {
+          // If the receipt is used by a different student, reject it
+          return NextResponse.json(
+            { error: 'This receipt number is already used by another student. Each student must have unique receipt numbers.' },
+            { status: 400 }
+          )
+        }
+        // If it's the same student and different payment, allow the reuse (no error)
+      }
+    }
+
     let payment
     if (existingPayment) {
       // Update existing payment

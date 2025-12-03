@@ -15,12 +15,23 @@ export async function GET(
 
     const { studentId } = await params
 
-    // Check if student exists
-    const { data: student, error: studentError } = await supabaseAdmin
+    // Check if student exists - support both UUID (id) and student_id (string identifier)
+    // UUIDs typically have dashes, student_id is numeric
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(studentId)
+    
+    let studentQuery = supabaseAdmin
       .from('students')
       .select('*')
-      .eq('student_id', studentId)
-      .single()
+    
+    if (isUUID) {
+      // Query by UUID (id field)
+      studentQuery = studentQuery.eq('id', studentId)
+    } else {
+      // Query by student_id (string identifier)
+      studentQuery = studentQuery.eq('student_id', studentId)
+    }
+    
+    const { data: student, error: studentError } = await studentQuery.single()
 
     if (studentError) {
       if (studentError.code === 'PGRST116') {

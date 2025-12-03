@@ -54,10 +54,13 @@ export async function PATCH(
         )
       }
 
-      // Ensure receipt number is unique across payments (excluding this record)
+      // Ensure receipt number is unique per student (excluding this record)
+      // A student can reuse the same receipt number, but different students cannot
+      const currentStudentId = (existing as any).student_id
+      
       const { data: existingWithReceipt, error: receiptCheckError } = await supabaseAdmin
         .from('payments')
-        .select('id')
+        .select('id, student_id')
         .eq('reference', receiptNumber)
         .neq('id', id)
         .is('deleted_at', null)
@@ -71,11 +74,18 @@ export async function PATCH(
         )
       }
 
+      // Check if receipt number is used by a different student
       if (existingWithReceipt && existingWithReceipt.length > 0) {
-        return NextResponse.json(
-          { error: 'This receipt number is already used for another payment.' },
-          { status: 400 }
-        )
+        const conflictingPayment = existingWithReceipt[0]
+        
+        // If the receipt is used by a different student, reject it
+        if (conflictingPayment.student_id !== currentStudentId) {
+          return NextResponse.json(
+            { error: 'This receipt number is already used by another student. Each student must have unique receipt numbers.' },
+            { status: 400 }
+          )
+        }
+        // If it's the same student, allow the reuse (no error)
       }
     }
 

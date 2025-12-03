@@ -21,17 +21,23 @@ import {
   BookOpen,
   Users,
   MapPin,
-  RefreshCw
+  RefreshCw,
+  Edit,
+  Save,
+  X
 } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
 import { useToast } from "@/hooks/use-toast"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 interface Student {
   id: string
   student_id: string
   name: string
   email: string
+  phone?: string
   college: string
   course: string
   year_level: string
@@ -92,6 +98,13 @@ export default function StudentProfilePage() {
   const [data, setData] = useState<StudentDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("overview")
+  const [isEditing, setIsEditing] = useState(false)
+  const [editForm, setEditForm] = useState({
+    student_id: "",
+    name: "",
+    email: ""
+  })
+  const [saving, setSaving] = useState(false)
 
   const fetchStudentData = useCallback(async () => {
     try {
@@ -122,6 +135,163 @@ export default function StudentProfilePage() {
       fetchStudentData()
     }
   }, [id, fetchStudentData])
+
+  useEffect(() => {
+    if (data?.student) {
+      setEditForm({
+        student_id: data.student.student_id || "",
+        name: data.student.name || "",
+        email: data.student.email || ""
+      })
+    }
+  }, [data])
+
+  const handleEdit = () => {
+    setIsEditing(true)
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    if (data?.student) {
+      setEditForm({
+        student_id: data.student.student_id || "",
+        name: data.student.name || "",
+        email: data.student.email || ""
+      })
+    }
+  }
+
+  const handleSave = async () => {
+    if (!data?.student) return
+
+    // Validate required fields
+    if (!editForm.name || !editForm.name.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Name is required",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!editForm.email || !editForm.email.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Email is required",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!editForm.student_id || !editForm.student_id.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Student ID is required",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(editForm.email)) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setSaving(true)
+    try {
+      const requestBody: any = {
+        name: editForm.name.trim(),
+        email: editForm.email.trim(),
+        student_id: editForm.student_id.trim(),
+        college: data.student.college,
+        year_level: typeof data.student.year_level === 'number' 
+          ? data.student.year_level 
+          : parseInt(String(data.student.year_level)) || 1,
+        course: data.student.course
+      }
+
+      // Only include phone if it exists (don't send null)
+      if (data.student.phone) {
+        requestBody.phone = data.student.phone
+      }
+
+      console.log('Sending update request:', requestBody)
+
+      const response = await fetch(`/api/students/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      if (!response.ok) {
+        let errorData: any = {}
+        try {
+          const text = await response.text()
+          console.log('Error response text:', text)
+          errorData = text ? JSON.parse(text) : {}
+        } catch (e) {
+          // If response is not JSON, use status text
+          console.error('Failed to parse error response:', e)
+          throw new Error(`Failed to update student: ${response.statusText}`)
+        }
+        
+        console.log('Error data:', errorData)
+        
+        // Handle Zod validation errors - can be in error.errors or error.details or error.error
+        let validationErrors = null
+        if (Array.isArray(errorData.error)) {
+          validationErrors = errorData.error
+        } else if (Array.isArray(errorData.errors)) {
+          validationErrors = errorData.errors
+        } else if (Array.isArray(errorData.details)) {
+          validationErrors = errorData.details
+        }
+        
+        if (validationErrors && validationErrors.length > 0) {
+          const errorMessages = validationErrors.map((err: any) => {
+            const field = err.path?.join('.') || err.path?.[0] || 'field'
+            return `${field}: ${err.message}`
+          }).join(', ')
+          throw new Error(errorMessages)
+        }
+        
+        // Handle single error message
+        let errorMessage = errorData.error || errorData.message || 'Failed to update student'
+        if (typeof errorMessage !== 'string') {
+          errorMessage = JSON.stringify(errorMessage)
+        }
+        throw new Error(errorMessage)
+      }
+
+      toast({
+        title: "Success",
+        description: "Student information updated successfully",
+        variant: "default",
+      })
+
+      setIsEditing(false)
+      // Refresh student data
+      await fetchStudentData()
+    } catch (error: any) {
+      console.error("Error updating student:", error)
+      const errorMessage = error?.message || error?.toString() || "Failed to update student information"
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -189,14 +359,49 @@ export default function StudentProfilePage() {
               </p>
             </div>
           </div>
-          <Button 
-            onClick={fetchStudentData} 
-            variant="outline" 
-            size="sm"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            {!isEditing ? (
+              <>
+                <Button 
+                  onClick={handleEdit} 
+                  variant="default" 
+                  size="sm"
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+                <Button 
+                  onClick={fetchStudentData} 
+                  variant="outline" 
+                  size="sm"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button 
+                  onClick={handleSave} 
+                  variant="default" 
+                  size="sm"
+                  disabled={saving}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? "Saving..." : "Save"}
+                </Button>
+                <Button 
+                  onClick={handleCancel} 
+                  variant="outline" 
+                  size="sm"
+                  disabled={saving}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Quick Stats */}
@@ -287,18 +492,54 @@ export default function StudentProfilePage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Full Name</p>
-                    <p className="text-lg font-semibold">{student.name}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Student ID</p>
-                    <p className="text-lg font-semibold">{student.student_id}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Email</p>
-                    <p className="text-lg font-semibold">{student.email}</p>
-                  </div>
+                  {isEditing ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="student_id">Student ID</Label>
+                        <Input
+                          id="student_id"
+                          value={editForm.student_id}
+                          onChange={(e) => setEditForm({ ...editForm, student_id: e.target.value.replace(/\D/g, '') })}
+                          placeholder="Enter student ID"
+                          pattern="\d*"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="name">Full Name</Label>
+                        <Input
+                          id="name"
+                          value={editForm.name}
+                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                          placeholder="Enter full name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="email">Email</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          value={editForm.email}
+                          onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                          placeholder="Enter email"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Full Name</p>
+                        <p className="text-lg font-semibold">{student.name}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Student ID</p>
+                        <p className="text-lg font-semibold">{student.student_id}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Email</p>
+                        <p className="text-lg font-semibold">{student.email}</p>
+                      </div>
+                    </>
+                  )}
                   <div>
                     <p className="text-sm font-medium text-gray-500">College</p>
                     <p className="text-lg font-semibold">{student.college}</p>
