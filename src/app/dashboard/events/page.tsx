@@ -6,6 +6,56 @@ import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import Link from "next/link"
 
+interface EventsActionsProps {
+  canManageEvents: boolean
+}
+
+function EventsActions({ canManageEvents }: EventsActionsProps) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 w-full sm:w-auto gap-2 sm:gap-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 w-full sm:w-auto gap-2 sm:gap-0">
+        <Link href="/dashboard/certificates/templates" className="w-full sm:w-auto">
+          <Button variant="outline" className="w-full sm:w-auto">
+            Certificates
+          </Button>
+        </Link>
+        <Link href="/dashboard/forms" className="w-full sm:w-auto">
+          <Button variant="outline" className="w-full sm:w-auto">
+            Evaluations
+          </Button>
+        </Link>
+      </div>
+
+      {canManageEvents && (
+        <Link href="/dashboard/events/new" className="w-full sm:w-auto">
+          <Button className="w-full sm:w-auto">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Event
+          </Button>
+        </Link>
+      )}
+    </div>
+  )
+}
+
+interface EventsHeaderProps {
+  canManageEvents: boolean
+}
+
+function EventsHeader({ canManageEvents }: EventsHeaderProps) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0 sm:space-x-4">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Events</h1>
+        <p className="text-muted-foreground">
+          Manage events, certificates, and student evaluations.
+        </p>
+      </div>
+      <EventsActions canManageEvents={canManageEvents} />
+    </div>
+  )
+}
+
 export default async function EventsPage() {
   const session = await auth()
 
@@ -17,26 +67,13 @@ export default async function EventsPage() {
     redirect("/dashboard")
   }
 
+  const canManageEvents = session.user.role === 'ADMIN' || session.user.role === 'COLLEGE_ORG'
+
   return (
     <DashboardShell>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0 sm:space-x-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Events</h1>
-            <p className="text-muted-foreground">
-              Manage school events and activities
-            </p>
-          </div>
-          {(session.user.role === 'ADMIN' || session.user.role === 'COLLEGE_ORG') && (
-            <Link href="/dashboard/events/new" className="w-full sm:w-auto">
-              <Button className="w-full sm:w-auto">
-                <Plus className="mr-2 h-4 w-4" />
-                Add Event
-              </Button>
-            </Link>
-          )}
-        </div>
-        
+        <EventsHeader canManageEvents={canManageEvents} />
+
         <EventsTable />
       </div>
     </DashboardShell>

@@ -202,12 +202,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
       badge: stats?.students?.total?.toString() || "0"
     },
     { href: "/dashboard/events", label: "Events", icon: Calendar },
-    { href: "/dashboard/certificates/templates", label: "Certificates", icon: Award },
-    { href: "/dashboard/forms", label: "Evaluations", icon: ClipboardCheck },
-    { href: "/dashboard/reports", label: "Reports", icon: FileText },
     { href: "/dashboard/fees", label: "Fees", icon: CreditCard },
+    { href: "/dashboard/reports", label: "Reports", icon: FileText },
     { href: "/dashboard/intramurals", label: "Intramurals", icon: Trophy },
-    { href: "/dashboard/notifications/settings", label: "Notifications", icon: Mail },
     ...usersNavItem,
     { href: "/dashboard/settings", label: "Settings", icon: Settings }
   ]
