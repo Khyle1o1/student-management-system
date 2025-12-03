@@ -232,6 +232,17 @@ export function useSessionTimeout() {
           isModeSwitching.current = true
           updateLastActivity()
           
+          // Mark mode switch in sessionStorage for session recovery component
+          try {
+            sessionStorage.setItem('app_mode_switch_detected', 'true')
+            // Clear the flag after 5 seconds
+            setTimeout(() => {
+              sessionStorage.removeItem('app_mode_switch_detected')
+            }, 5000)
+          } catch (e) {
+            // Ignore storage errors
+          }
+          
           // Reset mode switching flag after a short delay
           setTimeout(() => {
             isModeSwitching.current = false
@@ -266,6 +277,17 @@ export function useSessionTimeout() {
         // Viewport changed significantly - might be mode switch
         isModeSwitching.current = true
         updateLastActivity()
+        
+        // Mark mode switch in sessionStorage for session recovery component
+        try {
+          sessionStorage.setItem('app_mode_switch_detected', 'true')
+          // Clear the flag after 5 seconds
+          setTimeout(() => {
+            sessionStorage.removeItem('app_mode_switch_detected')
+          }, 5000)
+        } catch (e) {
+          // Ignore storage errors
+        }
         
         setTimeout(() => {
           isModeSwitching.current = false

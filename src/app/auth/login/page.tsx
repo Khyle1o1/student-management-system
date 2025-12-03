@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, Suspense } from "react"
+import { useState, Suspense, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { signIn } from "next-auth/react"
+import { signIn, useSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button, Input, Card, CardContent, CardDescription, CardHeader, CardTitle, Alert, AlertDescription, Separator } from "@/components/ui"
 import { loginSchema, type LoginFormData } from "@/lib/validations"
@@ -15,9 +15,22 @@ function LoginContent() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { data: session, status } = useSession()
   
   // Check for error from URL params (from auth failures)
   const urlError = searchParams.get("error")
+
+  // If user is already authenticated, redirect to dashboard
+  // This handles cases where session exists but page was redirected due to mode switch
+  useEffect(() => {
+    if (status === 'authenticated' && session) {
+      // Small delay to ensure session is fully loaded
+      const timer = setTimeout(() => {
+        router.replace('/dashboard')
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [status, session, router])
 
   const {
     register,
