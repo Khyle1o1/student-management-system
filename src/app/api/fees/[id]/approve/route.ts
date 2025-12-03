@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { z } from "zod"
+import { logActivity } from "@/lib/activity-logger"
 
 const approveSchema = z.object({
   action: z.enum(["APPROVE","REJECT"]),
@@ -144,6 +145,22 @@ export async function POST(
         console.warn('Failed to create fee approval notifications:', e)
       }
 
+      // Activity log entry
+      await logActivity({
+        session,
+        action: "PAYMENT_APPROVED",
+        module: "fees",
+        targetType: "fee",
+        targetId: (updated as any).id,
+        targetName: (updated as any).name,
+        college: (updated as any).scope_college,
+        course: (updated as any).scope_course,
+        details: {
+          action: "APPROVE",
+          scope_type: (updated as any).scope_type,
+        },
+      })
+
       return NextResponse.json({ success: true, fee: updated })
     } else {
       // REJECT: keep inactive; optionally mark deleted_at
@@ -188,6 +205,22 @@ export async function POST(
       } catch (e) {
         console.warn('Failed to create fee rejection notifications:', e)
       }
+
+      // Activity log entry
+      await logActivity({
+        session,
+        action: "PAYMENT_REJECTED",
+        module: "fees",
+        targetType: "fee",
+        targetId: (updated as any).id,
+        targetName: (updated as any).name,
+        college: (updated as any).scope_college,
+        course: (updated as any).scope_course,
+        details: {
+          action: "REJECT",
+          reason: data.reason || null,
+        },
+      })
       return NextResponse.json({ success: true, fee: updated })
     }
   } catch (error) {

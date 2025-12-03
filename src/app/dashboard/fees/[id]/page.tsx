@@ -2,10 +2,21 @@ import { auth } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { FeeForm } from "@/components/dashboard/fee-form"
+import { cookies } from "next/headers"
 
 async function getFee(id: string) {
-  const response = await fetch(`${process.env.NEXTAUTH_URL}/api/fees/${id}`, {
-    cache: 'no-store'
+  const cookieHeader = (await cookies()).toString()
+  const baseUrl = process.env.NEXTAUTH_URL
+
+  if (!baseUrl) {
+    throw new Error("NEXTAUTH_URL is not configured")
+  }
+
+  const response = await fetch(`${baseUrl}/api/fees/${id}`, {
+    cache: "no-store",
+    headers: {
+      Cookie: cookieHeader,
+    },
   })
   
   if (!response.ok) {

@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
+import { logActivity } from "@/lib/activity-logger"
 
 const updateStudentSchema = z.object({
   name: z.string().min(1),
@@ -260,6 +261,21 @@ export async function PUT(
           is_read: false,
           created_at: now
         })
+
+      await logActivity({
+        session,
+        action: "STUDENT_UPDATED",
+        module: "students",
+        targetType: "student",
+        targetId: updatedStudent.id,
+        targetName: updatedStudent.name,
+        college: updatedStudent.college || null,
+        course: updatedStudent.course || null,
+        details: {
+          student_id: updatedStudent.student_id,
+          email: updatedStudent.email,
+        },
+      })
     } catch (logError) {
       console.error('Failed to log system activity for student update:', logError)
     }

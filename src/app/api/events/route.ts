@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { z } from "zod"
 import { getOrgAccessLevelFromSession } from "@/lib/org-permissions"
+import { logActivity } from "@/lib/activity-logger"
 
 export const dynamic = 'force-dynamic'
 
@@ -100,6 +101,22 @@ export async function POST(request: NextRequest) {
       console.error('Error creating event:', error)
       return NextResponse.json({ error: 'Failed to create event' }, { status: 500 })
     }
+
+    // Log activity
+    await logActivity({
+      session,
+      action: isAdmin ? "EVENT_CREATED" : "EVENT_CREATED_PENDING",
+      module: "events",
+      targetType: "event",
+      targetId: (event as any)?.id,
+      targetName: (event as any)?.title,
+      college: (event as any)?.scope_college,
+      course: (event as any)?.scope_course,
+      details: {
+        status: (event as any)?.status,
+        scope_type: (event as any)?.scope_type,
+      },
+    })
 
     // Link certificate template to event if provided
     if (data.certificate_template_id) {

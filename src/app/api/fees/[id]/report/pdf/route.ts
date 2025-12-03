@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { jsPDF } from 'jspdf'
 import { format } from 'date-fns'
+import { logActivity } from "@/lib/activity-logger"
 
 export const dynamic = 'force-dynamic'
 
@@ -81,6 +82,23 @@ export async function GET(
         exemptedStudents = exemptedData as any
       }
     }
+
+    // Log activity for transparency: fee report generated
+    await logActivity({
+      session,
+      action: "REPORT_GENERATED",
+      module: "reports",
+      targetType: "fee_report",
+      targetId: (fee as any)?.id,
+      targetName: (fee as any)?.name,
+      college: (fee as any)?.scope_college || null,
+      course: (fee as any)?.scope_course || null,
+      details: {
+        report: "fee_payments",
+        school_year: (fee as any)?.school_year,
+        semester: (fee as any)?.semester,
+      },
+    })
 
     // Build PDF
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })

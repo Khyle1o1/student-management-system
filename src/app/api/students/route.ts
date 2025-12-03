@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { hashPassword } from "@/lib/auth"
+import { logActivity } from "@/lib/activity-logger"
 import { z } from "zod"
 import { getOrgAccessLevelFromSession } from "@/lib/org-permissions"
 
@@ -323,6 +324,22 @@ export async function POST(request: Request) {
       console.error('Error creating student:', studentError)
       return NextResponse.json({ error: 'Failed to create student' }, { status: 500 })
     }
+
+    // Log activity for transparency (student created)
+    await logActivity({
+      session: null,
+      action: "STUDENT_CREATED",
+      module: "students",
+      targetType: "student",
+      targetId: (student as any)?.id,
+      targetName: (student as any)?.name,
+      college: (student as any)?.college || null,
+      course: (student as any)?.course || null,
+      details: {
+        student_id: (student as any)?.student_id,
+        email: (student as any)?.email,
+      },
+    })
 
     // Automatically assign applicable fees to the new student
     let feesQuery = supabaseAdmin

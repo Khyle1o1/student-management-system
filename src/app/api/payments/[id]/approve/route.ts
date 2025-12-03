@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { z } from 'zod'
+import { logActivity } from '@/lib/activity-logger'
 
 const approveSchema = z.object({
   action: z.enum(['APPROVE', 'REJECT']),
@@ -192,6 +193,24 @@ export async function POST(
           is_read: true,
           created_at: new Date().toISOString(),
         })
+
+      // Mirror to activity_logs for timeline
+      await logActivity({
+        session,
+        action: data.action === 'APPROVE' ? 'PAYMENT_APPROVED' : 'PAYMENT_REJECTED',
+        module: 'fees',
+        targetType: 'payment',
+        targetId: (updatedPayment as any)?.id,
+        targetName: feeInfo?.name || 'Payment',
+        college: student?.college || null,
+        course: student?.course || null,
+        details: {
+          fee_id: feeInfo?.id,
+          amount: feeInfo?.amount,
+          student_id: student?.id,
+          student_number: student?.student_id,
+        },
+      })
     } catch (e) {
       console.warn('Failed to log approval notification:', e)
     }

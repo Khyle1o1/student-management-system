@@ -292,84 +292,57 @@ export function AdminDashboard() {
   const [downloadingTimeline, setDownloadingTimeline] = useState(false)
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchStatsAndActivities = async () => {
       try {
         setLoading(true)
-        const response = await fetch('/api/dashboard/stats')
-        if (!response.ok) {
+
+        // 1) Dashboard summary stats (unchanged)
+        const statsResponse = await fetch('/api/dashboard/stats')
+        if (!statsResponse.ok) {
           throw new Error('Failed to fetch dashboard stats')
         }
-        const data = await response.json()
-        setStats(data)
+        const statsData = await statsResponse.json()
+        setStats(statsData)
 
-        // Convert recent items and sort by true timestamps (newest first)
-        const recentActivities: Activity[] = [
-          ...(data.recent?.students || []).map((student: any) => {
-            const ts = Date.parse(student.createdAt)
-            return {
-              id: student.id,
-              type: 'student',
-              title: 'New Student Enrolled',
-              description: `${student.name || 'Unknown'} (${student.studentId || 'No ID'})`,
-              time: isNaN(ts) ? 'Invalid Date' : new Date(ts).toLocaleString(),
-              status: 'success',
-              timestamp: isNaN(ts) ? 0 : ts,
-              originalData: student, // Store original data for modal
-            }
-          }),
-          ...(data.recent?.payments || []).map((payment: any) => {
-            const ts = Date.parse(payment.paymentDate)
-            return {
-              id: payment.id,
-              type: 'payment',
-              title: `Payment ${payment.status || 'Unknown'}`,
-              description: `${payment.student?.name || 'Unknown Student'} - ${payment.fee?.name || 'Unknown Fee'}`,
-              time: isNaN(ts) ? 'Invalid Date' : new Date(ts).toLocaleString(),
-              status: payment.status?.toLowerCase() === 'paid' ? 'success' : 'warning',
-              timestamp: isNaN(ts) ? 0 : ts,
-              studentId: payment.student?.id,
-              feeId: payment.fee?.id,
-              originalData: payment, // Store original data for modal
-            }
-          }),
-          ...(data.recent?.events || []).map((event: any) => {
-            const ts = Date.parse(event.date)
-            return {
-              id: event.id,
-              type: 'event',
-              title: event.title || 'Untitled Event',
-              description: `${event.type || 'Unknown Type'} Event`,
-              time: isNaN(ts) ? 'Invalid Date' : new Date(ts).toLocaleString(),
-              status: (event.status?.toLowerCase() || 'pending'),
-              timestamp: isNaN(ts) ? 0 : ts,
-              originalData: event, // Store original data for modal
-            }
-          }),
-          ...(data.recent?.activities || []).map((log: any) => {
+        // 2) Activity timeline based on dedicated activity_logs table
+        const logsResponse = await fetch(`/api/activity-logs?limit=50&page=1`)
+        if (logsResponse.ok) {
+          const logsData = await logsResponse.json()
+          const logs = logsData.logs || []
+
+          const mappedActivities: Activity[] = logs.map((log: any) => {
             const ts = Date.parse(log.created_at)
+            const actor = log.user_name || 'System'
+            const role = log.role || ''
+            const scopeLine = log.target_name
+              ? `${log.module || 'system'} • ${log.target_type || ''} • ${log.target_name}`
+              : `${log.module || 'system'} • ${log.target_type || ''}`
+
             return {
               id: log.id,
               type: 'system',
-              title: 'System Activity',
-              description: log.message || 'Activity occurred',
+              title: log.action || 'System Activity',
+              description: `${scopeLine}\nby ${actor}${role ? ` (${role})` : ''}`,
               time: isNaN(ts) ? 'Invalid Date' : new Date(ts).toLocaleString(),
               status: 'success',
               timestamp: isNaN(ts) ? 0 : ts,
-              originalData: log, // Store original data for modal
+              originalData: log,
             }
-          })
-        ].sort((a, b) => b.timestamp - a.timestamp)
+          }).sort((a: Activity, b: Activity) => b.timestamp - a.timestamp)
 
-        setActivities(recentActivities)
+          setActivities(mappedActivities)
+        } else {
+          setActivities([])
+        }
       } catch (error) {
-        console.error('Error fetching dashboard stats:', error)
+        console.error('Error loading admin dashboard:', error)
         setError('Failed to load dashboard data')
       } finally {
         setLoading(false)
       }
     }
 
-    fetchStats()
+    fetchStatsAndActivities()
   }, [])
 
   useEffect(() => {
@@ -1136,10 +1109,59 @@ export function AdminDashboard() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <div>
-                        <p className="text-sm font-medium text-gray-500">Message</p>
-                        <p className="text-sm">{activityDetails.message || 'N/A'}</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Performed by</p>
+                          <p className="text-sm">
+                            {activityDetails.user_name || 'System'}
+                            {activityDetails.role ? (
+                              <span className="text-xs text-gray-500 ml-1">
+                                ({activityDetails.role})
+                              </span>
+                            ) : null}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Module & Action</p>
+                          <p className="text-sm">
+                            {(activityDetails.module || 'system') +
+                              (activityDetails.action ? ` • ${activityDetails.action}` : '')}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Target</p>
+                          <p className="text-sm">
+                            {activityDetails.target_type || 'N/A'}
+                            {activityDetails.target_name
+                              ? ` • ${activityDetails.target_name}`
+                              : ''}
+                          </p>
+                          {activityDetails.target_id && (
+                            <p className="text-xs text-gray-500 break-all">
+                              ID: {activityDetails.target_id}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Scope</p>
+                          <p className="text-sm">
+                            College: {activityDetails.college || 'N/A'}
+                          </p>
+                          <p className="text-sm">
+                            Course: {activityDetails.course || 'N/A'}
+                          </p>
+                        </div>
                       </div>
+
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Details</p>
+                        <pre className="mt-1 text-xs bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md p-2 max-h-40 overflow-auto">
+                          {activityDetails.details
+                            ? JSON.stringify(activityDetails.details, null, 2)
+                            : 'N/A'}
+                        </pre>
+                      </div>
+
                       <div>
                         <p className="text-sm font-medium text-gray-500">Timestamp</p>
                         <p className="text-sm flex items-center gap-1">

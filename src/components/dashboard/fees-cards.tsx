@@ -57,6 +57,15 @@ export function FeesCards() {
   const [reportLoading, setReportLoading] = useState(false)
   const [reportData, setReportData] = useState<{ feeId: string; paidStudentCount: number; totalPaid: number; exemptedStudentCount?: number } | null>(null)
   const [selectedFee, setSelectedFee] = useState<{ id: string; name: string } | null>(null)
+  const [viewOpen, setViewOpen] = useState(false)
+  const [viewLoading, setViewLoading] = useState(false)
+  const [viewFee, setViewFee] = useState<any | null>(null)
+  const [viewExemptedStudents, setViewExemptedStudents] = useState<{
+    id: string
+    studentId: string
+    name: string
+    email: string
+  }[]>([])
 
   const fetchFees = async () => {
     try {
@@ -184,6 +193,61 @@ export function FeesCards() {
     return false
   }
 
+  const openView = async (feeId: string) => {
+    try {
+      setViewLoading(true)
+      setViewOpen(true)
+      setViewFee(null)
+      setViewExemptedStudents([])
+
+      const res = await fetch(`/api/fees/${feeId}`, { cache: "no-store" })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        await Swal.fire({
+          icon: "error",
+          title: "Unable to load fee",
+          text: data.error || "Failed to load fee details.",
+        })
+        setViewOpen(false)
+        return
+      }
+
+      const fee = await res.json()
+      setViewFee(fee)
+
+      if (fee.exempted_students && Array.isArray(fee.exempted_students) && fee.exempted_students.length > 0) {
+        try {
+          const params = new URLSearchParams({
+            ids: fee.exempted_students.join(","),
+          })
+          const sres = await fetch(`/api/students/by-ids?${params.toString()}`)
+          if (sres.ok) {
+            const sdata = await sres.json()
+            const opts = (sdata.students || []).map((s: any) => ({
+              id: s.id,
+              studentId: s.student_id,
+              name: s.name,
+              email: s.email,
+            }))
+            setViewExemptedStudents(opts)
+          }
+        } catch (e) {
+          console.error("Failed to load exempted students for view modal:", e)
+        }
+      }
+    } catch (e) {
+      console.error("Error loading fee details:", e)
+      await Swal.fire({
+        icon: "error",
+        title: "Unable to load fee",
+        text: "An error occurred while loading fee details.",
+      })
+      setViewOpen(false)
+    } finally {
+      setViewLoading(false)
+    }
+  }
+
   const rejectFee = async (id: string, reason: string | null) => {
     try {
       const res = await fetch(`/api/fees/${id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'REJECT', reason }) })
@@ -251,29 +315,141 @@ export function FeesCards() {
   }
 
   const handleApproveClick = async (fee: Fee) => {
-    const result = await Swal.fire({
-      title: "Approve this fee?",
-      text: `"${fee.name}" will become payable for the assigned students.`,
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "Approve Fee",
-      confirmButtonColor: "#16a34a",
-      cancelButtonText: "Cancel",
-      reverseButtons: true,
-    })
+    try {
+      // Load full fee details including scope and exemptions before approving
+      const res = await fetch(`/api/fees/${fee.id}`, { cache: "no-store" })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        await Swal.fire({
+          icon: "error",
+          title: "Unable to load fee",
+          text: data.error || "Failed to load fee details.",
+        })
+        return
+      }
 
-    if (!result.isConfirmed) return
+      const fullFee = await res.json()
 
-    showProcessingAlert("Approving fee...")
-    const success = await approveFee(fee.id)
-    Swal.close()
+      let exemptedSummary = "None"
+      let exemptedDetailsHtml = ""
 
-    if (success) {
-      await Swal.fire({
-        icon: "success",
-        title: "Fee approved",
-        text: `"${fee.name}" is now active.`,
+      if (fullFee.exempted_students && Array.isArray(fullFee.exempted_students) && fullFee.exempted_students.length > 0) {
+        exemptedSummary = `${fullFee.exempted_students.length} student(s) exempted`
+
+        try {
+          const params = new URLSearchParams({
+            ids: fullFee.exempted_students.join(","),
+          })
+          const sres = await fetch(`/api/students/by-ids?${params.toString()}`)
+          if (sres.ok) {
+            const sdata = await sres.json()
+            const students: { name: string; student_id: string; email: string }[] =
+              (sdata.students || []).map((s: any) => ({
+                name: s.name,
+                student_id: s.student_id,
+                email: s.email,
+              }))
+
+            if (students.length > 0) {
+              const items = students
+                .map(
+                  (s) =>
+                    `<li><strong>${s.name}</strong> (${s.student_id}) <span style="color:#6b7280;">${s.email}</span></li>`
+                )
+                .join("")
+
+              exemptedDetailsHtml = `
+                <div style="margin-top:6px; max-height:120px; overflow:auto;">
+                  <ul style="padding-left:18px; margin:0; font-size:13px;">
+                    ${items}
+                  </ul>
+                </div>
+              `
+            }
+          }
+        } catch (e) {
+          console.error("Failed to load exempted students for approval preview:", e)
+        }
+      }
+
+      const html = `
+        <div style="text-align:left; font-size:13px; color:#111827;">
+          <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:10px;">
+            <div style="flex:1 1 200px;">
+              <div style="font-size:11px; text-transform:uppercase; color:#6b7280; font-weight:600;">Name</div>
+              <div style="margin-top:2px;">${fullFee.name}</div>
+            </div>
+            <div style="flex:1 1 160px;">
+              <div style="font-size:11px; text-transform:uppercase; color:#6b7280; font-weight:600;">Type</div>
+              <div style="margin-top:2px; text-transform:capitalize;">${fullFee.type}</div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:10px;">
+            <div style="flex:1 1 140px;">
+              <div style="font-size:11px; text-transform:uppercase; color:#6b7280; font-weight:600;">Amount</div>
+              <div style="margin-top:2px; font-weight:600;">₱${Number(fullFee.amount || 0).toLocaleString()}</div>
+            </div>
+            <div style="flex:1 1 160px;">
+              <div style="font-size:11px; text-transform:uppercase; color:#6b7280; font-weight:600;">Due Date</div>
+              <div style="margin-top:2px;">${fullFee.dueDate || 'N/A'}</div>
+            </div>
+          </div>
+
+          <div style="border-top:1px solid #e5e7eb; padding-top:8px; margin-top:4px; margin-bottom:8px;">
+            <div style="font-size:11px; text-transform:uppercase; color:#6b7280; font-weight:600; margin-bottom:4px;">Scope</div>
+            <div>${fullFee.scope_type || 'UNIVERSITY_WIDE'}</div>
+            ${fullFee.scope_college ? `<div style="font-size:12px; color:#4b5563;">College: ${fullFee.scope_college}</div>` : ''}
+            ${fullFee.scope_course ? `<div style="font-size:12px; color:#4b5563;">Course: ${fullFee.scope_course}</div>` : ''}
+          </div>
+
+          <div style="border-top:1px solid #e5e7eb; padding-top:8px; margin-top:4px;">
+            <div style="font-size:11px; text-transform:uppercase; color:#6b7280; font-weight:600; margin-bottom:4px;">
+              Exempted Students
+            </div>
+            <div>${exemptedSummary}</div>
+            ${exemptedDetailsHtml}
+          </div>
+        </div>
+      `
+
+      const result = await Swal.fire({
+        title: "Approve this fee?",
+        html,
+        icon: "question",
+        showCancelButton: true,
+        focusConfirm: false,
+        width: 620,
+        confirmButtonText: "Approve Fee",
         confirmButtonColor: "#16a34a",
+        cancelButtonText: "Cancel",
+        reverseButtons: true,
+        customClass: {
+          title: "text-lg font-semibold text-slate-900",
+          popup: "rounded-2xl",
+        },
+      })
+
+      if (!result.isConfirmed) return
+
+      showProcessingAlert("Approving fee...")
+      const success = await approveFee(fee.id)
+      Swal.close()
+
+      if (success) {
+        await Swal.fire({
+          icon: "success",
+          title: "Fee approved",
+          text: `"${fee.name}" is now active.`,
+          confirmButtonColor: "#16a34a",
+        })
+      }
+    } catch (e) {
+      console.error("Error while approving fee with preview:", e)
+      await Swal.fire({
+        icon: "error",
+        title: "Approval failed",
+        text: "An error occurred while loading details or approving the fee.",
       })
     }
   }
@@ -468,18 +644,7 @@ export function FeesCards() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild>
-                        <Link href={`/dashboard/fees/${fee.id}`} className="flex items-center">
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit
-                        </Link>
-                      </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => openReport(fee.id, fee.name)}>
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Report
-                    </DropdownMenuItem>
-                      {/* Admin approval actions for pending fees */}
-                      {session?.user?.role === 'ADMIN' && fee.status === 'PENDING' && (
+                      {session?.user?.role === 'ADMIN' && fee.status === 'PENDING' ? (
                         <>
                           <DropdownMenuItem onClick={() => handleApproveClick(fee)} className="bg-green-50 text-green-700 font-medium focus:bg-green-100 focus:text-green-800">
                             <span>Approve</span>
@@ -488,14 +653,33 @@ export function FeesCards() {
                             <span>Reject</span>
                           </DropdownMenuItem>
                         </>
+                      ) : (
+                        <>
+                          <DropdownMenuItem onClick={() => openView(fee.id)}>
+                            <Settings className="h-4 w-4 mr-2" />
+                            View
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/fees/${fee.id}`} className="flex items-center">
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openReport(fee.id, fee.name)}>
+                            <CreditCard className="h-4 w-4 mr-2" />
+                            Report
+                          </DropdownMenuItem>
+                          {session?.user?.role === 'ADMIN' && (
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteClick(fee)}
+                              className="text-red-600 focus:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
+                        </>
                       )}
-                      <DropdownMenuItem 
-                        onClick={() => handleDeleteClick(fee)}
-                        className="text-red-600 focus:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -636,6 +820,97 @@ export function FeesCards() {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Fee Details Dialog */}
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {viewFee ? viewFee.name : "Fee Details"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {viewLoading || !viewFee ? (
+            <div className="py-10 text-center text-sm text-gray-500">
+              Loading fee details...
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Name</p>
+                  <p className="text-sm">{viewFee.name}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Type</p>
+                  <p className="text-sm capitalize">{viewFee.type}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Amount</p>
+                  <p className="text-sm font-semibold">
+                    ₱{Number(viewFee.amount || 0).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Due Date</p>
+                  <p className="text-sm">{viewFee.dueDate || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Semester</p>
+                  <p className="text-sm">{viewFee.semester || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500">School Year</p>
+                  <p className="text-sm">{viewFee.schoolYear || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Scope</p>
+                  <p className="text-sm">
+                    {viewFee.scope_type || "UNIVERSITY_WIDE"}
+                  </p>
+                  {viewFee.scope_college && (
+                    <p className="text-xs text-gray-500">
+                      College: {viewFee.scope_college}
+                    </p>
+                  )}
+                  {viewFee.scope_course && (
+                    <p className="text-xs text-gray-500">
+                      Course: {viewFee.scope_course}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {viewFee.description && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Description</p>
+                  <p className="text-sm whitespace-pre-wrap">
+                    {viewFee.description}
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <p className="text-xs font-medium text-gray-500">
+                  Exempted Students
+                </p>
+                {viewExemptedStudents.length === 0 ? (
+                  <p className="text-sm text-gray-500">None</p>
+                ) : (
+                  <div className="mt-1 space-y-1">
+                    {viewExemptedStudents.map((s) => (
+                      <div key={s.id} className="text-sm">
+                        {s.name} ({s.studentId}){" "}
+                        <span className="text-xs text-gray-500">{s.email}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

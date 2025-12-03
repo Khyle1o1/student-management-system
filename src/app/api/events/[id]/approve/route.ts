@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { z } from "zod"
+import { logActivity } from "@/lib/activity-logger"
 
 const approveSchema = z.object({
   action: z.enum(["APPROVE","REJECT"]),
@@ -78,7 +79,7 @@ export async function POST(
         })
       }
 
-      // Log system activity for admin
+      // Log system activity for admin (existing notification)
       await supabaseAdmin.from('notifications').insert({
         user_id: session.user.id,
         type: 'SYSTEM_ACTIVITY',
@@ -91,6 +92,23 @@ export async function POST(
         },
         is_read: true,
         created_at: new Date().toISOString(),
+      })
+
+      // Mirror to activity_logs for timeline
+      await logActivity({
+        session,
+        action: data.action === 'APPROVE' ? 'EVENT_APPROVED' : 'EVENT_REJECTED',
+        module: 'events',
+        targetType: 'event',
+        targetId: (updated as any)?.id,
+        targetName: (updated as any)?.title,
+        college: (updated as any)?.scope_college || null,
+        course: (updated as any)?.scope_course || null,
+        details: {
+          status: (updated as any)?.status,
+          action: data.action,
+          reason: data.reason || null,
+        },
       })
     } catch (e) {
       console.warn('Failed to create event approval notifications:', e)

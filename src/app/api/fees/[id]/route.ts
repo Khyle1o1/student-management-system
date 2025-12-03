@@ -26,7 +26,6 @@ export async function GET(
       .from('fee_structures')
       .select('*')
       .eq('id', id)
-      .eq('is_active', true)
       .is('deleted_at', null)
       .single()
 
@@ -51,6 +50,8 @@ export async function GET(
       scope_type: fee.scope_type || "UNIVERSITY_WIDE",
       scope_college: fee.scope_college || "",
       scope_course: fee.scope_course || "",
+      status: fee.is_active ? "APPROVED" : "PENDING",
+      exempted_students: fee.exempted_students || [],
       createdAt: fee.created_at,
     }
 

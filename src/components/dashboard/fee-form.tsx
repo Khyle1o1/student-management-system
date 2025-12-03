@@ -38,6 +38,7 @@ interface FeeFormProps {
     scope_type: string
     scope_college: string
     scope_course: string
+    exempted_students?: string[]
   }
 }
 
@@ -100,6 +101,30 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
         scope_college: initialData.scope_college || "",
         scope_course: initialData.scope_course || "",
       })
+
+      // If there are existing exempted student IDs, load their details
+      if (initialData.exempted_students && initialData.exempted_students.length > 0) {
+        const loadExempted = async () => {
+          try {
+            const params = new URLSearchParams({
+              ids: initialData.exempted_students!.join(","),
+            })
+            const res = await fetch(`/api/students/by-ids?${params.toString()}`)
+            if (!res.ok) return
+            const data = await res.json()
+            const options: StudentOption[] = (data.students || []).map((s: any) => ({
+              id: s.id,
+              studentId: s.student_id,
+              name: s.name,
+              email: s.email,
+            }))
+            setExemptedStudents(options)
+          } catch (error) {
+            console.error("Failed to load exempted students for fee:", error)
+          }
+        }
+        loadExempted()
+      }
     }
   }, [initialData])
 

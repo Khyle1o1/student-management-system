@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { jsPDF } from 'jspdf'
 import { format } from 'date-fns'
+import { logActivity } from "@/lib/activity-logger"
 
 export const dynamic = 'force-dynamic'
 
@@ -76,6 +77,26 @@ export async function GET(request: Request) {
       console.error('Error fetching events:', eventsError)
       return NextResponse.json({ error: 'Failed to fetch events' }, { status: 500 })
     }
+
+    // Log activity: events summary report generated
+    await logActivity({
+      session,
+      action: "REPORT_GENERATED",
+      module: "reports",
+      targetType: "events_summary",
+      targetId: null,
+      targetName: "Events Summary Report",
+      college: session.user.assigned_college || null,
+      course: session.user.assigned_course || null,
+      details: {
+        filters: {
+          college,
+          course,
+          dateFrom,
+          dateTo,
+        },
+      },
+    })
 
     // For each event, get attendance statistics
     const eventsWithStats = await Promise.all(

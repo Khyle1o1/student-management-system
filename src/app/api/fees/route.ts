@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin"
 import { feeSchema } from "@/lib/validations"
 import { z } from "zod"
 import { getOrgAccessLevelFromSession } from "@/lib/org-permissions"
+import { logActivity } from "@/lib/activity-logger"
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic'
@@ -210,6 +211,7 @@ export async function POST(request: Request) {
     // If created by org, log a pending approval notification for admins
     if (!isAdmin) {
       const actor = session.user
+      // Existing notification for admins
       await supabaseAdmin.from('notifications').insert({
         user_id: actor.id,
         type: 'SYSTEM_ACTIVITY',
@@ -224,6 +226,22 @@ export async function POST(request: Request) {
         },
         is_read: true,
         created_at: new Date().toISOString(),
+      })
+
+      // Mirror to activity_logs for timeline
+      await logActivity({
+        session,
+        action: "FEE_CREATED_PENDING",
+        module: "fees",
+        targetType: "fee",
+        targetId: (fee as any)?.id,
+        targetName: (fee as any)?.name,
+        college: (fee as any)?.scope_college,
+        course: (fee as any)?.scope_course,
+        details: {
+          status: (fee as any)?.is_active ? "ACTIVE" : "PENDING",
+          scope_type: (fee as any)?.scope_type,
+        },
       })
     }
 

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { jsPDF } from 'jspdf'
 import { format } from 'date-fns'
+import { logActivity } from "@/lib/activity-logger"
 
 export const dynamic = 'force-dynamic'
 
@@ -77,6 +78,26 @@ export async function GET(request: Request) {
       console.error('Error fetching fees:', feesError)
       return NextResponse.json({ error: 'Failed to fetch fees' }, { status: 500 })
     }
+
+    // Log activity: fees summary report generated
+    await logActivity({
+      session,
+      action: "REPORT_GENERATED",
+      module: "reports",
+      targetType: "fees_summary",
+      targetId: null,
+      targetName: "Fees Summary Report",
+      college: session.user.assigned_college || null,
+      course: session.user.assigned_course || null,
+      details: {
+        filters: {
+          college,
+          course,
+          semester,
+          schoolYear,
+        },
+      },
+    })
 
     // For each fee, get payment statistics
     const feesWithStats = await Promise.all(
