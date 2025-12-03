@@ -18,6 +18,7 @@ export interface UserPermissions {
   assigned_college?: string | null;
   assigned_course?: string | null;
   assigned_courses?: string[] | null;
+  org_access_level?: 'finance' | 'event' | 'college' | null;
 }
 
 /**
@@ -52,8 +53,9 @@ export function isCourseOrg(user: UserPermissions | null): boolean {
 export function canManageUsers(user: UserPermissions | null): boolean {
   if (!user || user.status !== 'ACTIVE') return false;
   
-  // Only ADMIN can manage users
-  return user.role === 'ADMIN';
+  // ADMIN can manage all users
+  // COLLEGE_ORG can manage users within their college (enforced in queries)
+  return user.role === 'ADMIN' || user.role === 'COLLEGE_ORG';
 }
 
 /**
@@ -62,8 +64,14 @@ export function canManageUsers(user: UserPermissions | null): boolean {
 export function canCreateRole(user: UserPermissions | null, targetRole: UserRole): boolean {
   if (!user || user.status !== 'ACTIVE') return false;
   
-  // Only ADMIN can create roles
-  return user.role === 'ADMIN';
+  // ADMIN can create any administrative role
+  if (user.role === 'ADMIN') return true;
+
+  // COLLEGE_ORG can create COLLEGE_ORG and COURSE_ORG accounts under their college (enforced elsewhere)
+  if (user.role === 'COLLEGE_ORG' && (targetRole === 'COURSE_ORG' || targetRole === 'COLLEGE_ORG')) return true;
+
+  // COURSE_ORG cannot create any users
+  return false;
 }
 
 /**

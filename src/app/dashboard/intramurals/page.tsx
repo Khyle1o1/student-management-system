@@ -10,7 +10,8 @@ export default async function IntramuralsPage() {
     redirect("/auth/login")
   }
 
-  if (!['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG'].includes(session.user.role as any)) {
+  // Intramurals admin panel is restricted to System Admin only
+  if (session.user.role !== 'ADMIN') {
     redirect("/dashboard")
   }
 

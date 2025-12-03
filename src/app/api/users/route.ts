@@ -13,6 +13,7 @@ const createUserSchema = z.object({
   assigned_college: z.string().optional().nullable(),
   assigned_course: z.string().optional().nullable(),
   assigned_courses: z.array(z.string()).max(2).min(1).optional().nullable(),
+  org_access_level: z.enum(['finance', 'event', 'college']).optional().nullable(),
 });
 
 // Validation schema for updating a user (ONLY administrative users)
@@ -23,6 +24,7 @@ const updateUserSchema = z.object({
   assigned_course: z.string().optional().nullable(),
   assigned_courses: z.array(z.string()).max(2).min(1).optional().nullable(),
   status: z.enum(['ACTIVE', 'ARCHIVED', 'SUSPENDED'] as const).optional(),
+  org_access_level: z.enum(['finance', 'event', 'college']).optional().nullable(),
 });
 
 /**
@@ -39,7 +41,7 @@ export async function GET(request: NextRequest) {
     // Get current user's details for permission checking
     const { data: currentUser } = await supabaseAdmin
       .from('users')
-      .select('id, email, name, role, status, assigned_college, assigned_course, assigned_courses')
+      .select('id, email, name, role, status, assigned_college, assigned_course, assigned_courses, org_access_level')
       .eq('id', session.user.id)
       .single();
 
@@ -64,18 +66,18 @@ export async function GET(request: NextRequest) {
     // Students are managed separately in the students table
     let query = supabaseAdmin
       .from('users')
-      .select('id, email, name, role, status, assigned_college, assigned_course, created_at, updated_at, archived_at', { count: 'exact' })
+      .select('id, email, name, role, status, assigned_college, assigned_course, assigned_courses, org_access_level, created_at, updated_at, archived_at', { count: 'exact' })
       .is('deleted_at', null) // Don't show permanently deleted users
       .in('role', ['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG']); // Only administrative users
 
     // Apply access filter based on role
     const accessFilter = getAccessFilter(currentUser);
     
-    if (accessFilter.type === 'COLLEGE') {
-      // COLLEGE_ORG can only see users in their college
-      query = query.or(`assigned_college.eq.${accessFilter.college},role.eq.COURSE_ORG`);
+    if (accessFilter.type === 'COLLEGE' && accessFilter.college) {
+      // COLLEGE_ORG can only see administrative users assigned to their college
+      query = query.eq('assigned_college', accessFilter.college);
     } else if (accessFilter.type === 'COURSE') {
-      // COURSE_ORG cannot manage users
+      // COURSE_ORG cannot manage or view users
       return NextResponse.json(
         { error: 'You do not have permission to view users' },
         { status: 403 }
@@ -190,9 +192,16 @@ export async function POST(request: NextRequest) {
       passwordLength: body.password?.length,
       assigned_college: body.assigned_college,
       assigned_course: body.assigned_course,
+      org_access_level: body.org_access_level,
     });
     
     const validatedData = createUserSchema.parse(body);
+
+    // Default org_access_level for COLLEGE_ORG if not provided
+    let orgAccessLevel: 'finance' | 'event' | 'college' | null = validatedData.org_access_level || null;
+    if (validatedData.role === 'COLLEGE_ORG' && !orgAccessLevel) {
+      orgAccessLevel = 'college';
+    }
 
     // Check if current user can create this role
     if (!canCreateRole(currentUser, validatedData.role)) {
@@ -218,11 +227,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If COLLEGE_ORG is creating a COURSE_ORG, ensure it's under their college
-    if (currentUser.role === 'COLLEGE_ORG' && validatedData.role === 'COURSE_ORG') {
+    // If COLLEGE_ORG is creating another org user, ensure it's under their college
+    if (currentUser.role === 'COLLEGE_ORG' && (validatedData.role === 'COURSE_ORG' || validatedData.role === 'COLLEGE_ORG')) {
       if (validatedData.assigned_college !== currentUser.assigned_college) {
         return NextResponse.json(
-          { error: 'You can only create Course Organizations under your assigned college' },
+          { error: 'You can only create organization accounts under your assigned college' },
           { status: 403 }
         );
       }
@@ -259,10 +268,11 @@ export async function POST(request: NextRequest) {
             ? validatedData.assigned_courses[0]
             : (validatedData.assigned_course || null),
           assigned_courses: validatedData.assigned_courses || null,
+          org_access_level: orgAccessLevel,
           status: 'ACTIVE',
         },
       ])
-      .select('id, email, name, role, status, assigned_college, assigned_course, assigned_courses, created_at')
+      .select('id, email, name, role, status, assigned_college, assigned_course, assigned_courses, org_access_level, created_at')
       .single();
 
     if (createError) {

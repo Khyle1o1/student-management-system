@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { hashPassword } from "@/lib/auth"
 import { z } from "zod"
+import { getOrgAccessLevelFromSession } from "@/lib/org-permissions"
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic'
@@ -90,6 +91,13 @@ export async function GET(request: Request) {
 
     // Regular admin/org access
     if (!(isAdmin || isCollegeOrg || isCourseOrg)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const orgAccessLevel = getOrgAccessLevelFromSession(session as any)
+
+    // Event accounts cannot access Students API
+    if (isCollegeOrg && orgAccessLevel === "event") {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     

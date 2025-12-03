@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label"
 import { UserPlus, Edit, Archive, Eye, Trash2, Search, Filter } from "lucide-react"
 import { getRoleDisplayName, getStatusDisplayName, type UserRole, type UserStatus } from "@/lib/rbac"
 import { COLLEGES, getCoursesByCollege } from "@/lib/constants/academic-programs"
+import { useToast } from "@/hooks/use-toast"
 
 interface User {
   id: string
@@ -37,6 +38,7 @@ interface User {
   assigned_college?: string | null
   assigned_course?: string | null
   assigned_courses?: string[] | null
+  org_access_level?: "finance" | "event" | "college" | null
   created_at: string
   updated_at: string
   archived_at?: string | null
@@ -44,6 +46,7 @@ interface User {
 
 export function UsersTable() {
   const { data: session } = useSession()
+  const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [filteredUsers, setFilteredUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -77,6 +80,7 @@ export function UsersTable() {
     assigned_course: "",
     assigned_courses: [] as string[],
     status: "ACTIVE" as UserStatus,
+    org_access_level: "college" as "finance" | "event" | "college",
   })
 
   const [errors, setErrors] = useState<any>({})
@@ -137,6 +141,7 @@ export function UsersTable() {
         assigned_course: user.assigned_course || "",
         assigned_courses: (user as any).assigned_courses || (user.assigned_course ? [user.assigned_course] : []),
         status: user.status,
+        org_access_level: (user as any).org_access_level || "college",
       })
     } else {
       setIsEditing(false)
@@ -150,6 +155,7 @@ export function UsersTable() {
         assigned_course: "",
         assigned_courses: [],
         status: "ACTIVE",
+        org_access_level: "college",
       })
     }
     setErrors({})
@@ -193,6 +199,12 @@ export function UsersTable() {
         newErrors.assigned_course = "Select at least one course (max 2)"
       }
     }
+
+    if (formData.role === "COLLEGE_ORG") {
+      if (!formData.org_access_level) {
+        newErrors.org_access_level = "Access level is required for college organizations"
+      }
+    }
     
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
@@ -221,6 +233,13 @@ export function UsersTable() {
         body.password = formData.password
       }
 
+      // Only send org_access_level for COLLEGE_ORG; null otherwise
+      if (formData.role === "COLLEGE_ORG") {
+        body.org_access_level = formData.org_access_level
+      } else {
+        body.org_access_level = null
+      }
+
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -232,6 +251,12 @@ export function UsersTable() {
       if (response.ok) {
         setShowUserDialog(false)
         fetchUsers()
+        toast({
+          title: isEditing ? "User updated" : "User created",
+          description: isEditing
+            ? `Account for ${data.user?.name || formData.name} has been updated.`
+            : `Account for ${data.user?.name || formData.name} has been created.`,
+        })
       } else {
         // Show detailed error message if available
         let errorMessage = data.message || data.error || "Failed to save user"
@@ -247,10 +272,20 @@ export function UsersTable() {
         }
         
         setErrors({ general: errorMessage })
+        toast({
+          title: "Failed to save user",
+          description: errorMessage,
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("Error saving user:", error)
       setErrors({ general: "An error occurred" })
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while saving the user.",
+        variant: "destructive",
+      })
     } finally {
       setSubmitting(false)
     }
@@ -315,9 +350,9 @@ export function UsersTable() {
   const canManageUser = (user: User) => {
     if (session?.user.role === 'ADMIN') return true
     
-    // COLLEGE_ORG can only manage COURSE_ORG in their college
+    // COLLEGE_ORG can manage org accounts in their own college
     if (session?.user.role === 'COLLEGE_ORG') {
-      return user.role === 'COURSE_ORG' && 
+      return (user.role === 'COURSE_ORG' || user.role === 'COLLEGE_ORG') &&
              user.assigned_college === session.user.assigned_college
     }
     
@@ -329,7 +364,9 @@ export function UsersTable() {
       return ['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG']
     }
     if (session?.user.role === 'COLLEGE_ORG') {
-      return ['COURSE_ORG']
+      // College Org can create both College-level org accounts (with access-level)
+      // and Course Org accounts under their own college
+      return ['COLLEGE_ORG', 'COURSE_ORG']
     }
     return []
   }
@@ -766,6 +803,31 @@ export function UsersTable() {
                   </div>
                   {errors.assigned_course && (
                     <div className="text-sm text-red-500">{errors.assigned_course}</div>
+                  )}
+                </div>
+              )}
+
+              {formData.role === "COLLEGE_ORG" && (
+                <div className="space-y-2">
+                  <Label htmlFor="org_access_level">Access Level *</Label>
+                  <select
+                    id="org_access_level"
+                    value={formData.org_access_level}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        org_access_level: e.target.value as "finance" | "event" | "college",
+                      })
+                    }
+                    className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ${errors.org_access_level ? "border-red-500" : ""}`}
+                    required
+                  >
+                    <option value="college">College Account (Full Org Access)</option>
+                    <option value="finance">Finance Account</option>
+                    <option value="event">Event Account</option>
+                  </select>
+                  {errors.org_access_level && (
+                    <div className="text-sm text-red-500">{errors.org_access_level}</div>
                   )}
                 </div>
               )}

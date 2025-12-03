@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { z } from "zod"
+import { getOrgAccessLevelFromSession } from "@/lib/org-permissions"
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +44,13 @@ export async function POST(request: NextRequest) {
     const isAdmin = role === 'ADMIN'
     const isCollegeOrg = role === 'COLLEGE_ORG'
     const isCourseOrg = role === 'COURSE_ORG'
+
+    const orgAccessLevel = getOrgAccessLevelFromSession(session as any)
+
+    // Finance accounts cannot create events
+    if (isCollegeOrg && orgAccessLevel === "finance") {
+      return NextResponse.json({ error: 'Forbidden: Finance accounts cannot create events' }, { status: 403 })
+    }
 
     // Validate scope for orgs
     if (isCollegeOrg || isCourseOrg) {
@@ -166,6 +174,14 @@ export async function GET(request: Request) {
     const isAdmin = role === 'ADMIN'
     const isCollegeOrg = role === 'COLLEGE_ORG'
     const isCourseOrg = role === 'COURSE_ORG'
+
+    const orgAccessLevel = getOrgAccessLevelFromSession(session as any)
+
+    // Finance accounts cannot access events list at all
+    if (isCollegeOrg && orgAccessLevel === "finance") {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     if (!(isAdmin || isCollegeOrg || isCourseOrg)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }

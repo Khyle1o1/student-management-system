@@ -37,6 +37,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { completeLogout } from "@/lib/google-oauth-utils"
 import NotificationBell from "@/components/notifications/NotificationBell"
 import { AdminHeader } from "./admin-header"
+import { getOrgAccessLevelFromSession, hasOrgModuleAccess } from "@/lib/org-permissions"
 
 interface DashboardShellProps {
   children: ReactNode
@@ -81,7 +82,10 @@ interface NavigationItem {
 export function DashboardShell({ children }: DashboardShellProps) {
   const { data: session } = useSession()
   const pathname = usePathname()
-  const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === 'COLLEGE_ORG' || session?.user?.role === 'COURSE_ORG'
+  const userRole = session?.user?.role
+  const orgAccessLevel = getOrgAccessLevelFromSession(session as any)
+  const isSystemAdmin = userRole === "ADMIN"
+  const isAdmin = userRole === "ADMIN" || userRole === 'COLLEGE_ORG' || userRole === 'COURSE_ORG'
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [dbConnectionError, setDbConnectionError] = useState<string | null>(null)
@@ -136,10 +140,10 @@ export function DashboardShell({ children }: DashboardShellProps) {
     }
   }, [isAdmin, session?.user?.id]) // More specific dependencies
 
-  // Load global system settings (admin dashboard only)
+  // Load global system settings (SYSTEM ADMIN dashboard only)
   useEffect(() => {
     const fetchSystemSettings = async () => {
-      if (!isAdmin) return
+      if (!isSystemAdmin) return
 
       try {
         const response = await fetch("/api/system-settings", { cache: "no-store" })
@@ -155,7 +159,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
     }
 
     fetchSystemSettings()
-  }, [isAdmin])
+  }, [isSystemAdmin])
 
   useEffect(() => {
     setIsMobileMenuOpen(false)
@@ -186,14 +190,16 @@ export function DashboardShell({ children }: DashboardShellProps) {
     { href: "/dashboard/reports", label: "Reports", icon: FileText },
   ]
 
-  // Add Users menu item only for ADMIN
+  // Add Users menu item for ADMIN and COLLEGE_ORG only
   const usersNavItem: NavigationItem[] = 
-    session?.user?.role === 'ADMIN'
+    userRole === 'ADMIN' || userRole === 'COLLEGE_ORG'
       ? [{ href: "/dashboard/users", label: "Users", icon: UserCog }]
       : []
 
-  const adminNavItems: NavigationItem[] = [
-    // Curated student-style navigation for admin
+  const showSettingsNavItem = userRole === 'ADMIN'
+
+  // Base admin navigation (System Admin / non-split roles)
+  const fullAdminNavItems: NavigationItem[] = [
     { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
     { 
       href: "/dashboard/students", 
@@ -206,8 +212,33 @@ export function DashboardShell({ children }: DashboardShellProps) {
     { href: "/dashboard/reports", label: "Reports", icon: FileText },
     { href: "/dashboard/intramurals", label: "Intramurals", icon: Trophy },
     ...usersNavItem,
-    { href: "/dashboard/settings", label: "Settings", icon: Settings }
+    ...(showSettingsNavItem ? [{ href: "/dashboard/settings", label: "Settings", icon: Settings }] : [])
   ]
+
+  // Apply college org access-level permissions to sidebar
+  let adminNavItems: NavigationItem[] = fullAdminNavItems
+
+  if (userRole === "COLLEGE_ORG" && orgAccessLevel) {
+    if (orgAccessLevel === "finance") {
+      // Finance: Dashboard + Students + Fees + Reports
+      adminNavItems = fullAdminNavItems.filter((item) =>
+        ["/dashboard", "/dashboard/students", "/dashboard/fees", "/dashboard/reports"].includes(item.href)
+      )
+    } else if (orgAccessLevel === "event") {
+      // Event: Dashboard + Events only
+      adminNavItems = fullAdminNavItems.filter((item) =>
+        ["/dashboard", "/dashboard/events"].includes(item.href)
+      )
+    } else {
+      // college (full org access) -> keep fullAdminNavItems
+      adminNavItems = fullAdminNavItems
+    }
+  }
+
+  // Intramurals is restricted to system admin only
+  if (userRole !== "ADMIN") {
+    adminNavItems = adminNavItems.filter((item) => item.href !== "/dashboard/intramurals")
+  }
 
   const studentNavItems: NavigationItem[] = [
     { href: "/dashboard", label: "Overview", icon: BarChart3 },

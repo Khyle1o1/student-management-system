@@ -5,6 +5,7 @@ import { StudentsTable } from "@/components/dashboard/students-table"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import Link from "next/link"
+import { getOrgAccessLevelFromSession } from "@/lib/org-permissions"
 
 export default async function StudentsPage() {
   const session = await auth()
@@ -15,6 +16,12 @@ export default async function StudentsPage() {
 
   if (!['ADMIN','COLLEGE_ORG','COURSE_ORG'].includes(session.user.role as any)) {
     redirect("/dashboard")
+  }
+
+  // Event-level college accounts are not allowed to access Students
+  const orgAccessLevel = getOrgAccessLevelFromSession(session as any)
+  if (session.user.role === "COLLEGE_ORG" && orgAccessLevel === "event") {
+    redirect("/403")
   }
 
   return (

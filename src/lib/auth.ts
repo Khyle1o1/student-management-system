@@ -66,6 +66,7 @@ declare module "next-auth" {
       assigned_college?: string | null
       assigned_course?: string | null
       assigned_courses?: string[] | null
+      org_access_level?: 'finance' | 'event' | 'college' | null
       status?: string
       isAdminUser?: boolean // True if from users table (admin), false if student
     }
@@ -81,6 +82,7 @@ declare module "next-auth" {
     assigned_college?: string | null
     assigned_course?: string | null
     assigned_courses?: string[] | null
+    org_access_level?: 'finance' | 'event' | 'college' | null
     status?: string
     isAdminUser?: boolean
   }
@@ -94,6 +96,7 @@ declare module "next-auth/jwt" {
     assigned_college?: string | null
     assigned_course?: string | null
     assigned_courses?: string[] | null
+    org_access_level?: 'finance' | 'event' | 'college' | null
     status?: string
     isAdminUser?: boolean
   }
@@ -262,6 +265,7 @@ export const authOptions: NextAuthOptions = {
             assigned_college: (dbUser as any).assigned_college || null,
             assigned_course: (dbUser as any).assigned_course || null,
             assigned_courses: (dbUser as any).assigned_courses || null,
+            org_access_level: (dbUser as any).org_access_level || null,
             status: (dbUser as any).status || 'ACTIVE',
             isAdminUser: isAdminUser,
           }
@@ -321,6 +325,7 @@ export const authOptions: NextAuthOptions = {
         token.assigned_college = user.assigned_college
         token.assigned_course = user.assigned_course
         token.assigned_courses = user.assigned_courses
+        token.org_access_level = user.org_access_level
         token.status = user.status
         token.isAdminUser = user.isAdminUser
         return token
@@ -344,6 +349,7 @@ export const authOptions: NextAuthOptions = {
           token.assigned_college = (dbUser as any).assigned_college || null
           token.assigned_course = (dbUser as any).assigned_course || null
           token.assigned_courses = (dbUser as any).assigned_courses || null
+          token.org_access_level = (dbUser as any).org_access_level || null
           token.status = (dbUser as any).status || 'ACTIVE'
           token.isAdminUser = isAdminUser
           
@@ -373,6 +379,8 @@ export const authOptions: NextAuthOptions = {
         session.user.assigned_college = token.assigned_college
         session.user.assigned_course = token.assigned_course
         session.user.assigned_courses = token.assigned_courses
+         // org_access_level is only relevant for COLLEGE_ORG admin users
+        session.user.org_access_level = token.org_access_level as any
         session.user.status = token.status
         session.user.isAdminUser = token.isAdminUser
       }

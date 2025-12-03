@@ -12,6 +12,7 @@ const updateUserSchema = z.object({
   assigned_college: z.string().optional().nullable(),
   assigned_course: z.string().optional().nullable(),
   status: z.enum(['ACTIVE', 'ARCHIVED', 'SUSPENDED'] as const).optional(),
+  org_access_level: z.enum(['finance', 'event', 'college']).optional().nullable(),
 });
 
 /**
@@ -111,7 +112,7 @@ export async function PATCH(
     // Fetch the target user
     const { data: targetUser, error: fetchError } = await supabaseAdmin
       .from('users')
-      .select('id, email, name, role, status, assigned_college, assigned_course')
+      .select('id, email, name, role, status, assigned_college, assigned_course, org_access_level')
       .eq('id', id)
       .is('deleted_at', null)
       .single();
@@ -130,9 +131,9 @@ export async function PATCH(
 
     // Check if current user has permission to edit this user
     if (currentUser.role === 'COLLEGE_ORG') {
-      // COLLEGE_ORG can only edit COURSE_ORG in their college
+      // COLLEGE_ORG can edit org accounts (COLLEGE_ORG or COURSE_ORG) in their own college
       if (
-        targetUser.role !== 'COURSE_ORG' ||
+        (targetUser.role !== 'COURSE_ORG' && targetUser.role !== 'COLLEGE_ORG') ||
         targetUser.assigned_college !== currentUser.assigned_college
       ) {
         return NextResponse.json(
@@ -190,6 +191,7 @@ export async function PATCH(
     if (validatedData.role !== undefined) updateData.role = validatedData.role;
     if (validatedData.assigned_college !== undefined) updateData.assigned_college = validatedData.assigned_college;
     if (validatedData.assigned_course !== undefined) updateData.assigned_course = validatedData.assigned_course;
+    if (validatedData.org_access_level !== undefined) updateData.org_access_level = validatedData.org_access_level;
     if (validatedData.status !== undefined) {
       updateData.status = validatedData.status;
       // Set archived_at if archiving
@@ -205,7 +207,7 @@ export async function PATCH(
       .from('users')
       .update(updateData)
       .eq('id', id)
-      .select('id, email, name, role, status, assigned_college, assigned_course, created_at, updated_at')
+      .select('id, email, name, role, status, assigned_college, assigned_course, org_access_level, created_at, updated_at')
       .single();
 
     if (updateError) {
@@ -357,9 +359,9 @@ export async function DELETE(
 
     // Check if current user has permission to delete this user
     if (currentUser.role === 'COLLEGE_ORG') {
-      // COLLEGE_ORG can only delete COURSE_ORG in their college
+      // COLLEGE_ORG can delete org accounts (COLLEGE_ORG or COURSE_ORG) in their own college
       if (
-        targetUser.role !== 'COURSE_ORG' ||
+        (targetUser.role !== 'COURSE_ORG' && targetUser.role !== 'COLLEGE_ORG') ||
         targetUser.assigned_college !== currentUser.assigned_college
       ) {
         return NextResponse.json(

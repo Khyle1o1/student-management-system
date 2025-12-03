@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin"
 import { auth } from "@/lib/auth"
 import { z } from "zod"
 import { supabase } from "@/lib/supabase"
+import { getOrgAccessLevelFromSession } from "@/lib/org-permissions"
 
 const updateStatusSchema = z.object({
   status: z.enum(['PAID', 'UNPAID', 'PENDING', 'OVERDUE']),
@@ -19,6 +20,8 @@ export async function PATCH(
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const orgAccessLevel = getOrgAccessLevelFromSession(session as any)
 
     const { id } = await params
     const body = await request.json()
@@ -102,11 +105,17 @@ export async function PATCH(
     if (session.user.role === 'ADMIN') {
       allowed = true
     } else if (session.user.role === 'COLLEGE_ORG') {
-      // College Org: only within their college; cannot mark course-specific fees
-      const isCollegeWide = fee.scope_type === 'COLLEGE_WIDE'
-      allowed = isCollegeWide &&
-        fee.scope_college === session.user.assigned_college &&
-        student.college === session.user.assigned_college
+      // Apply org access-level rules for college org accounts
+      if (orgAccessLevel === "event") {
+        // Event accounts cannot mark payments
+        allowed = false
+      } else {
+        // Finance & full college org: only within their college; cannot mark course-specific fees
+        const isCollegeWide = fee.scope_type === 'COLLEGE_WIDE'
+        allowed = isCollegeWide &&
+          fee.scope_college === session.user.assigned_college &&
+          student.college === session.user.assigned_college
+      }
     } else if (session.user.role === 'COURSE_ORG') {
       // Course Org: only course-specific within their assigned course(s)
       if (fee.scope_type === 'COURSE_SPECIFIC') {

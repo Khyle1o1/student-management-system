@@ -5,6 +5,7 @@ import { EventsTable } from "@/components/dashboard/events-table"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import Link from "next/link"
+import { getOrgAccessLevelFromSession } from "@/lib/org-permissions"
 
 interface EventsActionsProps {
   canManageEvents: boolean
@@ -67,7 +68,17 @@ export default async function EventsPage() {
     redirect("/dashboard")
   }
 
-  const canManageEvents = session.user.role === 'ADMIN' || session.user.role === 'COLLEGE_ORG'
+  const orgAccessLevel = getOrgAccessLevelFromSession(session as any)
+
+  // Finance accounts cannot access Events module
+  if (session.user.role === "COLLEGE_ORG" && orgAccessLevel === "finance") {
+    redirect("/403")
+  }
+
+  // Event and full college org accounts can manage events; course org cannot create
+  const canManageEvents =
+    session.user.role === 'ADMIN' ||
+    (session.user.role === 'COLLEGE_ORG' && (orgAccessLevel === "event" || orgAccessLevel === "college"))
 
   return (
     <DashboardShell>

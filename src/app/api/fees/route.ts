@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { feeSchema } from "@/lib/validations"
 import { z } from "zod"
+import { getOrgAccessLevelFromSession } from "@/lib/org-permissions"
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic'
@@ -19,6 +20,13 @@ export async function GET(request: Request) {
     const isAdmin = role === 'ADMIN'
     const isCollegeOrg = role === 'COLLEGE_ORG'
     const isCourseOrg = role === 'COURSE_ORG'
+
+    // Event-level college accounts cannot access Fees at all
+    const orgAccessLevel = getOrgAccessLevelFromSession(session as any)
+    if (isCollegeOrg && orgAccessLevel === "event") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
     if (!(isAdmin || isCollegeOrg || isCourseOrg)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
@@ -129,10 +137,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Allow ADMIN, COLLEGE_ORG, COURSE_ORG to create
+    // Allow ADMIN plus org accounts with sufficient access level to create
     if (!['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG'].includes(session.user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
+
+    const orgAccessLevel = getOrgAccessLevelFromSession(session as any)
 
     const body = await request.json()
     console.log("Received fee data:", body)
@@ -144,6 +154,11 @@ export async function POST(request: Request) {
     const isAdmin = session.user.role === 'ADMIN'
     const isCollegeOrg = session.user.role === 'COLLEGE_ORG'
     const isCourseOrg = session.user.role === 'COURSE_ORG'
+
+    // Finance accounts can view fees but cannot create them
+    if (isCollegeOrg && orgAccessLevel === "finance") {
+      return NextResponse.json({ error: 'Forbidden: Finance accounts cannot create fees' }, { status: 403 })
+    }
 
     // Enforce scope for org users
     if ((isCollegeOrg || isCourseOrg)) {

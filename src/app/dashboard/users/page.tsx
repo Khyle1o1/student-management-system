@@ -15,10 +15,11 @@ export default function UsersPage() {
       router.push("/auth/login")
     }
     
-    // Only ADMIN can access user management
+    // Only ADMIN and COLLEGE_ORG can access user management
     if (
       session?.user && 
-      session.user.role !== 'ADMIN'
+      session.user.role !== 'ADMIN' &&
+      session.user.role !== 'COLLEGE_ORG'
     ) {
       router.push("/dashboard")
     }
@@ -36,7 +37,11 @@ export default function UsersPage() {
     )
   }
 
-  if (!session?.user || (session.user.role !== 'ADMIN')) {
+  if (
+    !session?.user || 
+    (session.user.role !== 'ADMIN' &&
+     session.user.role !== 'COLLEGE_ORG')
+  ) {
     return null
   }
 

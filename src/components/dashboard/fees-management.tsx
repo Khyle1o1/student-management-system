@@ -3,10 +3,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FeesCards } from "./fees-cards"
+import { useOrgPermissions } from "@/hooks/useOrgPermissions"
 import { Plus, CreditCard } from "lucide-react"
 import Link from "next/link"
 
 export function FeesManagement() {
+  const { orgAccessLevel } = useOrgPermissions()
+  const canCreateFees = orgAccessLevel === "college" || orgAccessLevel === undefined || orgAccessLevel === null
+
   return (
     <div className="space-y-6">
       <Card>
@@ -16,12 +20,14 @@ export function FeesManagement() {
               <CreditCard className="h-5 w-5 text-green-600" />
               <CardTitle>Fee Structures</CardTitle>
             </div>
-            <Link href="/dashboard/fees/new">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Fee Structure
-              </Button>
-            </Link>
+            {canCreateFees && (
+              <Link href="/dashboard/fees/new">
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Fee Structure
+                </Button>
+              </Link>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             Manage and configure different types of fees for the school
