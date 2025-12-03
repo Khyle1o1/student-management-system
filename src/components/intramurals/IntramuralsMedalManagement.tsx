@@ -533,6 +533,29 @@ export function IntramuralsMedalManagement() {
   }
 
   const handleToggleVisibility = async (isVisible: boolean) => {
+    // Show sweet alert before toggling
+    const result = await Swal.fire({
+      title: isVisible ? 'Enable Display on Main Page?' : 'Disable Display on Main Page?',
+      text: isVisible 
+        ? 'The intramurals standings will be visible to all visitors on the main page.'
+        : 'The intramurals standings will be hidden from the main page.',
+      icon: isVisible ? 'question' : 'warning',
+      showCancelButton: true,
+      confirmButtonColor: isVisible ? '#3b82f6' : '#ef4444',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: isVisible ? 'Yes, Enable It!' : 'Yes, Disable It!',
+      cancelButtonText: 'Cancel',
+      reverseButtons: true,
+      customClass: {
+        popup: 'rounded-2xl',
+        confirmButton: 'rounded-lg px-4 py-2',
+        cancelButton: 'rounded-lg px-4 py-2',
+      },
+    })
+
+    if (!result.isConfirmed) {
+      return // User cancelled, don't proceed with the toggle
+    }
     try {
       const response = await fetch("/api/intramurals/admin/settings", {
         method: "PUT",
@@ -541,13 +564,49 @@ export function IntramuralsMedalManagement() {
       })
 
       if (response.ok) {
+        // Show success sweet alert
+        await Swal.fire({
+          title: isVisible ? 'Enabled Successfully!' : 'Disabled Successfully!',
+          text: isVisible 
+            ? 'The intramurals standings are now visible on the main page.'
+            : 'The intramurals standings are now hidden from the main page.',
+          icon: 'success',
+          confirmButtonColor: '#3b82f6',
+          confirmButtonText: 'Got it!',
+          customClass: {
+            popup: 'rounded-2xl',
+            confirmButton: 'rounded-lg px-4 py-2',
+          },
+        })
         toast.success(isVisible ? "Standings are now visible on main page" : "Standings hidden from main page")
         fetchSettings()
       } else {
+        await Swal.fire({
+          title: 'Error!',
+          text: 'Failed to update display settings. Please try again.',
+          icon: 'error',
+          confirmButtonColor: '#ef4444',
+          confirmButtonText: 'OK',
+          customClass: {
+            popup: 'rounded-2xl',
+            confirmButton: 'rounded-lg px-4 py-2',
+          },
+        })
         toast.error("Failed to update settings")
       }
     } catch (error) {
       console.error("Error updating settings:", error)
+      await Swal.fire({
+        title: 'Error!',
+        text: 'An error occurred while updating settings. Please try again.',
+        icon: 'error',
+        confirmButtonColor: '#ef4444',
+        confirmButtonText: 'OK',
+        customClass: {
+          popup: 'rounded-2xl',
+          confirmButton: 'rounded-lg px-4 py-2',
+        },
+      })
       toast.error("Failed to update settings")
     }
   }

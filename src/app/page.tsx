@@ -1,40 +1,441 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 import {
-  Calendar,
-  Users,
-  FileText,
-  Phone,
-  Mail,
-  AlertCircle,
-  Bell,
-  BookOpen,
-  GraduationCap,
-  Building,
-  CheckCircle,
-  ArrowRight,
-  Star,
   Trophy,
-  Clock,
-  Target,
-  Award,
-  TrendingUp,
-  BarChart,
-  Sparkles,
-  Shield,
+  CreditCard,
+  CalendarCheck,
+  BarChart3,
+  ShieldCheck,
   Zap,
+  Menu,
+  X,
+  ChevronRight,
+  Users,
+  LayoutDashboard,
+  TrendingUp,
+  DollarSign,
+  CheckCircle2,
+  Activity,
+  ArrowUpRight,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Input } from "@/components/ui/input"
 import { LoginModal } from "@/components/ui/login-modal"
 import { IntramuralsStandings } from "@/components/intramurals/IntramuralsStandings"
 import { IntramuralsSchedule } from "@/components/intramurals/IntramuralsSchedule"
 import { useToast } from "@/hooks/use-toast"
 
+// --- Components ---
+
+const Navbar = ({ onLoginClick }: { onLoginClick: () => void }) => {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <nav className="fixed w-full z-50 top-0 left-0 border-b border-white/10 bg-[#0B1121]/80 backdrop-blur-md">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-20">
+          <div className="flex items-center gap-2">
+            <div className="bg-blue-600 p-2 rounded-lg">
+              <LayoutDashboard className="text-white w-6 h-6" />
+            </div>
+            <span className="text-white font-bold text-xl tracking-tight">SMART-U</span>
+          </div>
+
+          <div className="hidden md:block">
+            <div className="ml-10 flex items-baseline space-x-8">
+              {['Features', 'About', 'Contact'].map((item) => (
+                <a
+                  key={item}
+                  href={`#${item.toLowerCase()}`}
+                  className="text-gray-300 hover:text-white transition-colors px-3 py-2 rounded-md text-sm font-medium"
+                >
+                  {item}
+                </a>
+              ))}
+              <button
+                onClick={onLoginClick}
+                className="bg-white text-[#0B1121] px-5 py-2.5 rounded-full font-bold hover:bg-blue-50 transition-all transform hover:scale-105"
+              >
+                Login
+              </button>
+            </div>
+          </div>
+
+          <div className="-mr-2 flex md:hidden">
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="text-gray-400 hover:text-white p-2"
+            >
+              {isOpen ? <X /> : <Menu />}
+            </button>
+          </div>
+        </div>
+      </div>
+    </nav>
+  )
+}
+
+const Hero = ({ onGetStartedClick }: { onGetStartedClick: () => void }) => {
+  return (
+    <div className="relative pt-32 pb-20 lg:pt-48 overflow-hidden">
+      {/* Background Gradients */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-blue-600/20 rounded-full blur-[120px] -z-10" />
+      <div className="absolute bottom-0 right-0 w-[800px] h-[600px] bg-purple-600/10 rounded-full blur-[100px] -z-10" />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+        <div className="text-center max-w-4xl mx-auto">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 mb-8">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+            </span>
+            <span className="text-blue-300 text-sm font-medium">Live Campus View is now active</span>
+          </div>
+
+          <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-tight leading-tight mb-8">
+            The Operating System for <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
+              Modern Campuses
+            </span>
+          </h1>
+
+          <p className="mt-4 max-w-2xl mx-auto text-xl text-gray-400 mb-10">
+            Smart-U unifies fees, attendance, and—uniquely—intramurals into one fluid dashboard. Designed for administrators, built for students.
+          </p>
+
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <button
+              onClick={onGetStartedClick}
+              className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-lg transition-all shadow-lg shadow-blue-600/25 flex items-center justify-center gap-2"
+            >
+              Get Started <ChevronRight className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => {
+                const el = document.getElementById("features")
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth" })
+                }
+              }}
+              className="px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-2xl font-bold text-lg transition-all backdrop-blur-sm"
+            >
+              View Demo
+            </button>
+          </div>
+        </div>
+
+        {/* Floating UI Mockup Representation */}
+        <div className="mt-20 relative mx-auto max-w-5xl">
+          <div className="relative rounded-2xl bg-[#131c2e] border border-white/10 p-2 shadow-2xl">
+            <div className="rounded-xl overflow-hidden bg-[#0B1121] aspect-[16/9] relative group p-6">
+              {/* Dashboard Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-600/20 flex items-center justify-center">
+                    <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-semibold text-sm">SMART-U Dashboard</h3>
+                    <p className="text-gray-500 text-xs">Real-time campus overview</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                  <span className="text-green-400 text-xs font-medium">Live</span>
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-4 gap-3 mb-4">
+                {/* Fees Card */}
+                <div className="bg-[#131c2e] border border-white/5 rounded-lg p-3 hover:border-green-500/30 transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+                      <DollarSign className="w-4 h-4 text-green-400" />
+                    </div>
+                    <ArrowUpRight className="w-3 h-3 text-green-400" />
+                  </div>
+                  <p className="text-white font-bold text-lg">₱2.4M</p>
+                  <p className="text-gray-500 text-[10px]">Total Fees</p>
+                  <div className="flex items-center gap-1 mt-1">
+                    <TrendingUp className="w-3 h-3 text-green-400" />
+                    <span className="text-green-400 text-[10px]">+12.5%</span>
+                  </div>
+                </div>
+
+                {/* Attendance Card */}
+                <div className="bg-[#131c2e] border border-white/5 rounded-lg p-3 hover:border-orange-500/30 transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                      <CalendarCheck className="w-4 h-4 text-orange-400" />
+                    </div>
+                    <Activity className="w-3 h-3 text-orange-400" />
+                  </div>
+                  <p className="text-white font-bold text-lg">94.2%</p>
+                  <p className="text-gray-500 text-[10px]">Attendance</p>
+                  <div className="flex items-center gap-1 mt-1">
+                    <CheckCircle2 className="w-3 h-3 text-orange-400" />
+                    <span className="text-orange-400 text-[10px]">1,247</span>
+                  </div>
+                </div>
+
+                {/* Students Card */}
+                <div className="bg-[#131c2e] border border-white/5 rounded-lg p-3 hover:border-blue-500/30 transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <Users className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <Users className="w-3 h-3 text-blue-400" />
+                  </div>
+                  <p className="text-white font-bold text-lg">3,428</p>
+                  <p className="text-gray-500 text-[10px]">Students</p>
+                  <div className="flex items-center gap-1 mt-1">
+                    <TrendingUp className="w-3 h-3 text-blue-400" />
+                    <span className="text-blue-400 text-[10px]">Active</span>
+                  </div>
+                </div>
+
+                {/* Intramurals Card */}
+                <div className="bg-[#131c2e] border border-white/5 rounded-lg p-3 hover:border-purple-500/30 transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                      <Trophy className="w-4 h-4 text-purple-400" />
+                    </div>
+                    <Trophy className="w-3 h-3 text-purple-400" />
+                  </div>
+                  <p className="text-white font-bold text-lg">24</p>
+                  <p className="text-gray-500 text-[10px]">Events</p>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Activity className="w-3 h-3 text-purple-400" />
+                    <span className="text-purple-400 text-[10px]">Live</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Chart Area */}
+              <div className="grid grid-cols-3 gap-3">
+                {/* Activity Chart */}
+                <div className="col-span-2 bg-[#131c2e] border border-white/5 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-white text-xs font-semibold">Activity Overview</h4>
+                    <BarChart3 className="w-4 h-4 text-gray-500" />
+                  </div>
+                  <div className="flex items-end justify-between gap-1 h-24">
+                    {[65, 78, 52, 89, 94, 76, 88, 92, 85, 98, 87, 95].map((height, i) => (
+                      <div
+                        key={i}
+                        className="flex-1 bg-gradient-to-t from-blue-600/40 to-blue-500/20 rounded-t hover:from-blue-500/60 hover:to-blue-400/30 transition-all"
+                        style={{ height: `${height}%` }}
+                      ></div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between mt-2 text-[10px] text-gray-500">
+                    <span>Mon</span>
+                    <span>Wed</span>
+                    <span>Fri</span>
+                    <span>Sun</span>
+                  </div>
+                </div>
+
+                {/* Recent Activity */}
+                <div className="bg-[#131c2e] border border-white/5 rounded-lg p-4">
+                  <h4 className="text-white text-xs font-semibold mb-3">Recent Activity</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded bg-green-500/10 flex items-center justify-center">
+                        <DollarSign className="w-3 h-3 text-green-400" />
+                      </div>
+                      <p className="text-gray-400 text-[10px] flex-1">Payment received</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded bg-orange-500/10 flex items-center justify-center">
+                        <CalendarCheck className="w-3 h-3 text-orange-400" />
+                      </div>
+                      <p className="text-gray-400 text-[10px] flex-1">Attendance logged</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded bg-purple-500/10 flex items-center justify-center">
+                        <Trophy className="w-3 h-3 text-purple-400" />
+                      </div>
+                      <p className="text-gray-400 text-[10px] flex-1">Medal awarded</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Module Quick Access */}
+              <div className="mt-4 flex items-center gap-2">
+                <div className="flex-1 h-1 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-green-500/20 rounded-full"></div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/10">
+                  <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
+                  <span className="text-gray-400 text-[10px]">Real-time sync</span>
+                </div>
+                <div className="flex-1 h-1 bg-gradient-to-r from-green-500/20 via-purple-500/20 to-blue-500/20 rounded-full"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const FeatureBento = () => {
+  return (
+    <div id="features" className="py-24 bg-[#0B1121] relative">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-16">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Four Pillars of Smart-U</h2>
+          <p className="text-gray-400 max-w-xl">We consolidated critical workflows into four focused modules designed for real-world campus needs.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Large Card: Intramurals (Highlighting this based on your interests) */}
+          <div className="md:col-span-2 bg-gradient-to-br from-blue-900/40 to-[#131c2e] border border-blue-500/20 rounded-3xl p-8 hover:border-blue-500/50 transition-all group relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-32 bg-blue-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-blue-500/20 transition-all"></div>
+            <div className="bg-blue-600/20 w-12 h-12 rounded-xl flex items-center justify-center mb-6">
+              <Trophy className="text-blue-400 w-6 h-6" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">Intramurals Management</h3>
+            <p className="text-gray-400 mb-6 max-w-md">
+              Automated bracket generation, real-time medal tallies, and live scoring.
+              The only campus tool that treats student activities as a first-class citizen.
+            </p>
+            {/* Visual Decor for Bracket */}
+            <div className="flex gap-2 opacity-50">
+              <div className="h-2 w-12 bg-blue-500/50 rounded-full"></div>
+              <div className="h-2 w-8 bg-gray-600 rounded-full"></div>
+            </div>
+          </div>
+
+          {/* Tall Card: Fees */}
+          <div className="md:row-span-2 bg-[#131c2e] border border-white/5 rounded-3xl p-8 hover:border-white/10 transition-all">
+            <div className="bg-green-500/10 w-12 h-12 rounded-xl flex items-center justify-center mb-6">
+              <CreditCard className="text-green-400 w-6 h-6" />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Fees & Payments</h3>
+            <p className="text-gray-400 text-sm mb-8">
+              Centralize tuition and miscellaneous fees. Real-time payment verification and history per student.
+            </p>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-black/20 border border-white/5">
+                  <div className="w-20 h-2 bg-gray-700 rounded"></div>
+                  <div className="w-8 h-4 bg-green-500/20 rounded text-[10px] text-green-400 flex items-center justify-center">PAID</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Card: Attendance */}
+          <div className="bg-[#131c2e] border border-white/5 rounded-3xl p-8 hover:border-white/10 transition-all">
+            <div className="bg-orange-500/10 w-12 h-12 rounded-xl flex items-center justify-center mb-6">
+              <CalendarCheck className="text-orange-400 w-6 h-6" />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Smart Attendance</h3>
+            <p className="text-gray-400 text-sm">
+              Capture attendance in seconds. Generate reliable summaries per class and student.
+            </p>
+          </div>
+
+          {/* Card: Reports */}
+          <div className="bg-[#131c2e] border border-white/5 rounded-3xl p-8 hover:border-white/10 transition-all">
+            <div className="bg-purple-500/10 w-12 h-12 rounded-xl flex items-center justify-center mb-6">
+              <BarChart3 className="text-purple-400 w-6 h-6" />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Instant Reports</h3>
+            <p className="text-gray-400 text-sm">
+              Exportable summaries and history. Real-time operational insights for admin.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const ValueProps = () => {
+  const props = [
+    { icon: ShieldCheck, title: "Secure & Role-Based", desc: "Access tailored for registrars, cashiers, and student leaders." },
+    { icon: Zap, title: "Real-Time Updates", desc: "Data propagates instantly across the campus network." },
+    { icon: Users, title: "Student Centered", desc: "Transparency for students regarding their own academic status." },
+  ]
+
+  return (
+    <div id="about" className="py-24 bg-[#0B1121] border-t border-white/5">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid md:grid-cols-3 gap-12">
+          {props.map((item, idx) => (
+            <div key={idx} className="flex flex-col items-start">
+              <div className="p-3 bg-white/5 rounded-lg mb-4">
+                <item.icon className="w-6 h-6 text-blue-400" />
+              </div>
+              <h4 className="text-lg font-bold text-white mb-2">{item.title}</h4>
+              <p className="text-gray-400 leading-relaxed">{item.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const Footer = () => {
+  return (
+    <footer id="contact" className="bg-[#050914] pt-20 pb-10 border-t border-white/5">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
+          <div className="col-span-1 md:col-span-2">
+            <div className="flex items-center gap-2 mb-6">
+              <LayoutDashboard className="text-blue-500 w-6 h-6" />
+              <span className="text-white font-bold text-xl">SMART-U</span>
+            </div>
+            <p className="text-gray-400 max-w-sm mb-6">
+              Student Management and Activity Real-Time Utility. Modernizing campus operations one module at a time.
+            </p>
+            <div className="flex items-center gap-4">
+              {/* Developer Badge */}
+              <div className="flex items-center gap-3 bg-white/5 p-2 pr-4 rounded-full border border-white/5">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-xs text-white font-bold">
+                  K
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-gray-400 uppercase tracking-wider">System Developer</span>
+                  <span className="text-sm text-white font-medium">Khyle / Angel Of God Tech</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-white font-bold mb-6">Platform</h4>
+            <ul className="space-y-4 text-gray-400 text-sm">
+              <li><a href="#features" className="hover:text-blue-400">Features</a></li>
+              <li><a href="#about" className="hover:text-blue-400">Security</a></li>
+              <li><a href="#" className="hover:text-blue-400">Roadmap</a></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="text-white font-bold mb-6">Contact</h4>
+            <ul className="space-y-4 text-gray-400 text-sm">
+              <li>Bukidnon State University</li>
+              <li>aogtech.ph@gmail.com</li>
+              <li>Malaybalay City</li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-gray-500 text-sm">© 2025 Angel Of God Tech. All rights reserved.</p>
+          <div className="flex gap-6 text-gray-500 text-sm">
+            <a href="#" className="hover:text-white">Privacy</a>
+            <a href="#" className="hover:text-white">Terms</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  )
+}
 
 export default function HomePage() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
@@ -49,6 +450,7 @@ export default function HomePage() {
     })
     setIsLoginModalOpen(true)
   }
+
   const closeLoginModal = () => {
     toast({
       title: "Login closed",
@@ -65,21 +467,10 @@ export default function HomePage() {
         if (response.ok) {
           const data = await response.json()
           setIsVisible(data.visible || false)
-          toast({
-            title: "Intramurals visibility loaded",
-            description: data.visible
-              ? "Showing intramurals medal tally on the homepage."
-              : "Showing full SmartU landing page.",
-          })
         }
       } catch (error) {
         console.error("Error fetching visibility:", error)
         setIsVisible(false)
-        toast({
-          title: "Intramurals visibility error",
-          description: "Failed to load visibility settings. Showing default view.",
-          variant: "destructive",
-        })
       } finally {
         setVisibilityLoading(false)
       }
@@ -90,737 +481,346 @@ export default function HomePage() {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
-      {/* Navbar */}
-      <header className="bg-white/90 backdrop-blur-md shadow-sm border-b border-slate-100 sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#191970] to-indigo-700 flex items-center justify-center shadow-md">
-              <GraduationCap className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <p className="text-xs font-medium tracking-wide text-indigo-600 uppercase">SMART-U</p>
-              <p className="text-sm text-slate-500">Student Management & Activity Real-Time Utility</p>
-            </div>
-          </div>
-
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
-            <a href="#home" className="hover:text-indigo-700 transition-colors">
-              Home
-            </a>
-            <a href="#features" className="hover:text-indigo-700 transition-colors">
-              Features
-            </a>
-            <a href="#about" className="hover:text-indigo-700 transition-colors">
-              About
-            </a>
-            <a href="#contact" className="hover:text-indigo-700 transition-colors">
-              Contact
-            </a>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={openLoginModal}
-              className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-full px-5"
-            >
-              Login
-            </Button>
-          </nav>
-
-          <div className="flex md:hidden">
-            <Button
-              size="sm"
-              onClick={openLoginModal}
-              className="bg-gradient-to-r from-[#191970] to-indigo-700 text-white rounded-full px-5 shadow-md"
-            >
-              Login
-              <ArrowRight className="ml-1 w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main>
-        {/* Intramurals banner section (when enabled) */}
-        {isVisible && !visibilityLoading && (
-          <section className="border-b border-slate-100 bg-gradient-to-r from-indigo-50 via-sky-50 to-emerald-50">
-            <div className="container mx-auto px-4 py-8 space-y-4">
-              <Badge className="bg-white/80 text-indigo-700 border border-indigo-100 rounded-full shadow-sm w-fit">
-                <Trophy className="w-3 h-3 mr-1" />
-                Live Intramurals Medal Tally
-              </Badge>
-              <p className="text-xs md:text-sm text-slate-600 max-w-2xl">
-                SMART-U is currently highlighting real-time intramurals results for your campus. Scroll down anytime
-                to explore the full platform.
-              </p>
-            </div>
-            <div className="container mx-auto px-4 pb-10">
-              <div className="grid lg:grid-cols-3 gap-6 items-start">
-                <div className="lg:col-span-2">
-                  <Card className="border-none shadow-lg shadow-indigo-100/60 rounded-2xl overflow-hidden">
-                    <CardHeader className="bg-gradient-to-r from-[#191970] to-indigo-700 text-white">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                            <Trophy className="w-5 h-5 text-amber-300" />
-                            Intramurals Standings
-                          </CardTitle>
-                          <CardDescription className="text-indigo-100 mt-1">
-                            Real-time medal counts, rankings, and performance highlights.
-                          </CardDescription>
-                        </div>
-                        <Badge className="bg-amber-400 text-slate-900 rounded-full px-3 py-1 text-xs font-semibold">
-                          Live
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <IntramuralsStandings />
-                    </CardContent>
-                  </Card>
-                </div>
-                <div className="space-y-4">
-                  <Card className="border-none shadow-md shadow-indigo-100 rounded-2xl overflow-hidden">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <Calendar className="w-4 h-4 text-indigo-600" />
-                        Intramurals Schedule
-                      </CardTitle>
-                      <CardDescription>Stay ahead with upcoming matches and events.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <IntramuralsSchedule />
-                    </CardContent>
-                  </Card>
-
-                  <div className="rounded-2xl border border-dashed border-indigo-100 bg-white/80 p-4 space-y-3 shadow-sm">
-                    <div className="flex items-center gap-2 text-sm font-medium text-slate-800">
-                      <Sparkles className="w-4 h-4 text-indigo-500" />
-                      <span>Explore the full SMART-U experience</span>
-                    </div>
-                    <p className="text-xs text-slate-600">
-                      SMART-U goes beyond intramurals. Manage fees, track attendance, generate reports, and more in one
-                      unified platform.
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="rounded-full border-indigo-200 text-indigo-700 hover:bg-indigo-50 text-xs"
-                      onClick={() => {
-                        const el = document.getElementById("home")
-                        if (el) {
-                          el.scrollIntoView({ behavior: "smooth" })
-                        }
-                      }}
-                    >
-                      View SMART-U overview
-                    </Button>
-                  </div>
-                </div>
+    <div className="min-h-screen bg-[#0B1121] text-slate-200 font-sans selection:bg-blue-500/30">
+      <style dangerouslySetInnerHTML={{__html: `
+        /* Global dark mode styles for intramurals modal */
+        body .fixed.inset-0 .bg-white {
+          background-color: #131c2e !important;
+          border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+        body .fixed.inset-0 .border-slate-200,
+        body .fixed.inset-0 .border-slate-100 {
+          border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+        body .fixed.inset-0 .bg-yellow-50 {
+          background-color: rgba(251, 191, 36, 0.15) !important;
+          border-color: rgba(251, 191, 36, 0.3) !important;
+        }
+        body .fixed.inset-0 .bg-slate-50 {
+          background-color: rgba(255, 255, 255, 0.05) !important;
+          border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+        body .fixed.inset-0 .bg-amber-50 {
+          background-color: rgba(217, 119, 6, 0.15) !important;
+          border-color: rgba(217, 119, 6, 0.3) !important;
+        }
+        body .fixed.inset-0 .text-\\[\\#191970\\] {
+          color: #60a5fa !important;
+        }
+        body .fixed.inset-0 .text-slate-600,
+        body .fixed.inset-0 .text-slate-700,
+        body .fixed.inset-0 .text-slate-500 {
+          color: #cbd5e1 !important;
+        }
+        body .fixed.inset-0 h3,
+        body .fixed.inset-0 h4 {
+          color: #ffffff !important;
+        }
+        body .fixed.inset-0 table thead {
+          background-color: rgba(255, 255, 255, 0.05) !important;
+        }
+        body .fixed.inset-0 table thead th {
+          color: #e2e8f0 !important;
+        }
+        body .fixed.inset-0 table tbody tr {
+          border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+        body .fixed.inset-0 table tbody tr:hover {
+          background-color: rgba(255, 255, 255, 0.05) !important;
+        }
+        body .fixed.inset-0 table tbody td {
+          color: #cbd5e1 !important;
+        }
+        body .fixed.inset-0 button.bg-white,
+        body .fixed.inset-0 button[class*="bg-"] {
+          background-color: rgba(59, 130, 246, 0.2) !important;
+          border-color: rgba(59, 130, 246, 0.3) !important;
+          color: #ffffff !important;
+        }
+        body .fixed.inset-0 button:hover {
+          background-color: rgba(59, 130, 246, 0.3) !important;
+        }
+        /* IntramuralsSchedule dark mode styles */
+        .intramurals-dark-mode .bg-gradient-to-b.from-white.to-slate-50 {
+          background: transparent !important;
+        }
+        .intramurals-dark-mode .bg-white {
+          background-color: #131c2e !important;
+        }
+        .intramurals-dark-mode .bg-gradient-to-r.from-white.to-slate-50 {
+          background: linear-gradient(to right, #131c2e, #131c2e) !important;
+        }
+        .intramurals-dark-mode .text-\\[\\#191970\\] {
+          color: #60a5fa !important;
+        }
+        .intramurals-dark-mode .bg-\\[\\#191970\\] {
+          background-color: rgba(59, 130, 246, 0.2) !important;
+        }
+        .intramurals-dark-mode .border-slate-200 {
+          border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+        .intramurals-dark-mode .text-slate-600 {
+          color: #cbd5e1 !important;
+        }
+        .intramurals-dark-mode .bg-slate-50 {
+          background-color: rgba(255, 255, 255, 0.05) !important;
+        }
+        .intramurals-dark-mode .bg-blue-600 {
+          background-color: rgba(59, 130, 246, 0.3) !important;
+        }
+        .intramurals-dark-mode .bg-blue-700 {
+          background-color: rgba(59, 130, 246, 0.4) !important;
+        }
+        .intramurals-dark-mode .text-white {
+          color: #ffffff !important;
+        }
+        .intramurals-dark-mode .hover\\:bg-blue-700:hover {
+          background-color: rgba(59, 130, 246, 0.5) !important;
+        }
+        .intramurals-dark-mode .border-blue-200 {
+          border-color: rgba(59, 130, 246, 0.3) !important;
+        }
+        .intramurals-dark-mode .bg-blue-50 {
+          background-color: rgba(59, 130, 246, 0.1) !important;
+        }
+        .intramurals-dark-mode .text-blue-600 {
+          color: #60a5fa !important;
+        }
+        .intramurals-dark-mode .text-blue-700 {
+          color: #93c5fd !important;
+        }
+        .intramurals-dark-mode .bg-purple-600 {
+          background-color: rgba(147, 51, 234, 0.3) !important;
+        }
+        .intramurals-dark-mode .bg-purple-700 {
+          background-color: rgba(147, 51, 234, 0.4) !important;
+        }
+        .intramurals-dark-mode .hover\\:bg-purple-700:hover {
+          background-color: rgba(147, 51, 234, 0.5) !important;
+        }
+        .intramurals-dark-mode .border-purple-200 {
+          border-color: rgba(147, 51, 234, 0.3) !important;
+        }
+        .intramurals-dark-mode .bg-purple-50 {
+          background-color: rgba(147, 51, 234, 0.1) !important;
+        }
+        .intramurals-dark-mode .text-purple-600 {
+          color: #a78bfa !important;
+        }
+                  .intramurals-dark-mode .text-purple-700 {
+                    color: #c4b5fd !important;
+                  }
+                  /* Schedule cards specific styling */
+                  .intramurals-dark-mode .rounded-2xl.bg-white {
+                    background-color: #131c2e !important;
+                    border-color: rgba(255, 255, 255, 0.1) !important;
+                  }
+                  .intramurals-dark-mode .shadow-md {
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important;
+                  }
+                  .intramurals-dark-mode .shadow-xl {
+                    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2) !important;
+                  }
+                  .intramurals-dark-mode .text-slate-200 {
+                    color: #e2e8f0 !important;
+                  }
+                  .intramurals-dark-mode .text-slate-500 {
+                    color: #94a3b8 !important;
+                  }
+                  .intramurals-dark-mode [class*="from-[#191970]"],
+                  .intramurals-dark-mode [class*="from-\\[\\#191970\\]"] {
+                    background: linear-gradient(to right, rgba(59, 130, 246, 0.3), rgba(30, 58, 138, 0.3), rgba(15, 23, 42, 0.3)) !important;
+                  }
+                  .intramurals-dark-mode [class*="from-[#0f172a]"],
+                  .intramurals-dark-mode [class*="from-\\[\\#0f172a\\]"] {
+                    background: linear-gradient(to right, rgba(15, 23, 42, 0.3), rgba(30, 58, 138, 0.3), rgba(75, 31, 168, 0.3)) !important;
+                  }
+                  .intramurals-dark-mode [class*="bg-gradient-to-r"] {
+                    opacity: 0.8 !important;
+                  }
+                  .intramurals-dark-mode button.bg-\\[\\#191970\\] {
+                    background-color: rgba(59, 130, 246, 0.3) !important;
+                    border-color: rgba(59, 130, 246, 0.4) !important;
+                  }
+                  .intramurals-dark-mode button.hover\\:bg-\\[\\#151554\\]:hover {
+                    background-color: rgba(59, 130, 246, 0.4) !important;
+                  }
+                  .intramurals-dark-mode .bg-\\[\\#191970\\] {
+                    background-color: rgba(59, 130, 246, 0.2) !important;
+                  }
+                `}} />
+      <Navbar onLoginClick={openLoginModal} />
+      
+      {/* Intramurals banner section (when enabled) */}
+      {isVisible && !visibilityLoading && (
+        <section className="relative pt-32 pb-24 overflow-hidden">
+          {/* Background Gradients */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-purple-600/20 rounded-full blur-[120px] -z-10" />
+          <div className="absolute bottom-0 right-0 w-[800px] h-[600px] bg-blue-600/10 rounded-full blur-[100px] -z-10" />
+          
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/20 mb-6">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                </span>
+                <span className="text-purple-300 text-sm font-medium">Live Intramurals Medal Tally</span>
               </div>
-            </div>
-          </section>
-        )}
-
-        {/* Hero section */}
-        <section
-          id="home"
-          className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-b from-white via-slate-50 to-slate-100"
-        >
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute -left-40 -top-40 h-72 w-72 rounded-full bg-indigo-100 blur-3xl opacity-60" />
-            <div className="absolute right-0 top-40 h-64 w-64 rounded-full bg-sky-100 blur-3xl opacity-60" />
-          </div>
-
-          <div className="container mx-auto px-4 py-16 md:py-24 relative">
-            <div className="grid lg:grid-cols-2 gap-12 items-center">
-              <div className="space-y-6">
-                <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-full px-3 py-1 text-xs font-semibold inline-flex items-center gap-2">
-                  <Sparkles className="w-3 h-3 text-indigo-500" />
-                  A Unified Platform for Smarter Campus Management
-                </Badge>
-
-                <div className="space-y-3">
-                  <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight text-slate-900">
-                    SMART-U
-                  </h1>
-                  <p className="text-lg md:text-xl text-slate-600 max-w-xl">
-                    Student Management and Activity Real-Time Utility that centralizes fees, attendance, reports, and
-                    intramurals into one intelligent campus hub.
-                  </p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <Button
-                    onClick={openLoginModal}
-                    className="bg-gradient-to-r from-[#191970] to-indigo-700 hover:from-[#141455] hover:to-indigo-800 text-white font-semibold px-8 py-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
-                  >
-                    Get Started
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="rounded-full border-slate-200 text-slate-800 hover:bg-slate-50 flex items-center justify-center gap-2 px-6"
-                    onClick={() => {
-                      const el = document.getElementById("features")
-                      if (el) {
-                        el.scrollIntoView({ behavior: "smooth" })
-                      }
-                    }}
-                  >
-                    View Features
-                    <BarChart className="w-4 h-4 text-indigo-600" />
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap gap-4 text-xs text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-emerald-500" />
-                    <span>Secure & role-based access</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-amber-500" />
-                    <span>Real-time data & updates</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-sky-500" />
-                    <span>Designed for busy school operations</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="relative">
-                <div className="absolute -inset-4 rounded-3xl bg-gradient-to-tr from-indigo-100 via-sky-100 to-emerald-100 blur-2xl opacity-80" />
-                <div className="relative rounded-3xl bg-white shadow-2xl shadow-indigo-100/60 border border-slate-100 p-6 md:p-8 space-y-5">
-                  <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center">
-                        <Building className="w-5 h-5 text-indigo-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-indigo-700 uppercase tracking-wide">
-                          SMART-U Snapshot
-                        </p>
-                        <p className="text-sm text-slate-500">Centralized school operations</p>
-                      </div>
-                    </div>
-                    <Badge className="rounded-full bg-emerald-50 text-emerald-700 border-emerald-100 text-[10px]">
-                      Live Campus View
-                    </Badge>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <Card className="border-none bg-slate-50/70 shadow-sm rounded-2xl">
-                      <CardContent className="pt-4 pb-4 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <BookOpen className="w-4 h-4 text-indigo-600" />
-                          <span className="font-semibold text-slate-800 text-xs">Fees Management</span>
-                        </div>
-                        <p className="text-[11px] text-slate-600">
-                          Track dues, payments, and receipts with clear student-level visibility.
-                        </p>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border-none bg-slate-50/70 shadow-sm rounded-2xl">
-                      <CardContent className="pt-4 pb-4 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-emerald-600" />
-                          <span className="font-semibold text-slate-800 text-xs">Attendance Tracking</span>
-                        </div>
-                        <p className="text-[11px] text-slate-600">
-                          Capture attendance in minutes with reliable summaries per class and student.
-                        </p>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border-none bg-slate-50/70 shadow-sm rounded-2xl">
-                      <CardContent className="pt-4 pb-4 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <BarChart className="w-4 h-4 text-amber-600" />
-                          <span className="font-semibold text-slate-800 text-xs">Reports</span>
-                        </div>
-                        <p className="text-[11px] text-slate-600">
-                          Generate up-to-date academic and operational reports in just a few clicks.
-                        </p>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border-none bg-slate-50/70 shadow-sm rounded-2xl">
-                      <CardContent className="pt-4 pb-4 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Trophy className="w-4 h-4 text-rose-500" />
-                          <span className="font-semibold text-slate-800 text-xs">Intramurals</span>
-                        </div>
-                        <p className="text-[11px] text-slate-600">
-                          Showcase team standings, schedules, and medals with real-time updates.
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <Alert className="border-emerald-200 bg-emerald-50/80 text-emerald-800 rounded-2xl text-xs">
-                    <AlertCircle className="w-3 h-3" />
-                    <AlertDescription>
-                      SMART-U keeps academic, financial, and activity data synchronized so administrators, faculty, and
-                      students stay aligned.
-                    </AlertDescription>
-                  </Alert>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Core feature highlights */}
-        <section id="features" className="py-14 md:py-20 bg-white">
-          <div className="container mx-auto px-4 space-y-10">
-            <div className="text-center space-y-3 max-w-2xl mx-auto">
-              <Badge className="bg-slate-100 text-slate-800 rounded-full px-4 py-1 text-xs font-semibold">
-                Key Modules
-              </Badge>
-              <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900">
-                Four Pillars of Smarter Campus Operations
+              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+                Campus <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">Intramurals</span>
               </h2>
-              <p className="text-sm md:text-base text-slate-600">
-                SMART-U consolidates critical school workflows into four focused modules designed for real-world campus
-                needs.
+              <p className="text-gray-400 max-w-2xl mx-auto">
+                Real-time standings, schedules, and medal counts for Bukidnon State University Intramurals 2026
               </p>
             </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card className="group border-slate-100 shadow-sm hover:shadow-lg transition-shadow rounded-2xl">
-                <CardHeader>
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3 group-hover:bg-indigo-100 transition-colors">
-                    <Building className="w-5 h-5" />
-                  </div>
-                  <CardTitle className="text-base">Fees Management</CardTitle>
-                  <CardDescription className="text-xs mt-2">
-                    Centralize tuition, miscellaneous fees, and payment status with clear history per student.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-xs text-slate-600 space-y-1">
-                  <p className="flex items-center gap-2">
-                    <CheckCircle className="w-3 h-3 text-emerald-500" />
-                    Automated fee assignment and tracking
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <CheckCircle className="w-3 h-3 text-emerald-500" />
-                    Receipt and payment verification workflows
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="group border-slate-100 shadow-sm hover:shadow-lg transition-shadow rounded-2xl">
-                <CardHeader>
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3 group-hover:bg-emerald-100 transition-colors">
-                    <Calendar className="w-5 h-5" />
-                  </div>
-                  <CardTitle className="text-base">Attendance Tracking</CardTitle>
-                  <CardDescription className="text-xs mt-2">
-                    Capture and review attendance across classes, events, and activities with instant summaries.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-xs text-slate-600 space-y-1">
-                  <p className="flex items-center gap-2">
-                    <CheckCircle className="w-3 h-3 text-emerald-500" />
-                    Student-level statistics and trends
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <CheckCircle className="w-3 h-3 text-emerald-500" />
-                    Flexible attendance types and overrides
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="group border-slate-100 shadow-sm hover:shadow-lg transition-shadow rounded-2xl">
-                <CardHeader>
-                  <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-3 group-hover:bg-amber-100 transition-colors">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                  <CardTitle className="text-base">Reports</CardTitle>
-                  <CardDescription className="text-xs mt-2">
-                    Generate clear, actionable reports for administrators, faculty, and regulatory requirements.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-xs text-slate-600 space-y-1">
-                  <p className="flex items-center gap-2">
-                    <TrendingUp className="w-3 h-3 text-indigo-500" />
-                    Real-time academic and operational insights
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <BarChart className="w-3 h-3 text-indigo-500" />
-                    Exportable summaries and history
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="group border-slate-100 shadow-sm hover:shadow-lg transition-shadow rounded-2xl">
-                <CardHeader>
-                  <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mb-3 group-hover:bg-rose-100 transition-colors">
-                    <Trophy className="w-5 h-5" />
-                  </div>
-                  <CardTitle className="text-base">Intramurals Management</CardTitle>
-                  <CardDescription className="text-xs mt-2">
-                    Highlight campus spirit with structured tournament schedules, results, and medal tallies.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-xs text-slate-600 space-y-1">
-                  <p className="flex items-center gap-2">
-                    <Award className="w-3 h-3 text-amber-500" />
-                    Automated medal tally and rankings
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <Users className="w-3 h-3 text-indigo-500" />
-                    Clear visibility for teams, coaches, and students
-                  </p>
-                </CardContent>
-              </Card>
+            
+          {/* Wrapped in dashboard-style container with dark mode */}
+          <div className="mt-12 relative mx-auto max-w-7xl">
+            <div className="relative rounded-2xl bg-[#131c2e] border border-white/10 p-2 shadow-2xl">
+              <div className="rounded-xl overflow-hidden bg-[#0B1121] relative group">
+                <style dangerouslySetInnerHTML={{__html: `
+                  .intramurals-dark-mode section {
+                    background: transparent !important;
+                    background-image: none !important;
+                  }
+                  .intramurals-dark-mode .bg-white,
+                  .intramurals-dark-mode .bg-slate-50,
+                  .intramurals-dark-mode .bg-slate-100 {
+                    background-color: #131c2e !important;
+                  }
+                  .intramurals-dark-mode .border-slate-200,
+                  .intramurals-dark-mode .border-slate-100 {
+                    border-color: rgba(255, 255, 255, 0.1) !important;
+                  }
+                  .intramurals-dark-mode .text-slate-600,
+                  .intramurals-dark-mode .text-slate-700,
+                  .intramurals-dark-mode .text-slate-800,
+                  .intramurals-dark-mode .text-slate-900 {
+                    color: #e2e8f0 !important;
+                  }
+                  .intramurals-dark-mode .text-\\[\\#191970\\] {
+                    color: #60a5fa !important;
+                  }
+                  .intramurals-dark-mode h1,
+                  .intramurals-dark-mode h2,
+                  .intramurals-dark-mode h3,
+                  .intramurals-dark-mode h4 {
+                    color: #ffffff !important;
+                  }
+                  .intramurals-dark-mode p,
+                  .intramurals-dark-mode span:not([class*="text-"]) {
+                    color: #cbd5e1 !important;
+                  }
+                  .intramurals-dark-mode table {
+                    background: transparent !important;
+                  }
+                  .intramurals-dark-mode th,
+                  .intramurals-dark-mode td {
+                    color: #e2e8f0 !important;
+                    border-color: rgba(255, 255, 255, 0.1) !important;
+                  }
+                  .intramurals-dark-mode .card,
+                  .intramurals-dark-mode [class*="Card"] {
+                    background-color: #131c2e !important;
+                    border-color: rgba(255, 255, 255, 0.1) !important;
+                  }
+                  .intramurals-dark-mode tr:hover,
+                  .intramurals-dark-mode tbody tr:hover {
+                    background-color: rgba(255, 255, 255, 0.05) !important;
+                  }
+                  .intramurals-dark-mode button:hover,
+                  .intramurals-dark-mode [role="button"]:hover,
+                  .intramurals-dark-mode a:hover {
+                    background-color: rgba(59, 130, 246, 0.2) !important;
+                    border-color: rgba(59, 130, 246, 0.3) !important;
+                  }
+                  .intramurals-dark-mode .hover\\:bg-slate-50:hover,
+                  .intramurals-dark-mode .hover\\:bg-slate-100:hover,
+                  .intramurals-dark-mode .hover\\:bg-white:hover {
+                    background-color: rgba(255, 255, 255, 0.05) !important;
+                  }
+                  .intramurals-dark-mode .hover\\:bg-blue-50:hover,
+                  .intramurals-dark-mode .hover\\:bg-indigo-50:hover {
+                    background-color: rgba(59, 130, 246, 0.15) !important;
+                  }
+                  .intramurals-dark-mode [class*="hover:bg-"]:hover {
+                    background-color: rgba(255, 255, 255, 0.05) !important;
+                  }
+                  .intramurals-dark-mode [class*="hover:text-"]:hover {
+                    color: #60a5fa !important;
+                  }
+                  .intramurals-dark-mode .fixed {
+                    background-color: rgba(0, 0, 0, 0.8) !important;
+                  }
+                  .intramurals-dark-mode .fixed .bg-white {
+                    background-color: #131c2e !important;
+                    border-color: rgba(255, 255, 255, 0.1) !important;
+                  }
+                  .intramurals-dark-mode .fixed .border-slate-200,
+                  .intramurals-dark-mode .fixed .border-slate-100 {
+                    border-color: rgba(255, 255, 255, 0.1) !important;
+                  }
+                  .intramurals-dark-mode .fixed .bg-yellow-50 {
+                    background-color: rgba(251, 191, 36, 0.15) !important;
+                    border-color: rgba(251, 191, 36, 0.3) !important;
+                  }
+                  .intramurals-dark-mode .fixed .bg-slate-50 {
+                    background-color: rgba(255, 255, 255, 0.05) !important;
+                    border-color: rgba(255, 255, 255, 0.1) !important;
+                  }
+                  .intramurals-dark-mode .fixed .bg-amber-50 {
+                    background-color: rgba(217, 119, 6, 0.15) !important;
+                    border-color: rgba(217, 119, 6, 0.3) !important;
+                  }
+                  .intramurals-dark-mode .fixed .text-\\[\\#191970\\] {
+                    color: #60a5fa !important;
+                  }
+                  .intramurals-dark-mode .fixed .text-slate-600,
+                  .intramurals-dark-mode .fixed .text-slate-700,
+                  .intramurals-dark-mode .fixed .text-slate-500 {
+                    color: #cbd5e1 !important;
+                  }
+                  .intramurals-dark-mode .fixed h3,
+                  .intramurals-dark-mode .fixed h4 {
+                    color: #ffffff !important;
+                  }
+                  .intramurals-dark-mode .fixed table thead {
+                    background-color: rgba(255, 255, 255, 0.05) !important;
+                  }
+                  .intramurals-dark-mode .fixed table tbody tr {
+                    border-color: rgba(255, 255, 255, 0.1) !important;
+                  }
+                  .intramurals-dark-mode .fixed table tbody tr:hover {
+                    background-color: rgba(255, 255, 255, 0.05) !important;
+                  }
+                  .intramurals-dark-mode .fixed button {
+                    background-color: rgba(59, 130, 246, 0.2) !important;
+                    border-color: rgba(59, 130, 246, 0.3) !important;
+                    color: #ffffff !important;
+                  }
+                  .intramurals-dark-mode .fixed button:hover {
+                    background-color: rgba(59, 130, 246, 0.3) !important;
+                  }
+                `}} />
+                <div className="p-6 space-y-8 intramurals-dark-mode">
+                  <IntramuralsStandings />
+                  <IntramuralsSchedule />
+                </div>
+              </div>
             </div>
+          </div>
           </div>
         </section>
+      )}
 
-        {/* About / purpose section */}
-        <section id="about" className="py-16 md:py-20 bg-slate-50 border-y border-slate-100">
-          <div className="container mx-auto px-4 grid lg:grid-cols-2 gap-10 items-center">
-            <div className="space-y-4">
-              <Badge className="bg-indigo-50 text-indigo-700 rounded-full px-3 py-1 text-xs font-semibold">
-                Built for modern school operations
-              </Badge>
-              <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900">
-                What is SMART-U and how does it support your campus?
-              </h2>
-              <p className="text-sm md:text-base text-slate-600 leading-relaxed">
-                SMART-U (Student Management and Activity Real-Time Utility) is designed to unify fragmented school tools
-                into one cohesive platform. From enrollment to graduation, it helps administrators, faculty, and student
-                leaders operate with clarity and speed.
-              </p>
-              <p className="text-sm md:text-base text-slate-600 leading-relaxed">
-                By combining fees management, attendance tracking, academic reporting, and intramural activities,
-                SMART-U gives your institution a reliable single source of truth. Less manual work, fewer errors, and
-                more time for meaningful student engagement.
-              </p>
-              <div className="grid sm:grid-cols-2 gap-4 mt-4 text-xs">
-                <div className="flex items-start gap-3">
-                  <Shield className="w-5 h-5 text-indigo-600 mt-0.5" />
-                  <div>
-                    <p className="font-semibold text-slate-800">Secure & role-based</p>
-                    <p className="text-slate-600">
-                      Access is tailored for registrars, cashiers, teachers, student leaders, and more.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Bell className="w-5 h-5 text-emerald-600 mt-0.5" />
-                  <div>
-                    <p className="font-semibold text-slate-800">Real-time visibility</p>
-                    <p className="text-slate-600">
-                      Updates propagate instantly, keeping key stakeholders on the same page.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <Card className="border-none bg-white shadow-xl shadow-indigo-100/50 rounded-3xl">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Target className="w-5 h-5 text-indigo-600" />
-                    Designed around real workflows
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    SMART-U has been shaped by real campus scenarios, from student government initiatives to registrar
-                    operations.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-xs text-slate-600 space-y-2">
-                  <p className="flex items-center gap-2">
-                    <CheckCircle className="w-3 h-3 text-emerald-500" />
-                    Reduce manual encoding and consolidation across multiple spreadsheets.
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <CheckCircle className="w-3 h-3 text-emerald-500" />
-                    Improve data accuracy with focused modules and controlled access.
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <CheckCircle className="w-3 h-3 text-emerald-500" />
-                    Provide students and stakeholders a transparent view of their status.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <div className="grid sm:grid-cols-3 gap-4 text-center text-xs">
-                <div className="rounded-2xl bg-white border border-slate-100 px-4 py-3 shadow-sm">
-                  <p className="text-lg font-semibold text-slate-900">4+</p>
-                  <p className="text-slate-600 mt-1">Core modules unified</p>
-                </div>
-                <div className="rounded-2xl bg-white border border-slate-100 px-4 py-3 shadow-sm">
-                  <p className="text-lg font-semibold text-slate-900">Real-time</p>
-                  <p className="text-slate-600 mt-1">Updates & summaries</p>
-                </div>
-                <div className="rounded-2xl bg-white border border-slate-100 px-4 py-3 shadow-sm">
-                  <p className="text-lg font-semibold text-slate-900">Campus-wide</p>
-                  <p className="text-slate-600 mt-1">Coverage & visibility</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Why choose SMART-U / testimonials-style section */}
-        <section className="py-16 md:py-20 bg-white">
-          <div className="container mx-auto px-4 space-y-10">
-            <div className="text-center space-y-3 max-w-2xl mx-auto">
-              <Badge className="bg-slate-100 text-slate-800 rounded-full px-4 py-1 text-xs font-semibold">
-                Why Choose SMART-U
-              </Badge>
-              <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900">
-                Built for administrators, designed for students
-              </h2>
-              <p className="text-sm md:text-base text-slate-600">
-                SMART-U balances operational efficiency with a student-friendly experience, making it easier to run your
-                campus while keeping student life at the center.
-              </p>
-            </div>
-
-            <div className="grid lg:grid-cols-3 gap-6">
-              <Card className="border-slate-100 shadow-sm rounded-2xl flex flex-col">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center">
-                      <Star className="w-5 h-5 text-indigo-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-base">Operational clarity</CardTitle>
-                      <CardDescription className="text-xs">
-                        For registrars, cashiers, administrators, and student affairs.
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="text-xs text-slate-600 space-y-2 flex-1">
-                  <p>
-                    Quickly see who is cleared for enrollment, who has pending fees, and how attendance impacts academic
-                    records—all from a unified view.
-                  </p>
-                  <p className="italic border-l-2 border-indigo-100 pl-3 text-slate-500">
-                    “SMART-U lets us spend less time reconciling data and more time solving real student concerns.”
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-slate-100 shadow-sm rounded-2xl flex flex-col">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
-                      <Users className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-base">Student-centered</CardTitle>
-                      <CardDescription className="text-xs">
-                        Clear, timely information for students and organizations.
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="text-xs text-slate-600 space-y-2 flex-1">
-                  <p>
-                    Students see accurate standings, attendance summaries, and intramurals results, helping them stay
-                    engaged and informed throughout the semester.
-                  </p>
-                  <p className="italic border-l-2 border-emerald-100 pl-3 text-slate-500">
-                    “Our student government can now highlight achievements and events with real-time data.”
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-slate-100 shadow-sm rounded-2xl flex flex-col">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
-                      <Shield className="w-5 h-5 text-slate-700" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-base">Secure & reliable</CardTitle>
-                      <CardDescription className="text-xs">
-                        Backed by modern security practices and role-based access.
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="text-xs text-slate-600 space-y-2 flex-1">
-                  <p>
-                    SMART-U is designed with data integrity and privacy in mind, helping institutions uphold compliance
-                    while maintaining accessibility for authorized users.
-                  </p>
-                  <p className="italic border-l-2 border-slate-100 pl-3 text-slate-500">
-                    “We trust SMART-U to handle sensitive records without sacrificing ease of use.”
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </section>
-
-        {/* Contact / CTA section */}
-        <section
-          id="contact"
-          className="py-14 md:py-20 bg-gradient-to-r from-[#191970] via-indigo-800 to-sky-700 text-white"
-        >
-          <div className="container mx-auto px-4 grid lg:grid-cols-[3fr,2fr] gap-10 items-center">
-            <div className="space-y-4">
-              <Badge className="bg-white/10 text-indigo-100 border border-white/20 rounded-full px-3 py-1 text-xs font-semibold">
-                Ready to modernize your campus operations?
-              </Badge>
-              <h2 className="text-2xl md:text-3xl font-semibold tracking-tight">Bring SMART-U to your school</h2>
-              <p className="text-sm md:text-base text-indigo-100/90 leading-relaxed max-w-xl">
-                Whether you are starting with fees, attendance, reports, or intramurals, SMART-U can be rolled out
-                module by module while keeping a unified platform at the core.
-              </p>
-
-              <div className="space-y-3 text-sm">
-                <div className="flex items-center gap-3">
-                  <Phone className="w-4 h-4 text-amber-300" />
-                  <span className="text-indigo-100">Coordinate with your campus ICT or student affairs office.</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Mail className="w-4 h-4 text-amber-300" />
-                  <span className="text-indigo-100">For technical coordination, reach out to the system developer.</span>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-3 pt-2">
-                <Button
-                  onClick={openLoginModal}
-                  className="bg-white text-[#191970] hover:bg-slate-100 font-semibold rounded-full px-8 shadow-lg"
-                >
-                  Login to SMART-U
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-white/40 text-white hover:bg-white/10 rounded-full px-6"
-                  onClick={() => {
-                    const el = document.getElementById("about")
-                    if (el) {
-                      el.scrollIntoView({ behavior: "smooth" })
-                    }
-                  }}
-                >
-                  Learn more about the system
-                </Button>
-              </div>
-            </div>
-
-            <Card className="bg-white/5 border border-white/20 rounded-3xl shadow-xl backdrop-blur">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2 text-white">
-                  <Building className="w-4 h-4 text-amber-300" />
-                  School & developer information
-                </CardTitle>
-                <CardDescription className="text-xs text-indigo-100/90">
-                  Official system and support contacts for SMART-U.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 text-xs text-indigo-50">
-                <div>
-                  <p className="font-semibold text-sm">Institution</p>
-                  <p className="text-indigo-100">Bukidnon State University</p>
-                  <p className="text-indigo-200">Fortich St. Malaybalay City, Bukidnon</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-sm">Student Government / SSC</p>
-                  <a
-                    href="https://www.facebook.com/BUKSUSSC"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-indigo-100 underline-offset-2 hover:underline"
-                  >
-                    Facebook: BukSU SSC
-                  </a>
-                </div>
-                <div className="border-t border-white/20 pt-3">
-                  <p className="font-semibold text-sm mb-1">System Developer</p>
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 rounded-full bg-indigo-900 border border-amber-300 overflow-hidden">
-                      <img
-                        src="/khyle.jpg"
-                        alt="Khyle Ivan khim V. Amacna"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div>
-                      <p className="text-indigo-50">Khyle Ivan khim V. Amacna</p>
-                      <p className="text-indigo-200 text-xs">System Developer, Angel Of God Tech</p>
-                    </div>
-                  </div>
-                  <p className="text-indigo-100 text-xs">Email: aogtech.ph@gmail.com</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </section>
-      </main>
-
-      {/* Footer */}
-      <footer className="py-10 bg-[#191970] text-white">
-        <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-3 gap-10">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center shadow-md">
-                  <GraduationCap className="w-6 h-6 text-[#191970]" />
-                </div>
-                <div>
-                  <p className="text-lg font-semibold">SMART-U</p>
-                  <p className="text-xs text-blue-100">
-                    Student Management and Activity Real-Time Utility
-                  </p>
-                </div>
-              </div>
-              <p className="text-xs text-blue-100 leading-relaxed">
-                A unified platform to support academic excellence, student engagement, and transparent campus
-                operations.
-              </p>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <p className="font-semibold text-sm mb-1">Quick Links</p>
-              <div className="flex flex-col gap-1 text-blue-100">
-                <a href="#home" className="hover:text-amber-300 transition-colors">
-                  Home
-                </a>
-                <a href="#features" className="hover:text-amber-300 transition-colors">
-                  Features
-                </a>
-                <a href="#about" className="hover:text-amber-300 transition-colors">
-                  About
-                </a>
-                <a href="#contact" className="hover:text-amber-300 transition-colors">
-                  Contact / Login
-                </a>
-              </div>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <p className="font-semibold text-sm mb-1">Developer</p>
-              <p className="text-blue-100">Angel Of God Tech</p>
-              <p className="text-blue-100">© {new Date().getFullYear()} Angel Of God Tech. All rights reserved.</p>
-              <div className="flex gap-4 text-blue-100 pt-1">
-                <a href="#" className="hover:text-amber-300 transition-colors">
-                  Privacy Policy
-                </a>
-                <a href="#" className="hover:text-amber-300 transition-colors">
-                  Terms
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Hero onGetStartedClick={openLoginModal} />
+      <FeatureBento />
+      <ValueProps />
+      <Footer />
 
       {/* Login Modal rendered globally so it works in all modes */}
       <LoginModal isOpen={isLoginModalOpen} onClose={closeLoginModal} />
     </div>
-    )
-  }
+  )
+}
