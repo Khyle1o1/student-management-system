@@ -140,7 +140,6 @@ export async function GET(request: Request) {
     let countQuery = supabaseAdmin
       .from('students')
       .select('*', { count: 'exact', head: true })
-      .ilike('name', `%${search}%`)
 
     let dataQuery = supabaseAdmin
       .from('students')
@@ -162,7 +161,13 @@ export async function GET(request: Request) {
           role
         )
       `)
-      .ilike('name', `%${search}%`)
+
+    // Apply search across name, student_id, and email
+    if (search) {
+      const searchFilter = `name.ilike.%${search}%,student_id.ilike.%${search}%,email.ilike.%${search}%`
+      countQuery = countQuery.or(searchFilter)
+      dataQuery = dataQuery.or(searchFilter)
+    }
 
     // Scope filters for org roles
     if (isCollegeOrg) {

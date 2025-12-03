@@ -22,10 +22,10 @@ export async function GET(
 
     const { id } = await params
 
-    // Ensure fee exists (and fetch amount for potential aggregation/reference)
+    // Ensure fee exists (and fetch amount / exempted students for reference)
     const { data: fee, error: feeError } = await supabaseAdmin
       .from('fee_structures')
-      .select('id, amount')
+      .select('id, amount, exempted_students')
       .eq('id', id)
       .is('deleted_at', null)
       .single()
@@ -54,10 +54,14 @@ export async function GET(
       totalPaid += Number(p.amount || 0)
     }
 
+    const exempted = (fee as any)?.exempted_students as string[] | null | undefined
+    const exemptedStudentCount = Array.isArray(exempted) ? exempted.length : 0
+
     return NextResponse.json({
       feeId: id,
       paidStudentCount: uniqueStudentIds.size,
       totalPaid,
+      exemptedStudentCount,
     })
   } catch (error) {
     console.error('Error in GET /api/fees/[id]/report:', error)

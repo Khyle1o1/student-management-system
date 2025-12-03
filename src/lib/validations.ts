@@ -95,19 +95,45 @@ export const feeSchema = z.object({
   }),
   scope_college: z.string().optional(),
   scope_course: z.string().optional(),
-}).refine((data) => {
-  // If scope is college-wide, scope_college must be provided
+  // List of student IDs/UUIDs that are exempted from this fee
+  // Defaults to an empty array if not provided
+  exempted_students: z.array(z.string()).optional().default([]),
+}).superRefine((data, ctx) => {
+  // Scope configuration validation
   if (data.scope_type === "COLLEGE_WIDE" && !data.scope_college) {
-    return false;
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["scope_type"],
+      message: "Invalid scope configuration",
+    })
   }
-  // If scope is course-specific, both scope_college and scope_course must be provided
+
   if (data.scope_type === "COURSE_SPECIFIC" && (!data.scope_college || !data.scope_course)) {
-    return false;
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["scope_type"],
+      message: "Invalid scope configuration",
+    })
   }
-  return true;
-}, {
-  message: "Invalid scope configuration",
-  path: ["scope_type"],
+
+  // Ensure exempted_students is an array without duplicates
+  const exempted = data.exempted_students || []
+  if (!Array.isArray(exempted)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["exempted_students"],
+      message: "Exempted students must be an array",
+    })
+  } else {
+    const uniqueCount = new Set(exempted).size
+    if (uniqueCount !== exempted.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["exempted_students"],
+        message: "Exempted students list contains duplicates",
+      })
+    }
+  }
 })
 
 export type FeeFormData = z.infer<typeof feeSchema>

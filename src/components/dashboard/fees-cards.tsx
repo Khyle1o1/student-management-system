@@ -55,7 +55,7 @@ export function FeesCards() {
   const [filteredFees, setFilteredFees] = useState<Fee[]>([])
   const [reportOpen, setReportOpen] = useState(false)
   const [reportLoading, setReportLoading] = useState(false)
-  const [reportData, setReportData] = useState<{ feeId: string; paidStudentCount: number; totalPaid: number } | null>(null)
+  const [reportData, setReportData] = useState<{ feeId: string; paidStudentCount: number; totalPaid: number; exemptedStudentCount?: number } | null>(null)
   const [selectedFee, setSelectedFee] = useState<{ id: string; name: string } | null>(null)
 
   const fetchFees = async () => {
@@ -568,6 +568,12 @@ export function FeesCards() {
                   <span className="text-gray-700">Total Collected</span>
                   <span className="font-semibold">{`₱${reportData.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}</span>
                 </div>
+                {typeof reportData.exemptedStudentCount === 'number' && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-700">Exempted Students</span>
+                    <span className="font-semibold">{reportData.exemptedStudentCount}</span>
+                  </div>
+                )}
                 <div className="pt-2">
                   <Button
                     onClick={async () => {

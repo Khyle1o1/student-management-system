@@ -177,6 +177,8 @@ export async function POST(request: Request) {
         scope_type: validatedData.scope_type,
         scope_college: validatedData.scope_college || null,
         scope_course: validatedData.scope_course || null,
+        // Store exempted students as an array of IDs/UUIDs
+        exempted_students: validatedData.exempted_students || [],
         // Admin-created fees go live immediately; org-created require approval (inactive)
         is_active: isAdmin,
       }])
@@ -210,7 +212,8 @@ export async function POST(request: Request) {
       })
     }
 
-    // Automatically assign fee to eligible students based on scope
+    // Automatically assign fee to eligible students based on scope,
+    // excluding any explicitly exempted students
     // Fetch ALL students using pagination (Supabase default limit is 1000)
     const PAGE_SIZE = 1000
     let allStudents: { id: string }[] = []
@@ -256,7 +259,11 @@ export async function POST(request: Request) {
     }
 
     // Only assign payment records immediately if fee is active
-    const eligibleStudents = isAdmin ? allStudents : []
+    // and exclude exempted students from assignment
+    const exemptedIds = (validatedData.exempted_students || []).filter(Boolean)
+    const eligibleStudents = isAdmin
+      ? allStudents.filter((student) => !exemptedIds.includes(student.id))
+      : []
     const studentsError = null
     
     console.log(`Total students fetched: ${eligibleStudents.length}`)

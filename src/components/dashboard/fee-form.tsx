@@ -16,7 +16,10 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Save, Loader2, CreditCard, Calendar, GraduationCap, Users, AlertTriangle } from "lucide-react"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Save, Loader2, CreditCard, Calendar, GraduationCap, Users, AlertTriangle, Search, X } from "lucide-react"
 import { COLLEGES, COURSES_BY_COLLEGE, EVENT_SCOPE_TYPES, EVENT_SCOPE_LABELS, EVENT_SCOPE_DESCRIPTIONS } from "@/lib/constants/academic-programs"
 import Swal from "sweetalert2"
 import "sweetalert2/dist/sweetalert2.min.css"
@@ -38,6 +41,13 @@ interface FeeFormProps {
   }
 }
 
+interface StudentOption {
+  id: string
+  studentId: string
+  name: string
+  email: string
+}
+
 export function FeeForm({ feeId, initialData }: FeeFormProps) {
   const router = useRouter()
   const { data: session } = useSession()
@@ -54,6 +64,13 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
   const isCourseOrg = role === 'COURSE_ORG'
   const [loading, setLoading] = useState(false)
   const [studentCount, setStudentCount] = useState<number | null>(null)
+  const [studentOptions, setStudentOptions] = useState<StudentOption[]>([])
+  const [studentSearch, setStudentSearch] = useState("")
+  const [studentPage, setStudentPage] = useState(1)
+  const [studentsHasNext, setStudentsHasNext] = useState(false)
+  const [studentsLoading, setStudentsLoading] = useState(false)
+  const [exemptedStudents, setExemptedStudents] = useState<StudentOption[]>([])
+  const [isExemptDialogOpen, setIsExemptDialogOpen] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     type: "",
@@ -104,6 +121,81 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
       })
     }
   }, [initialData, feeId, isCollegeOrg, isCourseOrg, assignedCollege, assignedCourses])
+
+  // Fetch active students for exemption selector with pagination and search
+  const fetchStudents = async (page = 1, search = "") => {
+    try {
+      setStudentsLoading(true)
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: "20",
+        filter: "active",
+      })
+      if (search) {
+        params.set("search", search)
+      }
+
+      const response = await fetch(`/api/students?${params.toString()}`)
+      if (!response.ok) {
+        console.error("Failed to fetch students for exemption selector")
+        return
+      }
+
+      const data = await response.json()
+      const newOptions: StudentOption[] = (data.students || []).map((student: any) => ({
+        id: student.id,
+        studentId: student.studentId,
+        name: student.name,
+        email: student.email,
+      }))
+
+      setStudentOptions(prev =>
+        page === 1
+          ? newOptions
+          : [
+              ...prev,
+              // Avoid duplicates in options when paginating
+              ...newOptions.filter(
+                (opt) => !prev.some((existing) => existing.id === opt.id)
+              ),
+            ]
+      )
+      setStudentsHasNext(!!data.pagination?.hasNext)
+      setStudentPage(page)
+    } catch (error) {
+      console.error("Error fetching students for exemption selector:", error)
+    } finally {
+      setStudentsLoading(false)
+    }
+  }
+
+  // Load first page of students when the dialog opens
+  useEffect(() => {
+    if (isExemptDialogOpen) {
+      fetchStudents(1, studentSearch)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExemptDialogOpen])
+
+  const handleStudentSearchChange = (value: string) => {
+    setStudentSearch(value)
+    // Reset to first page with new search term
+    fetchStudents(1, value)
+  }
+
+  const toggleExemptedStudent = (student: StudentOption) => {
+    setExemptedStudents((prev) => {
+      const exists = prev.some((s) => s.id === student.id)
+      if (exists) {
+        return prev.filter((s) => s.id !== student.id)
+      }
+      return [...prev, student]
+    })
+  }
+
+  const removeExemptedStudent = (id: string) => {
+    setExemptedStudents((prev) => prev.filter((s) => s.id !== id))
+  }
 
   const fetchStudentCount = async (
     scope: string,
@@ -246,7 +338,11 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
         }),
         ...(formData.scope_type === "COURSE_SPECIFIC" && formData.scope_course && {
           scope_course: formData.scope_course
-        })
+        }),
+        // Always send exempted_students as an array of unique IDs (can be empty)
+        exempted_students: Array.from(
+          new Set(exemptedStudents.map((student) => student.id))
+        ),
       }
 
       console.log("Fee form data being sent:", payload)
@@ -465,7 +561,8 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
           {/* Fee Details Section */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Fee Details</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Use a consistent 2-column layout on desktop so rows align cleanly */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="type">Fee Type *</Label>
                 <Select
@@ -541,6 +638,132 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
                 />
               </div>
             </div>
+          </div>
+
+          {/* Exempted Students Section */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Exempted Students</h3>
+            <p className="text-sm text-gray-600">
+              Select specific students who will be exempted from this fee. This is useful for scholarships,
+              special cases, athletes, working students, and other exemptions.
+            </p>
+
+            <div className="space-y-3">
+              {exemptedStudents.length === 0 ? (
+                <p className="text-sm text-gray-500 italic">No students exempted</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {exemptedStudents.map((student) => (
+                    <span
+                      key={student.id}
+                      className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800 border border-blue-200"
+                    >
+                      <span className="mr-2">
+                        {student.name} ({student.studentId})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeExemptedStudent(student.id)}
+                        className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200"
+                        aria-label={`Remove ${student.name} from exemptions`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={() => setIsExemptDialogOpen(true)}
+              >
+                <Users className="mr-2 h-4 w-4" />
+                Select Students to Exempt
+              </Button>
+            </div>
+
+            {/* Mobile-friendly full-screen selector using Dialog */}
+            <Dialog open={isExemptDialogOpen} onOpenChange={setIsExemptDialogOpen}>
+              <DialogContent className="max-w-2xl w-[95vw] h-[90vh] flex flex-col">
+                <DialogHeader>
+                  <DialogTitle>Select Students to Exempt</DialogTitle>
+                  <DialogDescription>
+                    Search and select one or more active students to exempt from this fee.
+                    On mobile, this view expands to a full-screen modal for easier searching.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="flex flex-col gap-4 flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by name, ID number, or email..."
+                      value={studentSearch}
+                      onChange={(e) => handleStudentSearchChange(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+
+                  <div className="flex-1 border rounded-md">
+                    <ScrollArea className="h-full">
+                      <div className="divide-y">
+                        {studentOptions.length === 0 && !studentsLoading && (
+                          <div className="p-4 text-sm text-gray-500 text-center">
+                            No students found. Try adjusting your search.
+                          </div>
+                        )}
+                        {studentOptions.map((student) => {
+                          const isSelected = exemptedStudents.some((s) => s.id === student.id)
+                          return (
+                            <label
+                              key={student.id}
+                              className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer"
+                            >
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleExemptedStudent(student)}
+                              />
+                              <div className="flex flex-col">
+                                <span className="text-sm font-medium text-gray-900">
+                                  {student.name} ({student.studentId})
+                                </span>
+                                <span className="text-xs text-gray-500">{student.email}</span>
+                              </div>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </ScrollArea>
+                  </div>
+
+                  {studentsHasNext && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fetchStudents(studentPage + 1, studentSearch)}
+                      disabled={studentsLoading}
+                      className="w-full"
+                    >
+                      {studentsLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Load more students
+                    </Button>
+                  )}
+                </div>
+
+                <DialogFooter className="pt-4 border-t mt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsExemptDialogOpen(false)}
+                  >
+                    Done
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
           <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-4 pt-6 border-t">

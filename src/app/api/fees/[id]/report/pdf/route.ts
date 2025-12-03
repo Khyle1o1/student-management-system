@@ -22,10 +22,10 @@ export async function GET(
 
     const { id } = await params
 
-    // Fetch fee
+    // Fetch fee (including exempted students)
     const { data: fee, error: feeError } = await supabaseAdmin
       .from('fee_structures')
-      .select('id, name, type, amount, school_year, semester, scope_type, scope_college, scope_course')
+      .select('id, name, type, amount, school_year, semester, scope_type, scope_college, scope_course, exempted_students')
       .eq('id', id)
       .is('deleted_at', null)
       .single()
@@ -64,6 +64,22 @@ export async function GET(
     for (const p of payments || []) {
       if (p.student_id) uniqueStudentIds.add(p.student_id as unknown as string)
       totalPaid += Number(p.amount || 0)
+    }
+
+    const exemptedIds = (fee as any)?.exempted_students as string[] | null | undefined
+    const exemptedStudentIds = Array.isArray(exemptedIds) ? exemptedIds.filter(Boolean) : []
+
+    // Fetch exempted student details if any
+    let exemptedStudents: { id: string; student_id: string; name: string; email: string | null }[] = []
+    if (exemptedStudentIds.length > 0) {
+      const { data: exemptedData, error: exemptedError } = await supabaseAdmin
+        .from('students')
+        .select('id, student_id, name, email')
+        .in('id', exemptedStudentIds)
+
+      if (!exemptedError && Array.isArray(exemptedData)) {
+        exemptedStudents = exemptedData as any
+      }
     }
 
     // Build PDF
@@ -180,7 +196,83 @@ export async function GET(
     }
     summaryRow('Students Paid', String(uniqueStudentIds.size))
     summaryRow('Total Collected', currency(totalPaid))
+    summaryRow('Exempted Students', String(exemptedStudentIds.length))
     y += 6
+
+    // Exempted students section (if any)
+    if (exemptedStudents.length > 0) {
+      y = checkPageBreak(24, y)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(14)
+      doc.text('Exempted Students', margin, y)
+      y += 8
+      doc.setDrawColor(200, 200, 200)
+      doc.line(margin, y, pageWidth - margin, y)
+      y += 8
+
+      const exTableHeaders = ['Student Name', 'Student ID', 'Email']
+      const exTableX = margin
+      const exAvailableWidth = pageWidth - margin * 2
+      const exBaseWeights = [0.4, 0.2, 0.4]
+      const exColWidths = [
+        Math.floor(exAvailableWidth * exBaseWeights[0]),
+        Math.floor(exAvailableWidth * exBaseWeights[1]),
+        0,
+      ]
+      exColWidths[2] = exAvailableWidth - (exColWidths[0] + exColWidths[1])
+      const exTableWidth = exAvailableWidth
+
+      const drawExemptHeader = () => {
+        doc.setFillColor(52, 73, 94)
+        doc.setDrawColor(52, 73, 94)
+        doc.rect(exTableX, y - 6, exTableWidth, 12, 'F')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(10)
+        doc.setTextColor(255, 255, 255)
+        let x = exTableX + 2
+        exTableHeaders.forEach((h, i) => {
+          const cellWidth = exColWidths[i]
+          const textX = x + 2
+          doc.text(h, textX, y + 2)
+          x += cellWidth
+        })
+        y += 12
+        doc.setTextColor(0, 0, 0)
+      }
+
+      const exRowBaseHeight = 8
+      drawExemptHeader()
+
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      exemptedStudents.forEach((s: any, idx: number) => {
+        const rowHeight = exRowBaseHeight
+        y = checkPageBreak(rowHeight + 6, y)
+
+        if (idx % 2 === 0) {
+          doc.setFillColor(248, 249, 250)
+          doc.rect(exTableX, y - 6, exTableWidth, rowHeight, 'F')
+        }
+        doc.setDrawColor(235, 238, 240)
+        doc.rect(exTableX, y - 6, exTableWidth, rowHeight, 'S')
+
+        let x = exTableX + 4
+        doc.text(s.name || 'N/A', x, y)
+        x += exColWidths[0]
+        doc.text(s.student_id || '—', x + 2, y)
+        x += exColWidths[1]
+        doc.text(s.email || '—', x + 2, y)
+
+        y += rowHeight
+        if (y + exRowBaseHeight > pageHeight - margin - 14) {
+          doc.addPage()
+          y = margin
+          drawExemptHeader()
+        }
+      })
+
+      y += 6
+    }
 
     // Student Payments Table (match event look)
     doc.setFont('helvetica', 'bold')
