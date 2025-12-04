@@ -34,6 +34,8 @@ import {
 } from "lucide-react"
 import Swal from "sweetalert2"
 import "sweetalert2/dist/sweetalert2.min.css"
+import { useSession } from "next-auth/react"
+import { getOrgAccessLevelFromSession } from "@/lib/org-permissions"
 
 interface StudentDetailsModalProps {
   studentId: string | null
@@ -106,6 +108,15 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
     receipt: "",
     paymentMethod: "",
   })
+
+  const { data: session } = useSession()
+  const userRole = session?.user?.role
+  const orgAccessLevel = getOrgAccessLevelFromSession(session as any)
+
+  const canMarkPaymentsAsPaid =
+    userRole === "ADMIN" ||
+    (userRole === "COLLEGE_ORG" &&
+      (orgAccessLevel === "finance" || orgAccessLevel === "college"))
 
   const fetchStudentDetails = useCallback(async () => {
     if (!studentId) return
@@ -479,7 +490,7 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
                                   )}
                                 </TableCell>
                                 <TableCell>
-                                  {record.status !== 'PAID' ? (
+                                  {record.status !== 'PAID' && canMarkPaymentsAsPaid ? (
                                     <Button
                                       size="sm"
                                       variant="outline"
@@ -493,7 +504,11 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
                                       )}
                                     </Button>
                                   ) : (
-                                    <span className="text-xs text-gray-500">Locked (contact super admin to modify)</span>
+                                    <span className="text-xs text-gray-500">
+                                      {record.status === "PAID"
+                                        ? "Locked (contact super admin to modify)"
+                                        : "You do not have permission to mark this fee as paid"}
+                                    </span>
                                   )}
                                 </TableCell>
                               </TableRow>

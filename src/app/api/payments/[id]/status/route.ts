@@ -93,43 +93,54 @@ export async function PATCH(
       }
     }
 
-    // Prevent reverting PAID -> UNPAID unless ADMIN (super admin)
+    // Prevent reverting PAID -> any other status unless ADMIN (super admin)
     if (existing.status === 'PAID' && status !== 'PAID' && session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Only super admin can modify a paid record' }, { status: 403 })
+      return NextResponse.json(
+        { error: 'Only super admin can modify a paid record' },
+        { status: 403 }
+      )
     }
 
-    // Role and scope checks for marking payments
+    // Role and scope checks for updating payment status
     const fee: any = (existing as any).fee
     const student: any = (existing as any).student
     let allowed = false
 
     if (session.user.role === 'ADMIN') {
+      // Super admin can always update payment status
       allowed = true
     } else if (session.user.role === 'COLLEGE_ORG') {
-      // Apply org access-level rules for college org accounts
-      if (orgAccessLevel === "event") {
-        // Event accounts cannot mark payments
-        allowed = false
+      // College Org accounts:
+      // - event-scoped: cannot toggle payment status
+      // - finance-scoped and full college access can mark as paid for their students
+      if (orgAccessLevel === "finance" || orgAccessLevel === "college") {
+        const assignedCollege = (session.user as any).assigned_college
+
+        if (!assignedCollege) {
+          allowed = false
+        } else {
+          // Allow marking as paid for any fee assigned to students in their college,
+          // regardless of who created the fee or its scope (college-wide, course-specific, or university-wide),
+          // as long as the student belongs to their college and (when present) the fee's scope_college matches.
+          const isStudentInCollege = student.college === assignedCollege
+          const isFeeCollegeMatch =
+            !fee.scope_college || fee.scope_college === assignedCollege
+
+          allowed = isStudentInCollege && isFeeCollegeMatch
+        }
       } else {
-        // Finance & full college org: only within their college; cannot mark course-specific fees
-        const isCollegeWide = fee.scope_type === 'COLLEGE_WIDE'
-        allowed = isCollegeWide &&
-          fee.scope_college === session.user.assigned_college &&
-          student.college === session.user.assigned_college
+        allowed = false
       }
-    } else if (session.user.role === 'COURSE_ORG') {
-      // Course Org: only course-specific within their assigned course(s)
-      if (fee.scope_type === 'COURSE_SPECIFIC') {
-        const assignedCourses: string[] = (session.user as any).assigned_courses || (session.user.assigned_course ? [session.user.assigned_course] : [])
-        allowed = fee.scope_college === session.user.assigned_college &&
-          assignedCourses.includes(fee.scope_course) &&
-          student.college === session.user.assigned_college &&
-          assignedCourses.includes(student.course)
-      }
+    } else {
+      // Course Org accounts and all other roles (except ADMIN) cannot toggle payment status
+      allowed = false
     }
 
     if (!allowed) {
-      return NextResponse.json({ error: 'Forbidden: insufficient scope to mark this payment' }, { status: 403 })
+      return NextResponse.json(
+        { error: 'Forbidden: insufficient scope to update this payment status' },
+        { status: 403 }
+      )
     }
 
     // Prepare update
