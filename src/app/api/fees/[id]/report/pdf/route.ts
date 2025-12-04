@@ -101,8 +101,8 @@ export async function GET(
       },
     })
 
-    // Build PDF
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+    // Build PDF (use landscape for wider fee reports)
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
     const pageWidth = doc.internal.pageSize.getWidth()
     const pageHeight = doc.internal.pageSize.getHeight()
     const margin = 20 // ~0.79 inches
@@ -304,8 +304,9 @@ export async function GET(
     const tableHeaders = ['Student Name', 'Student ID / Email', 'Date Paid', 'Receipt No.', 'Payment Method']
     const tableX = margin
     const availableTableWidth = pageWidth - margin * 2
-    // Slightly compress columns to fit an extra "Payment Method" column
-    const baseWeights = [0.36, 0.22, 0.12, 0.15, 0.15]
+    // Compress Student ID and Date Paid to give more width to Receipt No.
+    // [Student Name, Student ID/Email, Date Paid, Receipt No., Payment Method]
+    const baseWeights = [0.33, 0.17, 0.07, 0.28, 0.15]
     const colWidths = [
       Math.floor(availableTableWidth * baseWeights[0]),
       Math.floor(availableTableWidth * baseWeights[1]),
@@ -342,7 +343,7 @@ export async function GET(
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
     ;(payments || []).forEach((p: any, idx: number) => {
-      // Compute wrapped lines for first two columns
+      // Compute wrapped lines for text-heavy columns
       const studentRel = Array.isArray(p.student) ? p.student[0] : p.student
       const name = studentRel?.name || 'N/A'
       const idOrEmail = studentRel?.student_id || studentRel?.email || '—'
@@ -374,8 +375,10 @@ export async function GET(
 
       const nameLines = wrap(name, colWidths[0])
       const idLines = wrap(idOrEmail, colWidths[1])
+      const receiptText = p.reference || '—'
+      const receiptLines = wrap(receiptText, colWidths[3])
       const methodLines = wrap(method, colWidths[4])
-      const maxLines = Math.max(1, nameLines.length, idLines.length, methodLines.length)
+      const maxLines = Math.max(1, nameLines.length, idLines.length, receiptLines.length, methodLines.length)
       const rowHeight = Math.max(rowBaseHeight, maxLines * 4 + 2)
 
       // Page break if needed
@@ -404,8 +407,10 @@ export async function GET(
       // Date (right, single line)
       doc.text(format(new Date(p.created_at), 'yyyy-MM-dd'), x + colWidths[2] - 4, y, { align: 'right' })
       x += colWidths[2]
-      // Receipt (right, single line)
-      doc.text(p.reference || '—', x + colWidths[3] - 4, y, { align: 'right' })
+      // Receipt (wrapped, right-aligned so long refs are fully visible)
+      receiptLines.forEach((line, i) => {
+        doc.text(line, x + colWidths[3] - 4, y + i * 4, { align: 'right' })
+      })
       x += colWidths[3]
       // Payment method (wrapped, right-aligned)
       methodLines.forEach((line, i) => {
