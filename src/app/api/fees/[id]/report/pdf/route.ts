@@ -102,7 +102,7 @@ export async function GET(
     })
 
     // Build PDF (use landscape for wider fee reports)
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })                                                   
     const pageWidth = doc.internal.pageSize.getWidth()
     const pageHeight = doc.internal.pageSize.getHeight()
     const margin = 20 // ~0.79 inches
