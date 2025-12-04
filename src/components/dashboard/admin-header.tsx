@@ -7,9 +7,15 @@ import { Separator } from "@/components/ui/separator"
 import NotificationBell from "@/components/notifications/NotificationBell"
 import { completeLogout } from "@/lib/google-oauth-utils"
 import { cn } from "@/lib/utils"
-import { Search, ChevronRight, LogOut, Menu } from "lucide-react"
+import { Search, ChevronRight, LogOut, Menu, User } from "lucide-react"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface AdminHeaderProps {
   onToggleSidebar?: () => void
@@ -63,30 +69,38 @@ export function AdminHeader({ onToggleSidebar }: AdminHeaderProps) {
 
             <Separator orientation="vertical" className="h-6 dark:bg-slate-700" />
 
-            <div className="flex items-center gap-3">
-              <div className="hidden sm:block text-right">
-                <p className="text-sm font-medium text-[#1E293B] dark:text-slate-100">
-                  {session?.user?.name}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">
-                  {session?.user?.role?.toLowerCase()}
-                </p>
-              </div>
-              <div className="h-8 w-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-sm font-medium shadow">
-                {session?.user?.name?.charAt(0)}
-              </div>
-            </div>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className="flex items-center gap-2 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
-              onClick={() => completeLogout()}
-              title="Sign out everywhere"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Sign out</span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-3 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-left text-xs hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">
+                  <div className="hidden sm:block text-right">
+                    <p className="text-sm font-medium text-[#1E293B] dark:text-slate-100">
+                      {session?.user?.name}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">
+                      {session?.user?.role?.toLowerCase()}
+                    </p>
+                  </div>
+                  <div className="h-8 w-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-sm font-medium shadow">
+                    {session?.user?.name?.charAt(0)}
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem asChild>
+                  <a href="/dashboard/profile/admin" className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    <span>Profile</span>
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => completeLogout()}
+                  className="text-red-600 focus:text-red-600"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
