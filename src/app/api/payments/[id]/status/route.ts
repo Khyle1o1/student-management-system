@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth"
 import { z } from "zod"
 import { supabase } from "@/lib/supabase"
 import { getOrgAccessLevelFromSession } from "@/lib/org-permissions"
+import { logActivity } from "@/lib/activity-logger"
 
 const updateStatusSchema = z.object({
   status: z.enum(['PAID', 'UNPAID', 'PENDING', 'OVERDUE']),
@@ -151,8 +152,18 @@ export async function PATCH(
       .eq('id', id)
       .select(`
         *,
-        student:students(id, name, student_id),
-        fee:fee_structures(id, name, amount)
+        student:students(
+          id,
+          name,
+          student_id,
+          college,
+          course
+        ),
+        fee:fee_structures(
+          id,
+          name,
+          amount
+        )
       `)
       .single()
 
@@ -161,31 +172,62 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update payment status' }, { status: 500 })
     }
 
-    // Log system activity as a notification for dashboard recent activities
+    // Log system activity as a notification and activity log for dashboard recent activities
     if (status === 'PAID') {
       const student = (payment as any).student
       const fee = (payment as any).fee
       const adminName = session.user.name || 'Unknown Admin'
       const message = `${session.user.role} ${adminName} marked ${fee?.name} fee for ${student?.name} (${student?.student_id}) as Paid (Receipt No: ${receiptNumber}).`
-      await supabaseAdmin
-        .from('notifications')
-        .insert({
-          user_id: session.user.id,
-          student_id: student?.id || null,
-          type: 'SYSTEM_ACTIVITY',
-          title: 'Payment Marked as Paid',
-          message,
-          data: {
-            action: 'MARKED_PAID',
-            receipt_number: receiptNumber,
+
+      try {
+        // Notification entry (for recent activity widgets)
+        await supabaseAdmin
+          .from('notifications')
+          .insert({
+            user_id: session.user.id,
+            student_id: student?.id || null,
+            type: 'SYSTEM_ACTIVITY',
+            title: 'Payment Marked as Paid',
+            message,
+            data: {
+              action: 'MARKED_PAID',
+              receipt_number: receiptNumber,
+              fee_id: fee?.id,
+              fee_name: fee?.name,
+              amount: fee?.amount,
+              admin_role: session.user.role
+            },
+            is_read: true, // system log, not an inbox item
+            created_at: new Date().toISOString()
+          })
+
+        // Mirror to activity_logs for timeline
+        await logActivity({
+          session,
+          action: 'PAYMENT_MARKED_PAID',
+          module: 'fees',
+          targetType: 'payment',
+          targetId: (payment as any)?.id,
+          // Include both fee and student in the target label for better visibility in the timeline
+          targetName: fee && student
+            ? `${fee.name} - ${student.name} (${student.student_id})`
+            : fee?.name || 'Payment',
+          college: student?.college || null,
+          course: student?.course || null,
+          details: {
             fee_id: fee?.id,
             fee_name: fee?.name,
             amount: fee?.amount,
-            admin_role: session.user.role
+            student_id: student?.id,
+            student_name: student?.name,
+            student_number: student?.student_id,
+            receipt_number: receiptNumber,
+            payment_method: paymentMethod,
           },
-          is_read: true, // system log, not an inbox item
-          created_at: new Date().toISOString()
         })
+      } catch (logError) {
+        console.warn('Failed to log payment marked as paid activity:', logError)
+      }
     }
 
     return NextResponse.json({

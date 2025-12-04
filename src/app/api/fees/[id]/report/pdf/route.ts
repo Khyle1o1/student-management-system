@@ -43,6 +43,7 @@ export async function GET(
         amount,
         status,
         reference,
+        payment_method,
         created_at,
         student:students(
           id,
@@ -300,17 +301,19 @@ export async function GET(
     doc.setDrawColor(200, 200, 200)
     doc.line(margin, y, pageWidth - margin, y)
     y += 10
-    const tableHeaders = ['Student Name', 'Student ID / Email', 'Date Paid', 'Receipt No.']
+    const tableHeaders = ['Student Name', 'Student ID / Email', 'Date Paid', 'Receipt No.', 'Payment Method']
     const tableX = margin
     const availableTableWidth = pageWidth - margin * 2
-    const baseWeights = [0.42, 0.25, 0.12, 0.15]
+    // Slightly compress columns to fit an extra "Payment Method" column
+    const baseWeights = [0.36, 0.22, 0.12, 0.15, 0.15]
     const colWidths = [
       Math.floor(availableTableWidth * baseWeights[0]),
       Math.floor(availableTableWidth * baseWeights[1]),
       Math.floor(availableTableWidth * baseWeights[2]),
+      Math.floor(availableTableWidth * baseWeights[3]),
       0,
     ]
-    colWidths[3] = availableTableWidth - (colWidths[0] + colWidths[1] + colWidths[2])
+    colWidths[4] = availableTableWidth - (colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3])
     const tableWidth = availableTableWidth
 
     const drawTableHeader = () => {
@@ -343,6 +346,15 @@ export async function GET(
       const studentRel = Array.isArray(p.student) ? p.student[0] : p.student
       const name = studentRel?.name || 'N/A'
       const idOrEmail = studentRel?.student_id || studentRel?.email || '—'
+      const methodRaw: string | null = p.payment_method || null
+      const method =
+        methodRaw === 'BANK_TRANSFER'
+          ? 'Bank Transfer'
+          : methodRaw === 'GCASH'
+          ? 'GCash'
+          : methodRaw === 'ON_SITE'
+          ? 'On Site'
+          : methodRaw || '—'
       const wrap = (text: string, width: number) => {
         const words = String(text).split(' ')
         const lines: string[] = []
@@ -362,7 +374,8 @@ export async function GET(
 
       const nameLines = wrap(name, colWidths[0])
       const idLines = wrap(idOrEmail, colWidths[1])
-      const maxLines = Math.max(1, nameLines.length, idLines.length)
+      const methodLines = wrap(method, colWidths[4])
+      const maxLines = Math.max(1, nameLines.length, idLines.length, methodLines.length)
       const rowHeight = Math.max(rowBaseHeight, maxLines * 4 + 2)
 
       // Page break if needed
@@ -388,11 +401,16 @@ export async function GET(
         doc.text(line, x + 2, y + i * 4)
       })
       x += colWidths[1]
-      // Date (right)
+      // Date (right, single line)
       doc.text(format(new Date(p.created_at), 'yyyy-MM-dd'), x + colWidths[2] - 4, y, { align: 'right' })
       x += colWidths[2]
-      // Receipt (right)
+      // Receipt (right, single line)
       doc.text(p.reference || '—', x + colWidths[3] - 4, y, { align: 'right' })
+      x += colWidths[3]
+      // Payment method (wrapped, right-aligned)
+      methodLines.forEach((line, i) => {
+        doc.text(line, x + colWidths[4] - 4, y + i * 4, { align: 'right' })
+      })
 
       y += rowHeight
       if (y + rowBaseHeight > pageHeight - margin - 14) {
