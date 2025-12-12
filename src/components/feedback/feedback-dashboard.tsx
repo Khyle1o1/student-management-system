@@ -798,9 +798,9 @@ export function FeedbackDashboard() {
                   Avg {org.average_overall.toFixed(2)}
                 </div>
                 <div className="flex gap-2 mt-2 text-xs text-muted-foreground">
-                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-700">+ {org.reactions.positive}</span>
-                  <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-700">⚠ {org.reactions.complaint + org.reactions.negative}</span>
-                  <span className="px-2 py-1 rounded bg-sky-500/10 text-sky-700">💡 {org.reactions.suggestion}</span>
+                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-700">+ {org.reactions?.positive ?? 0}</span>
+                  <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-700">⚠ {(org.reactions?.complaint ?? 0) + (org.reactions?.negative ?? 0)}</span>
+                  <span className="px-2 py-1 rounded bg-sky-500/10 text-sky-700">💡 {org.reactions?.suggestion ?? 0}</span>
                 </div>
               </div>
             ))}

@@ -11,9 +11,12 @@ function isAdmin(role?: string | null) {
   return role === "ADMIN"
 }
 
-export async function PATCH(request: NextRequest, context: any) {
-  const { params } = context as { params: { id: string } }
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
+    const params = await context.params
     const session = await auth()
     if (!session?.user || !isAdmin(session.user.role)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
