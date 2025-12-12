@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -68,18 +69,13 @@ interface Student {
 }
 
 export function StudentsTable() {
-  const [students, setStudents] = useState<Student[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState("")
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
   const [filter, setFilter] = useState<"all" | "active" | "archived">("active")
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalCount, setTotalCount] = useState(0)
-  const [hasNext, setHasNext] = useState(false)
-  const [hasPrevious, setHasPrevious] = useState(false)
   const [pageSize] = useState(20) // Fixed page size
   
   const [showDetailsModal, setShowDetailsModal] = useState(false)
@@ -100,11 +96,10 @@ export function StudentsTable() {
     setCurrentPage(1)
   }, [filter])
 
-  const fetchStudents = useCallback(async () => {
-    try {
-      setLoading(true)
-      
-      // Build query parameters
+  // OPTIMIZATION: Use React Query for data fetching with automatic caching
+  const { data, isLoading: loading, refetch } = useQuery({
+    queryKey: ['students', currentPage, debouncedSearchTerm, filter, pageSize],
+    queryFn: async () => {
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: pageSize.toString(),
@@ -113,24 +108,24 @@ export function StudentsTable() {
       })
       
       const response = await fetch(`/api/students?${params}`)
-      if (response.ok) {
-        const data = await response.json()
-        setStudents(data.students)
-        setTotalPages(data.pagination.totalPages)
-        setTotalCount(data.pagination.totalCount)
-        setHasNext(data.pagination.hasNext)
-        setHasPrevious(data.pagination.hasPrevious)
-      }
-    } catch (error) {
-      console.error("Error fetching students:", error)
-    } finally {
-      setLoading(false)
-    }
-  }, [currentPage, debouncedSearchTerm, pageSize, filter])
+      if (!response.ok) throw new Error('Failed to fetch students')
+      return response.json()
+    },
+    staleTime: 30 * 1000, // 30 seconds
+    gcTime: 5 * 60 * 1000, // 5 minutes cache
+  })
 
-  useEffect(() => {
-    fetchStudents()
-  }, [fetchStudents])
+  // OPTIMIZATION: Memoize derived values
+  const students = useMemo(() => data?.students || [], [data])
+  const totalPages = useMemo(() => data?.pagination?.totalPages || 1, [data])
+  const totalCount = useMemo(() => data?.pagination?.totalCount || 0, [data])
+  const hasNext = useMemo(() => data?.pagination?.hasNext || false, [data])
+  const hasPrevious = useMemo(() => data?.pagination?.hasPrevious || false, [data])
+
+  // OPTIMIZATION: Memoize fetch function
+  const fetchStudents = useCallback(() => {
+    refetch()
+  }, [refetch])
 
   const handleArchiveStudent = async (student: Student) => {
     const wasArchived = !!student.archived
@@ -157,7 +152,8 @@ export function StudentsTable() {
       })
 
       if (response.ok) {
-        await fetchStudents() // Refresh the current page
+        // OPTIMIZATION: Invalidate and refetch students query
+        await queryClient.invalidateQueries({ queryKey: ['students'] })
 
         await Swal.fire({
           icon: "success",
@@ -334,7 +330,7 @@ export function StudentsTable() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  students.map((student) => (
+                  students.map((student: Student) => (
                     <TableRow key={student.id}>
                       <TableCell className="font-medium">
                         {student.studentId}
@@ -442,7 +438,7 @@ export function StudentsTable() {
                 </span>
               </div>
             ) : (
-              students.map((student) => (
+              students.map((student: Student) => (
                 <Card key={student.id} className="overflow-hidden border hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-3">

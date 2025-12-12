@@ -23,6 +23,7 @@ import { LoginModal } from "@/components/ui/login-modal"
 import { IntramuralsStandings } from "@/components/intramurals/IntramuralsStandings"
 import { IntramuralsSchedule } from "@/components/intramurals/IntramuralsSchedule"
 import { useToast } from "@/hooks/use-toast"
+import { PublicFeedbackForm } from "@/components/feedback/public-feedback-form"
 
 // --- Components ---
 
@@ -42,7 +43,7 @@ const Navbar = ({ onLoginClick }: { onLoginClick: () => void }) => {
 
           <div className="hidden md:block">
             <div className="ml-10 flex items-baseline space-x-8">
-              {['Features', 'About', 'Contact'].map((item) => (
+              {['Features', 'Feedback', 'About', 'Contact'].map((item) => (
                 <a
                   key={item}
                   href={`#${item.toLowerCase()}`}
@@ -834,6 +835,7 @@ export default function HomePage() {
       )}
 
       <Hero onGetStartedClick={openLoginModal} />
+      <PublicFeedbackForm />
       <FeatureBento />
       <ValueProps />
       <Footer />

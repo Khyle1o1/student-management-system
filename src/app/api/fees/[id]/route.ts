@@ -84,21 +84,16 @@ export async function PUT(
     const validatedData = feeSchema.parse(body)
 
     const { id } = await params
+    // Only allow updating fields that remain editable after creation
+    const updatePayload = {
+      name: validatedData.name,
+      exempted_students: validatedData.exempted_students || [],
+      updated_at: new Date().toISOString(),
+    }
+
     const { data: updatedFee, error } = await supabaseAdmin
       .from('fee_structures')
-      .update({
-        name: validatedData.name,
-        type: validatedData.type,
-        amount: validatedData.amount,
-        description: validatedData.description || null,
-        due_date: validatedData.dueDate ? validatedData.dueDate : null,
-        semester: validatedData.semester || null,
-        school_year: validatedData.schoolYear,
-        scope_type: validatedData.scope_type,
-        scope_college: validatedData.scope_college || null,
-        scope_course: validatedData.scope_course || null,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', id)
       .eq('is_active', true)
       .is('deleted_at', null)

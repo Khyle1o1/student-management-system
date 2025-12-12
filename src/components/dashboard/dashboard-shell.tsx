@@ -187,6 +187,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
       label: "Fees", 
       icon: CreditCard
     },
+  { href: "/dashboard/feedback", label: "Feedback", icon: Mail },
     { href: "/dashboard/reports", label: "Reports", icon: FileText },
   ]
 
@@ -209,6 +210,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
     },
     { href: "/dashboard/events", label: "Events", icon: Calendar },
     { href: "/dashboard/fees", label: "Fees", icon: CreditCard },
+  { href: "/dashboard/feedback", label: "Feedback", icon: Mail },
     { href: "/dashboard/reports", label: "Reports", icon: FileText },
     { href: "/dashboard/intramurals", label: "Intramurals", icon: Trophy },
     ...usersNavItem,
@@ -222,12 +224,12 @@ export function DashboardShell({ children }: DashboardShellProps) {
     if (orgAccessLevel === "finance") {
       // Finance: Dashboard + Students + Fees + Reports
       adminNavItems = fullAdminNavItems.filter((item) =>
-        ["/dashboard", "/dashboard/students", "/dashboard/fees", "/dashboard/reports"].includes(item.href)
+        ["/dashboard", "/dashboard/students", "/dashboard/fees", "/dashboard/reports", "/dashboard/feedback"].includes(item.href)
       )
     } else if (orgAccessLevel === "event") {
-      // Event: Dashboard + Events only
+      // Event: Dashboard + Events + Feedback
       adminNavItems = fullAdminNavItems.filter((item) =>
-        ["/dashboard", "/dashboard/events"].includes(item.href)
+        ["/dashboard", "/dashboard/events", "/dashboard/feedback"].includes(item.href)
       )
     } else {
       // college (full org access) -> keep fullAdminNavItems
@@ -237,7 +239,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
   // Intramurals is restricted to system admin only
   if (userRole !== "ADMIN") {
-    adminNavItems = adminNavItems.filter((item) => item.href !== "/dashboard/intramurals")
+    adminNavItems = adminNavItems.filter(
+      (item) => item.href !== "/dashboard/intramurals" && item.href !== "/dashboard/feedback"
+    )
   }
 
   const studentNavItems: NavigationItem[] = [

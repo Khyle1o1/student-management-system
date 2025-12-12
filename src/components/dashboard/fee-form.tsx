@@ -86,6 +86,7 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
   })
 
   const isEditing = !!feeId
+  const fieldsLocked = isEditing
 
   useEffect(() => {
     if (initialData) {
@@ -461,6 +462,12 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
           <CreditCard className="h-6 w-6" />
           <span>{isEditing ? "Edit Fee" : "Create New Fee"}</span>
         </CardTitle>
+        {isEditing && (
+          <p className="text-sm text-muted-foreground">
+            After a fee is created, only the name and exempted students can be
+            changed. All other details are locked for consistency.
+          </p>
+        )}
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-8">
@@ -488,6 +495,7 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
                   placeholder="Optional description of the fee..."
                   rows={3}
                   className="resize-none"
+                  disabled={fieldsLocked}
                 />
               </div>
             </div>
@@ -503,6 +511,7 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
                   value={formData.scope_type}
                   onValueChange={(value) => handleInputChange("scope_type", value)}
                   required
+                  disabled={fieldsLocked}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select fee scope" />
@@ -528,7 +537,7 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
                       value={formData.scope_college}
                       onValueChange={(value) => handleInputChange("scope_college", value)}
                       required={formData.scope_type !== "UNIVERSITY_WIDE"}
-                      disabled={isCollegeOrg || isCourseOrg}
+                      disabled={fieldsLocked || isCollegeOrg || isCourseOrg}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select college" />
@@ -550,7 +559,7 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
                         value={formData.scope_course}
                         onValueChange={(value) => handleInputChange("scope_course", value)}
                         required={formData.scope_type === "COURSE_SPECIFIC"}
-                        disabled={!formData.scope_college}
+                      disabled={fieldsLocked || !formData.scope_college}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select course" />
@@ -594,6 +603,7 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
                   value={formData.type}
                   onValueChange={(value) => handleInputChange("type", value)}
                   required
+                  disabled={fieldsLocked}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select fee type" />
@@ -623,6 +633,7 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
                   onChange={(e) => handleInputChange("amount", e.target.value)}
                   required
                   placeholder="0.00"
+                  disabled={fieldsLocked}
                 />
               </div>
 
@@ -636,6 +647,7 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
                   type="date"
                   value={formData.dueDate}
                   onChange={(e) => handleInputChange("dueDate", e.target.value)}
+                  disabled={fieldsLocked}
                 />
               </div>
 
@@ -649,6 +661,7 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
                   value={formData.semester}
                   onChange={(e) => handleInputChange("semester", e.target.value)}
                   placeholder="e.g., Fall 2024, Spring 2025"
+                  disabled={fieldsLocked}
                 />
               </div>
 
@@ -660,6 +673,7 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
                   onChange={(e) => handleInputChange("schoolYear", e.target.value)}
                   required
                   placeholder="e.g., 2024-2025"
+                  disabled={fieldsLocked}
                 />
               </div>
             </div>

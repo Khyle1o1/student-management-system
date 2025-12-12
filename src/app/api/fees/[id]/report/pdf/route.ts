@@ -35,41 +35,105 @@ export async function GET(
       return NextResponse.json({ error: 'Fee not found' }, { status: 404 })
     }
 
-    // Aggregate paid payments with student details
-    const { data: payments, error: paymentsError } = await supabaseAdmin
-      .from('payments')
-      .select(`
-        student_id,
-        amount,
-        status,
-        reference,
-        payment_method,
-        created_at,
-        student:students(
-          id,
-          student_id,
-          name,
-          email
-        )
-      `)
-      .eq('fee_id', id)
-      .eq('status', 'PAID')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: true })
-
-    if (paymentsError) {
-      return NextResponse.json({ error: 'Failed to fetch payments' }, { status: 500 })
-    }
-
-    const uniqueStudentIds = new Set<string>()
-    let totalPaid = 0
-    for (const p of payments || []) {
-      if (p.student_id) uniqueStudentIds.add(p.student_id as unknown as string)
-      totalPaid += Number(p.amount || 0)
-    }
-
     const exemptedIds = (fee as any)?.exempted_students as string[] | null | undefined
     const exemptedStudentIds = Array.isArray(exemptedIds) ? exemptedIds.filter(Boolean) : []
+
+    // Fetch eligible students based on scope (with pagination to bypass 1k cap)
+    const eligibleStudents: { id: string; college: string | null; course: string | null }[] = []
+    const studentPageSize = 1000
+    let studentPage = 0
+    let hasMoreStudents = true
+
+    while (hasMoreStudents) {
+      const from = studentPage * studentPageSize
+      const to = from + studentPageSize - 1
+
+      let studentQuery = supabaseAdmin
+        .from('students')
+        .select('id, college, course')
+        .or('archived.is.null,archived.eq.false')
+        .range(from, to)
+
+      if (fee.scope_type === 'COLLEGE_WIDE' && fee.scope_college) {
+        studentQuery = studentQuery.eq('college', fee.scope_college)
+      } else if (fee.scope_type === 'COURSE_SPECIFIC' && fee.scope_course) {
+        studentQuery = studentQuery.eq('course', fee.scope_course)
+      }
+
+      const { data: studentsData, error: studentsError } = await studentQuery
+      if (studentsError) {
+        console.error('Error fetching eligible students for PDF:', studentsError)
+        return NextResponse.json({ error: 'Failed to fetch eligible students' }, { status: 500 })
+      }
+
+      if (studentsData && studentsData.length > 0) {
+        eligibleStudents.push(...studentsData)
+        hasMoreStudents = studentsData.length === studentPageSize
+        studentPage++
+      } else {
+        hasMoreStudents = false
+      }
+    }
+
+    const eligibleStudentIds = new Set(eligibleStudents.map((s) => s.id))
+    const exemptedSet = new Set(exemptedStudentIds.filter((id) => eligibleStudentIds.has(id)))
+
+    // Aggregate paid payments with student details (paginated)
+    const paymentsPageSize = 1000
+    let paymentsPage = 0
+    let hasMorePayments = true
+    const payments: any[] = []
+    const uniqueStudentIds = new Set<string>()
+    let totalPaid = 0
+
+    while (hasMorePayments) {
+      const from = paymentsPage * paymentsPageSize
+      const to = from + paymentsPageSize - 1
+
+      const { data: paymentsData, error: paymentsError } = await supabaseAdmin
+        .from('payments')
+        .select(`
+          student_id,
+          amount,
+          status,
+          reference,
+          payment_method,
+          created_at,
+          student:students(
+            id,
+            student_id,
+            name,
+            email,
+            college,
+            course
+          )
+        `)
+        .eq('fee_id', id)
+        .eq('status', 'PAID')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true })
+        .range(from, to)
+
+      if (paymentsError) {
+        console.error('Error fetching payments for PDF report:', paymentsError)
+        return NextResponse.json({ error: 'Failed to fetch payments' }, { status: 500 })
+      }
+
+      if (paymentsData && paymentsData.length > 0) {
+        for (const p of paymentsData) {
+          const studentId = p.student_id as string | null
+          if (!studentId) continue
+          if (eligibleStudentIds.size > 0 && !eligibleStudentIds.has(studentId)) continue
+          payments.push(p)
+          uniqueStudentIds.add(studentId)
+          totalPaid += Number(p.amount || 0)
+        }
+        hasMorePayments = paymentsData.length === paymentsPageSize
+        paymentsPage++
+      } else {
+        hasMorePayments = false
+      }
+    }
 
     // Fetch exempted student details if any
     let exemptedStudents: { id: string; student_id: string; name: string; email: string | null }[] = []
@@ -100,6 +164,114 @@ export async function GET(
         semester: (fee as any)?.semester,
       },
     })
+
+    // Build statistics by college / course
+    type CourseAgg = { paidCount: number; unpaidCount: number; exemptedCount: number; totalCollected: number }
+    type CollegeAgg = { paidCount: number; unpaidCount: number; exemptedCount: number; totalCollected: number; courses: Map<string, CourseAgg> }
+
+    const collegeMap = new Map<string, CollegeAgg>()
+    const collectedByCollege = new Map<string, number>()
+    const collectedByCourse = new Map<string, number>()
+
+    const ensureCollege = (collegeName: string) => {
+      if (!collegeMap.has(collegeName)) {
+        collegeMap.set(collegeName, {
+          paidCount: 0,
+          unpaidCount: 0,
+          exemptedCount: 0,
+          totalCollected: 0,
+          courses: new Map(),
+        })
+      }
+      return collegeMap.get(collegeName)!
+    }
+
+    const ensureCourse = (collegeName: string, courseName: string) => {
+      const college = ensureCollege(collegeName)
+      if (!college.courses.has(courseName)) {
+        college.courses.set(courseName, {
+          paidCount: 0,
+          unpaidCount: 0,
+          exemptedCount: 0,
+          totalCollected: 0,
+        })
+      }
+      return college.courses.get(courseName)!
+    }
+
+    // Aggregate payments by college / course
+    for (const p of payments) {
+      const collegeKey = (p as any)?.student?.college || 'Unspecified'
+      const courseKey = (p as any)?.student?.course || 'Unspecified'
+      const amount = Number(p.amount || 0)
+      collectedByCollege.set(collegeKey, (collectedByCollege.get(collegeKey) || 0) + amount)
+      const courseMapKey = `${collegeKey}||${courseKey}`
+      collectedByCourse.set(courseMapKey, (collectedByCourse.get(courseMapKey) || 0) + amount)
+    }
+
+    // Count paid / unpaid / exempted
+    for (const student of eligibleStudents) {
+      const collegeName = student.college || 'Unspecified'
+      const courseName = student.course || 'Unspecified'
+      const isPaid = uniqueStudentIds.has(student.id)
+      const isExempted = exemptedSet.has(student.id)
+
+      const college = ensureCollege(collegeName)
+      const course = ensureCourse(collegeName, courseName)
+
+      if (isExempted) {
+        college.exemptedCount += 1
+        course.exemptedCount += 1
+      } else if (isPaid) {
+        college.paidCount += 1
+        course.paidCount += 1
+      } else {
+        college.unpaidCount += 1
+        course.unpaidCount += 1
+      }
+    }
+
+    for (const [collegeName, amount] of collectedByCollege.entries()) {
+      const college = ensureCollege(collegeName)
+      college.totalCollected += Math.round(amount * 100) / 100
+    }
+
+    for (const [courseKey, amount] of collectedByCourse.entries()) {
+      const [collegeName, courseName] = courseKey.split('||')
+      const course = ensureCourse(collegeName, courseName)
+      course.totalCollected += Math.round(amount * 100) / 100
+    }
+
+    const colleges = Array.from(collegeMap.entries())
+      .map(([name, data]) => ({
+        name,
+        paidCount: data.paidCount,
+        unpaidCount: data.unpaidCount,
+        exemptedCount: data.exemptedCount,
+        totalCollected: Math.round(data.totalCollected * 100) / 100,
+        courses: Array.from(data.courses.entries())
+          .map(([courseName, courseData]) => ({
+            name: courseName,
+            paidCount: courseData.paidCount,
+            unpaidCount: courseData.unpaidCount,
+            exemptedCount: courseData.exemptedCount,
+            totalCollected: Math.round(courseData.totalCollected * 100) / 100,
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+    const courses = colleges.flatMap((college) =>
+      college.courses.map((course) => ({
+        ...course,
+        college: college.name,
+      }))
+    )
+
+    const summaryPaidCount = Array.from(uniqueStudentIds).filter((id) => eligibleStudentIds.has(id)).length
+    const summaryExemptedCount = exemptedSet.size
+    const totalEligibleStudents = eligibleStudentIds.size
+    const summaryUnpaid = Math.max(totalEligibleStudents - summaryPaidCount - summaryExemptedCount, 0)
 
     // Build PDF (use landscape for wider fee reports)
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })                                                   
@@ -214,10 +386,142 @@ export async function GET(
       doc.text(value, summaryX + summaryWidths[0] + summaryWidths[1] - 3, y, { align: 'right' })
       y += 9
     }
-    summaryRow('Students Paid', String(uniqueStudentIds.size))
+    summaryRow('Students Paid', String(summaryPaidCount))
     summaryRow('Total Collected', currency(totalPaid))
-    summaryRow('Exempted Students', String(exemptedStudentIds.length))
+    summaryRow('Exempted Students', String(summaryExemptedCount))
+    summaryRow('Total Eligible (scope)', String(totalEligibleStudents))
+    summaryRow('Not Yet Paid', String(summaryUnpaid))
     y += 6
+
+    const renderCourseTable = (title: string, rows: { name: string; college?: string; paidCount: number; unpaidCount: number; exemptedCount: number; totalCollected: number }[]) => {
+      if (!rows || rows.length === 0) return y
+      y = checkPageBreak(22, y)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(14)
+      doc.text(title, margin, y)
+      y += 6
+      doc.setDrawColor(200, 200, 200)
+      doc.line(margin, y, pageWidth - margin, y)
+      y += 6
+
+      const tableX = margin
+      const availableWidth = pageWidth - margin * 2
+      const colWeights = [0.42, 0.16, 0.16, 0.12, 0.14] // Course, Paid, Not paid, Ex, Collected
+      const colWidths = colWeights.map(w => Math.floor(availableWidth * w))
+      colWidths[4] = availableWidth - (colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3])
+
+      const drawHeader = () => {
+        doc.setFillColor(52, 73, 94)
+        doc.setDrawColor(52, 73, 94)
+        doc.rect(tableX, y - 6, availableWidth, 12, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(10)
+        const headers = ['Course', 'Paid', 'Not paid', 'Exempted', 'Collected']
+        let x = tableX + 2
+        headers.forEach((h, i) => {
+          const align = i === 0 ? 'left' : 'right'
+          const cellWidth = colWidths[i]
+          const textX = align === 'right' ? x + cellWidth - 2 : x + 2
+          doc.text(h, textX, y + 2, { align: align as any })
+          x += cellWidth
+        })
+        y += 12
+        doc.setTextColor(0, 0, 0)
+      }
+
+      drawHeader()
+      const rowBaseHeight = 8
+
+      rows.forEach((course, idx) => {
+        const rowHeight = rowBaseHeight
+        y = checkPageBreak(rowHeight + 6, y)
+        if (idx % 2 === 0) {
+          doc.setFillColor(248, 249, 250)
+          doc.rect(tableX, y - 6, availableWidth, rowHeight, 'F')
+        }
+        doc.setDrawColor(235, 238, 240)
+        doc.rect(tableX, y - 6, availableWidth, rowHeight, 'S')
+
+        let x = tableX + 4
+        doc.text(course.name, x, y)
+        x += colWidths[0]
+        doc.text(String(course.paidCount), x + colWidths[1] - 4, y, { align: 'right' })
+        x += colWidths[1]
+        doc.text(String(course.unpaidCount), x + colWidths[2] - 4, y, { align: 'right' })
+        x += colWidths[2]
+        doc.text(String(course.exemptedCount), x + colWidths[3] - 4, y, { align: 'right' })
+        x += colWidths[3]
+        doc.text(currency(course.totalCollected || 0), x + colWidths[4] - 4, y, { align: 'right' })
+
+        y += rowHeight
+        if (y + rowBaseHeight > pageHeight - margin - 14) {
+          doc.addPage()
+          y = margin
+          drawHeader()
+        }
+      })
+
+      y += 6
+      return y
+    }
+
+    const renderCollegeBlocks = (rows: { name: string; paidCount: number; unpaidCount: number; exemptedCount: number; totalCollected: number; courses: any[] }[]) => {
+      if (!rows || rows.length === 0) return y
+      y = checkPageBreak(18, y)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(14)
+      doc.text('College Statistics', margin, y)
+      y += 8
+      doc.setDrawColor(200, 200, 200)
+      doc.line(margin, y, pageWidth - margin, y)
+      y += 8
+
+      rows.forEach((college, idx) => {
+        y = checkPageBreak(22, y)
+        if (idx % 2 === 0) {
+          doc.setFillColor(248, 249, 250)
+          doc.rect(margin, y - 6, pageWidth - margin * 2, 22, 'F')
+        }
+        doc.setTextColor(0, 0, 0)
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(12)
+        doc.text(college.name, margin + 2, y)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(10)
+        doc.text(`Collected: ${currency(college.totalCollected || 0)}`, pageWidth - margin - 2, y, { align: 'right' })
+        y += 6
+        doc.setFontSize(9.5)
+        doc.text(`Paid: ${college.paidCount}`, margin + 4, y)
+        doc.text(`Not paid: ${college.unpaidCount}`, margin + 44, y)
+        doc.text(`Exempted: ${college.exemptedCount}`, margin + 96, y)
+        y += 10
+
+        if (college.courses && college.courses.length > 0) {
+          const tableStartY = y
+          y = renderCourseTable(`Course Statistics - ${college.name}`, college.courses.map(c => ({ ...c, college: college.name })))
+          if (y - tableStartY < 6) {
+            y += 6
+          }
+        }
+      })
+    }
+
+    // Scope-aware rendering
+    const isUniversity = fee.scope_type === 'UNIVERSITY_WIDE'
+    const isCollegeWide = fee.scope_type === 'COLLEGE_WIDE'
+    const isCourseOnly = fee.scope_type === 'COURSE_SPECIFIC'
+
+    // College / Course statistics (scope-aware)
+    if (isUniversity) {
+      renderCollegeBlocks(colleges)
+    } else if (isCollegeWide) {
+      const target = colleges.filter((c) => !fee.scope_college || c.name === fee.scope_college)
+      renderCollegeBlocks(target)
+    } else if (isCourseOnly) {
+      const targetCourses = courses.filter((c) => !fee.scope_course || c.name === fee.scope_course)
+      renderCourseTable(`Course Statistics${fee.scope_course ? ` - ${fee.scope_course}` : ''}`, targetCourses)
+    }
 
     // Exempted students section (if any)
     if (exemptedStudents.length > 0) {

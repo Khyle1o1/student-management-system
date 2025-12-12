@@ -355,6 +355,77 @@ export type Database = {
           expires_at?: string | null
         }
       }
+      organization_feedback: {
+        Row: {
+          id: string
+          org_id: string
+          name: string | null
+          student_id: string | null
+          email: string | null
+          year_course: string | null
+          user_type: string | null
+          purpose: string | null
+          accessibility: number | null
+          responsiveness: number | null
+          transparency: number | null
+          professionalism: number | null
+          helpfulness: number | null
+          communication: number | null
+          event_quality: number | null
+          overall_rating: number | null
+          reaction_type: string | null
+          comment: string | null
+          status: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          name?: string | null
+          student_id?: string | null
+          email?: string | null
+          year_course?: string | null
+          user_type?: string | null
+          purpose?: string | null
+          accessibility?: number | null
+          responsiveness?: number | null
+          transparency?: number | null
+          professionalism?: number | null
+          helpfulness?: number | null
+          communication?: number | null
+          event_quality?: number | null
+          overall_rating?: number | null
+          reaction_type?: string | null
+          comment?: string | null
+          status?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          name?: string | null
+          student_id?: string | null
+          email?: string | null
+          year_course?: string | null
+          user_type?: string | null
+          purpose?: string | null
+          accessibility?: number | null
+          responsiveness?: number | null
+          transparency?: number | null
+          professionalism?: number | null
+          helpfulness?: number | null
+          communication?: number | null
+          event_quality?: number | null
+          overall_rating?: number | null
+          reaction_type?: string | null
+          comment?: string | null
+          status?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
       fee_structures: {
         Row: {
           id: string

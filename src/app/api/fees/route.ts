@@ -245,105 +245,28 @@ export async function POST(request: Request) {
       })
     }
 
-    // Automatically assign fee to eligible students based on scope,
-    // excluding any explicitly exempted students
-    // Fetch ALL students using pagination (Supabase default limit is 1000)
-    const PAGE_SIZE = 1000
-    let allStudents: { id: string }[] = []
-    let page = 0
-    let hasMore = true
+    // OPTIMIZATION: Use PostgreSQL function instead of looping in JavaScript
+    // This moves all the student filtering and payment insertion to the database
+    const { data: assignResult, error: assignError } = await supabaseAdmin
+      .rpc('assign_fee_to_students', {
+        p_fee_id: fee.id,
+        p_amount: validatedData.amount,
+        p_scope_type: validatedData.scope_type,
+        p_scope_college: validatedData.scope_college || null,
+        p_scope_course: validatedData.scope_course || null,
+        p_exempted_student_ids: validatedData.exempted_students || []
+      })
 
-    console.log(`Fetching students for scope: ${validatedData.scope_type}`)
-
-    while (hasMore) {
-      // Build query with filters
-      let pageQuery = supabaseAdmin
-        .from('students')
-        .select('id')
-        .or('archived.is.null,archived.eq.false')
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
-
-      // Apply scope filters
-      if (validatedData.scope_type === 'COLLEGE_WIDE' && validatedData.scope_college) {
-        pageQuery = pageQuery.eq('college', validatedData.scope_college)
-      } else if (validatedData.scope_type === 'COURSE_SPECIFIC' && validatedData.scope_course) {
-        pageQuery = pageQuery.eq('course', validatedData.scope_course)
-      }
-
-      const { data: pageData, error: pageError } = await pageQuery
-
-      if (pageError) {
-        console.error(`Error fetching students page ${page + 1}:`, pageError)
-        break
-      }
-
-      if (pageData && pageData.length > 0) {
-        allStudents = [...allStudents, ...pageData]
-        console.log(`Fetched page ${page + 1}: ${pageData.length} students (Total so far: ${allStudents.length})`)
-        
-        if (pageData.length < PAGE_SIZE) {
-          hasMore = false
-        } else {
-          page++
-        }
-      } else {
-        hasMore = false
-      }
-    }
-
-    // Only assign payment records immediately if fee is active
-    // and exclude exempted students from assignment
-    const exemptedIds = (validatedData.exempted_students || []).filter(Boolean)
-    const eligibleStudents = isAdmin
-      ? allStudents.filter((student) => !exemptedIds.includes(student.id))
-      : []
-    const studentsError = null
-    
-    console.log(`Total students fetched: ${eligibleStudents.length}`)
-
-    if (studentsError) {
-      console.error('Error fetching eligible students:', studentsError)
+    if (assignError) {
+      console.error('Error assigning fee to students:', assignError)
       // Don't fail fee creation if student assignment fails
-    } else if (eligibleStudents && eligibleStudents.length > 0) {
-      // Create payment records for all eligible students
-      const paymentRecords = eligibleStudents.map(student => ({
-        student_id: student.id,
-        fee_id: fee.id,
-        amount: validatedData.amount,
-        status: 'UNPAID',
-        payment_date: null,
-      }))
-
-      // Batch insert to avoid hitting database limits
-      const BATCH_SIZE = 500
-      let totalInserted = 0
-      let errors = []
-
-      for (let i = 0; i < paymentRecords.length; i += BATCH_SIZE) {
-        const batch = paymentRecords.slice(i, i + BATCH_SIZE)
-        const { error: paymentsError } = await supabaseAdmin
-          .from('payments')
-          .insert(batch)
-
-        if (paymentsError) {
-          console.error(`Error creating payment records batch ${i / BATCH_SIZE + 1}:`, paymentsError)
-          errors.push(paymentsError)
-        } else {
-          totalInserted += batch.length
-          console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: Assigned fee to ${batch.length} students (Total: ${totalInserted}/${eligibleStudents.length})`)
-        }
-      }
-
-      if (errors.length > 0) {
-        console.error(`Failed to assign fee to ${eligibleStudents.length - totalInserted} students`)
-      } else {
-        console.log(`Successfully assigned fee to all ${totalInserted} students`)
-      }
+    } else if (assignResult && assignResult.length > 0) {
+      console.log(`✅ Assigned fee to ${assignResult[0].total_assigned} students in ${assignResult[0].execution_time_ms}ms`)
     }
 
     return NextResponse.json({
       ...fee,
-      assignedStudents: eligibleStudents?.length || 0
+      assignedStudents: assignResult?.[0]?.total_assigned || 0
     }, { status: 201 })
 
   } catch (error) {

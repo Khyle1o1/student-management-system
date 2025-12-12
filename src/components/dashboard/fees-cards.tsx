@@ -16,7 +16,8 @@ import {
   Globe,
   Calendar,
   CreditCard,
-  MoreHorizontal
+  MoreHorizontal,
+  X
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -46,6 +47,41 @@ interface Fee {
   status?: string
 }
 
+type FeeReportSummary = {
+  paidStudentCount: number
+  totalPaid: number
+  exemptedStudentCount: number
+  totalEligibleStudents: number
+}
+
+type FeeReportCourseStat = {
+  name: string
+  college?: string
+  paidCount: number
+  unpaidCount: number
+  exemptedCount: number
+  totalCollected: number
+}
+
+type FeeReportCollegeStat = {
+  name: string
+  paidCount: number
+  unpaidCount: number
+  exemptedCount: number
+  totalCollected: number
+  courses: FeeReportCourseStat[]
+}
+
+type FeeReportData = {
+  feeId: string
+  scopeType: string
+  scopeCollege?: string | null
+  scopeCourse?: string | null
+  summary: FeeReportSummary
+  colleges: FeeReportCollegeStat[]
+  courses: FeeReportCourseStat[]
+}
+
 export function FeesCards() {
   const { data: session } = useSession()
   const router = useRouter()
@@ -55,7 +91,7 @@ export function FeesCards() {
   const [filteredFees, setFilteredFees] = useState<Fee[]>([])
   const [reportOpen, setReportOpen] = useState(false)
   const [reportLoading, setReportLoading] = useState(false)
-  const [reportData, setReportData] = useState<{ feeId: string; paidStudentCount: number; totalPaid: number; exemptedStudentCount?: number } | null>(null)
+  const [reportData, setReportData] = useState<FeeReportData | null>(null)
   const [selectedFee, setSelectedFee] = useState<{ id: string; name: string } | null>(null)
   const [viewOpen, setViewOpen] = useState(false)
   const [viewLoading, setViewLoading] = useState(false)
@@ -82,6 +118,39 @@ export function FeesCards() {
       setLoading(false)
     }
   }
+
+  const handleReportOpenChange = (open: boolean) => {
+    setReportOpen(open)
+    if (!open) {
+      // Ensure overlay/focus lock is fully released when closing
+      setReportLoading(false)
+      setReportData(null)
+      setSelectedFee(null)
+    }
+  }
+
+  // Defensive cleanup to make sure no stray overlays/focus locks remain
+  useEffect(() => {
+    if (!reportOpen) {
+      const clean = () => {
+        const overlays = document.querySelectorAll('[data-radix-dialog-overlay]')
+        overlays.forEach((el) => el.parentElement?.removeChild(el))
+        const contents = document.querySelectorAll('[data-radix-dialog-content]')
+        contents.forEach((el) => {
+          if (el.getAttribute('data-state') === 'closed') {
+            el.parentElement?.removeChild(el)
+          }
+        })
+        document.body.style.pointerEvents = ''
+        document.body.style.overflow = ''
+        document.documentElement.style.pointerEvents = ''
+        document.documentElement.style.overflow = ''
+      }
+      // Run cleanup now and on next tick to catch animated nodes
+      clean()
+      setTimeout(clean, 50)
+    }
+  }, [reportOpen])
 
   useEffect(() => {
     fetchFees()
@@ -552,6 +621,43 @@ export function FeesCards() {
     })
   }
 
+  const renderCourseStats = (courses: FeeReportCourseStat[]) => {
+    if (!courses || courses.length === 0) {
+      return <p className="text-xs text-gray-600">No course-level data available.</p>
+    }
+
+    return (
+      <div className="space-y-2">
+        <div className="grid grid-cols-12 text-[11px] font-semibold text-gray-700 px-1">
+          <div className="col-span-5">Course</div>
+          <div className="col-span-2 text-right">Paid</div>
+          <div className="col-span-2 text-right">Not paid</div>
+          <div className="col-span-1 text-right">Exempt</div>
+          <div className="col-span-2 text-right">Collected</div>
+        </div>
+        <div className="space-y-1">
+          {courses.map((course) => (
+            <div
+              key={`${course.college || "none"}-${course.name}`}
+              className="grid grid-cols-12 items-center text-xs rounded border border-gray-100 bg-white px-2 py-2 shadow-sm"
+            >
+              <div className="col-span-5">
+                <div className="font-medium text-gray-800">{course.name}</div>
+                {course.college && <div className="text-[11px] text-gray-500">{course.college}</div>}
+              </div>
+              <div className="col-span-2 text-right text-green-700"> {course.paidCount}</div>
+              <div className="col-span-2 text-right text-yellow-700">{course.unpaidCount}</div>
+              <div className="col-span-1 text-right text-gray-700"> {course.exemptedCount}</div>
+              <div className="col-span-2 text-right font-semibold text-gray-800">
+                {formatCurrency(course.totalCollected || 0)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -735,93 +841,215 @@ export function FeesCards() {
           ))}
         </div>
       )}
-      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Fee Report{selectedFee?.name ? ` - ${selectedFee.name}` : ''}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {reportLoading && <p className="text-sm text-gray-600">Loading...</p>}
-            {!reportLoading && reportData && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-700">Students Paid</span>
-                  <span className="font-semibold">{reportData.paidStudentCount}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-700">Total Collected</span>
-                  <span className="font-semibold">{`₱${reportData.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}</span>
-                </div>
-                {typeof reportData.exemptedStudentCount === 'number' && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-700">Exempted Students</span>
-                    <span className="font-semibold">{reportData.exemptedStudentCount}</span>
-                  </div>
-                )}
-                <div className="pt-2">
-                  <Button
-                    onClick={async () => {
-                      if (!selectedFee?.id) return
-                      try {
-                        const res = await fetch(`/api/fees/${selectedFee.id}/report/pdf`)
-                        if (!res.ok) {
-                          const data = await res.json().catch(() => ({}))
-                          await Swal.fire({
-                            icon: "error",
-                            title: "Download failed",
-                            text: data.error || "Failed to generate PDF",
-                            toast: true,
-                            position: "top-end",
-                            showConfirmButton: false,
-                            timer: 4000,
-                            timerProgressBar: true,
-                          })
-                          return
-                        }
-                        const blob = await res.blob()
-                        const url = window.URL.createObjectURL(blob)
-                        const a = document.createElement('a')
-                        a.href = url
-                        a.download = `fee-report-${(selectedFee.name || 'report').replace(/[^a-zA-Z0-9]/g, '-')}.pdf`
-                        document.body.appendChild(a)
-                        a.click()
-                        a.remove()
-                        window.URL.revokeObjectURL(url)
+      {reportOpen && (
+        <Dialog modal open={reportOpen} onOpenChange={handleReportOpenChange}>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Fee Report{selectedFee?.name ? ` - ${selectedFee.name}` : ''}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {reportLoading && <p className="text-sm text-gray-600">Loading...</p>}
+              {!reportLoading && reportData && (
+                <div className="space-y-4">
+                  {(() => {
+                    const summary = reportData.summary
+                    const unpaidTotal = Math.max(
+                      (summary?.totalEligibleStudents || 0) -
+                        (summary?.paidStudentCount || 0) -
+                        (summary?.exemptedStudentCount || 0),
+                      0
+                    )
+                    const isUniversity = reportData.scopeType === "UNIVERSITY_WIDE"
+                    const isCollegeWide = reportData.scopeType === "COLLEGE_WIDE"
+                    const isCourseOnly = reportData.scopeType === "COURSE_SPECIFIC"
 
-                        // Success toast
-                        await Swal.fire({
-                          icon: "success",
-                          title: "PDF download started",
-                          text: "Your fee report PDF is being downloaded.",
-                          toast: true,
-                          position: "top-end",
-                          showConfirmButton: false,
-                          timer: 3000,
-                          timerProgressBar: true,
-                        })
-                      } catch (e) {
-                        console.error('PDF download failed', e)
-                        await Swal.fire({
-                          icon: "error",
-                          title: "Download failed",
-                          text: "PDF download failed",
-                          toast: true,
-                          position: "top-end",
-                          showConfirmButton: false,
-                          timer: 4000,
-                          timerProgressBar: true,
-                        })
-                      }
-                    }}
-                  >
-                    Download PDF
-                  </Button>
+                    const targetColleges = isCollegeWide
+                      ? reportData.colleges.filter((c) => !reportData.scopeCollege || c.name === reportData.scopeCollege)
+                      : reportData.colleges
+
+                    const courseOnlyStats = isCourseOnly
+                      ? reportData.courses.filter((c) => !reportData.scopeCourse || c.name === reportData.scopeCourse)
+                      : []
+
+                    return (
+                      <>
+                        <div className="rounded-md border p-3">
+                          <p className="text-sm font-semibold mb-2">General Summary</p>
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-700">Students Paid</span>
+                              <span className="font-semibold">{summary?.paidStudentCount ?? 0}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-700">Total Collected</span>
+                              <span className="font-semibold">{formatCurrency(summary?.totalPaid || 0)}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-700">Exempted Students</span>
+                              <span className="font-semibold">{summary?.exemptedStudentCount ?? 0}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-700">Total Enrolled (scope)</span>
+                              <span className="font-semibold">{summary?.totalEligibleStudents ?? "—"}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-700">Not Yet Paid</span>
+                              <span className="font-semibold">{unpaidTotal}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {isUniversity && targetColleges.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-sm font-semibold">College Statistics</p>
+                            <div className="space-y-2">
+                              {targetColleges.map((college) => (
+                                <div key={college.name} className="rounded-md border p-3 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <p className="font-semibold text-sm">{college.name}</p>
+                                    <p className="text-xs text-gray-600">
+                                      Collected: {formatCurrency(college.totalCollected || 0)}
+                                    </p>
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-2 text-xs">
+                                    <div className="bg-green-50 text-green-800 rounded px-2 py-1">
+                                      Paid: {college.paidCount}
+                                    </div>
+                                    <div className="bg-yellow-50 text-yellow-800 rounded px-2 py-1">
+                                      Not paid: {college.unpaidCount}
+                                    </div>
+                                    <div className="bg-gray-100 text-gray-800 rounded px-2 py-1">
+                                      Exempted: {college.exemptedCount}
+                                    </div>
+                                  </div>
+
+                                  {college.courses && college.courses.length > 0 && (
+                                    <div className="rounded-md bg-gray-50 p-2 space-y-2">
+                                      <p className="text-xs font-semibold text-gray-700">Course Statistics</p>
+                                      {renderCourseStats(college.courses)}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {isCollegeWide && targetColleges.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-sm font-semibold">
+                              College Statistics{reportData.scopeCollege ? ` - ${reportData.scopeCollege}` : ""}
+                            </p>
+                            {targetColleges.map((college) => (
+                              <div key={college.name} className="rounded-md border p-3 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <p className="font-semibold text-sm">{college.name}</p>
+                                  <p className="text-xs text-gray-600">
+                                    Collected: {formatCurrency(college.totalCollected || 0)}
+                                  </p>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 text-xs">
+                                  <div className="bg-green-50 text-green-800 rounded px-2 py-1">
+                                    Paid: {college.paidCount}
+                                  </div>
+                                  <div className="bg-yellow-50 text-yellow-800 rounded px-2 py-1">
+                                    Not paid: {college.unpaidCount}
+                                  </div>
+                                  <div className="bg-gray-100 text-gray-800 rounded px-2 py-1">
+                                    Exempted: {college.exemptedCount}
+                                  </div>
+                                </div>
+                                {college.courses && college.courses.length > 0 && (
+                                  <div className="rounded-md bg-gray-50 p-2 space-y-2">
+                                    <p className="text-xs font-semibold text-gray-700">Course Statistics</p>
+                                    {renderCourseStats(college.courses)}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {isCourseOnly && (
+                          <div className="space-y-2">
+                            <p className="text-sm font-semibold">
+                              Course Statistics{reportData.scopeCourse ? ` - ${reportData.scopeCourse}` : ""}
+                            </p>
+                            {courseOnlyStats.length === 0 ? (
+                              <p className="text-xs text-gray-600">No course-level data available.</p>
+                            ) : (
+                              renderCourseStats(courseOnlyStats)
+                            )}
+                          </div>
+                        )}
+
+                        <div className="pt-2">
+                          <Button
+                            onClick={async () => {
+                              if (!selectedFee?.id) return
+                              try {
+                                const res = await fetch(`/api/fees/${selectedFee.id}/report/pdf`)
+                                if (!res.ok) {
+                                  const data = await res.json().catch(() => ({}))
+                                  await Swal.fire({
+                                    icon: "error",
+                                    title: "Download failed",
+                                    text: data.error || "Failed to generate PDF",
+                                    toast: true,
+                                    position: "top-end",
+                                    showConfirmButton: false,
+                                    timer: 4000,
+                                    timerProgressBar: true,
+                                  })
+                                  return
+                                }
+                                const blob = await res.blob()
+                                const url = window.URL.createObjectURL(blob)
+                                const a = document.createElement('a')
+                                a.href = url
+                                a.download = `fee-report-${(selectedFee.name || 'report').replace(/[^a-zA-Z0-9]/g, '-')}.pdf`
+                                document.body.appendChild(a)
+                                a.click()
+                                a.remove()
+                                window.URL.revokeObjectURL(url)
+
+                                await Swal.fire({
+                                  icon: "success",
+                                  title: "PDF download started",
+                                  text: "Your fee report PDF is being downloaded.",
+                                  toast: true,
+                                  position: "top-end",
+                                  showConfirmButton: false,
+                                  timer: 3000,
+                                  timerProgressBar: true,
+                                })
+                              } catch (e) {
+                                console.error('PDF download failed', e)
+                                await Swal.fire({
+                                  icon: "error",
+                                  title: "Download failed",
+                                  text: "PDF download failed",
+                                  toast: true,
+                                  position: "top-end",
+                                  showConfirmButton: false,
+                                  timer: 4000,
+                                  timerProgressBar: true,
+                                })
+                              }
+                            }}
+                          >
+                            Download PDF
+                          </Button>
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* View Fee Details Dialog */}
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>

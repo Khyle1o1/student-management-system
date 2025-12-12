@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useCallback, useMemo } from "react"
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -56,39 +57,31 @@ interface Event {
 }
 
 export function EventsTable() {
-  const [events, setEvents] = useState<Event[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState("")
-  const [filteredEvents, setFilteredEvents] = useState<Event[]>([])
   const [activeTab, setActiveTab] = useState<string>("all")
 
-  const fetchEvents = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch("/api/events", {
-        cache: "no-store",
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setEvents(data.events || [])
-        setFilteredEvents(data.events || [])
-      }
-    } catch (error) {
-      console.error("Error fetching events:", error)
-      // Set empty arrays in case of error to prevent map errors
-      setEvents([])
-      setFilteredEvents([])
-    } finally {
-      setLoading(false)
-    }
-  }
+  // OPTIMIZATION: Use React Query for data fetching with automatic caching
+  const { data: events = [], isLoading: loading, refetch } = useQuery({
+    queryKey: ['events'],
+    queryFn: async () => {
+      const response = await fetch("/api/events", { cache: "no-store" })
+      if (!response.ok) throw new Error('Failed to fetch events')
+      const data = await response.json()
+      return data.events || []
+    },
+    staleTime: 30 * 1000, // 30 seconds - data stays fresh
+    gcTime: 5 * 60 * 1000, // 5 minutes - cache time
+  })
 
-  useEffect(() => {
-    fetchEvents()
-  }, [])
+  // OPTIMIZATION: Memoize fetch function to prevent unnecessary re-renders
+  const fetchEvents = useCallback(() => {
+    refetch()
+  }, [refetch])
 
-  useEffect(() => {
-    let filtered = events.filter((event) => {
+  // OPTIMIZATION: Memoize filtered events to prevent unnecessary recalculations
+  const filteredEvents = useMemo(() => {
+    let filtered = events.filter((event: Event) => {
       const searchLower = searchTerm.toLowerCase()
       
       return event.title.toLowerCase().includes(searchLower) ||
@@ -101,19 +94,27 @@ export function EventsTable() {
 
     // Apply tab filter
     if (activeTab === "pending") {
-      filtered = filtered.filter(event => String(event.status).toUpperCase() === 'PENDING')
+      filtered = filtered.filter((event: Event) => String(event.status).toUpperCase() === 'PENDING')
     } else if (activeTab === "active") {
-      filtered = filtered.filter(event => String(event.status).toUpperCase() !== 'PENDING')
+      filtered = filtered.filter((event: Event) => String(event.status).toUpperCase() !== 'PENDING')
     }
 
-    setFilteredEvents(filtered)
-  }, [searchTerm, events, activeTab])
+    return filtered
+  }, [events, searchTerm, activeTab])
 
-  // Count events by status
-  const pendingCount = events.filter(e => String(e.status).toUpperCase() === 'PENDING').length
-  const activeCount = events.filter(e => String(e.status).toUpperCase() !== 'PENDING').length
+  // OPTIMIZATION: Memoize counts to prevent recalculation on every render
+  const pendingCount = useMemo(
+    () => events.filter((e: Event) => String(e.status).toUpperCase() === 'PENDING').length,
+    [events]
+  )
+  
+  const activeCount = useMemo(
+    () => events.filter((e: Event) => String(e.status).toUpperCase() !== 'PENDING').length,
+    [events]
+  )
 
-  const handleDeleteEvent = async (eventId: string) => {
+  // OPTIMIZATION: Memoize delete handler and update query cache
+  const handleDeleteEvent = useCallback(async (eventId: string) => {
     try {
       const response = await fetch(`/api/events/${eventId}`, {
         method: "DELETE",
@@ -121,7 +122,10 @@ export function EventsTable() {
       })
 
       if (response.ok) {
-        setEvents((prev) => prev.filter((event) => event.id !== eventId))
+        // Update React Query cache instead of local state
+        queryClient.setQueryData(['events'], (oldData: Event[] | undefined) => 
+          (oldData || []).filter((event) => event.id !== eventId)
+        )
         return true
       }
       const data = await response.json().catch(() => ({}))
@@ -141,7 +145,7 @@ export function EventsTable() {
       })
     }
     return false
-  }
+  }, [queryClient])
 
   const getStatusBadgeColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -205,12 +209,13 @@ export function EventsTable() {
     }
   }
 
-  const approveEvent = async (id: string) => {
+  const approveEvent = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/events/${id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'APPROVE' }) })
       if (res.ok) {
-        setEvents((prev) =>
-          prev.map((event) =>
+        // OPTIMIZATION: Update React Query cache
+        queryClient.setQueryData(['events'], (oldData: Event[] | undefined) =>
+          (oldData || []).map((event) =>
             event.id === id ? { ...event, status: "APPROVED" } : event
           )
         )
@@ -231,14 +236,15 @@ export function EventsTable() {
       })
     }
     return false
-  }
+  }, [queryClient])
 
-  const rejectEvent = async (id: string, reason: string | null) => {
+  const rejectEvent = useCallback(async (id: string, reason: string | null) => {
     try {
       const res = await fetch(`/api/events/${id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'REJECT', reason }) })
       if (res.ok) {
-        setEvents((prev) =>
-          prev.map((event) =>
+        // OPTIMIZATION: Update React Query cache
+        queryClient.setQueryData(['events'], (oldData: Event[] | undefined) =>
+          (oldData || []).map((event) =>
             event.id === id ? { ...event, status: "REJECTED" } : event
           )
         )
@@ -259,7 +265,7 @@ export function EventsTable() {
       })
     }
     return false
-  }
+  }, [queryClient])
 
   const showProcessingAlert = (title: string) => {
     Swal.fire({
@@ -400,7 +406,7 @@ export function EventsTable() {
       ) : (
         <>
           <div className="mt-3 sm:mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3 px-1 sm:px-0">
-            {filteredEvents.map((event) => {
+            {filteredEvents.map((event: Event) => {
                 const isPending = String(event.status).toUpperCase() === 'PENDING'
                 const Wrapper: any = isPending ? 'div' : Link
                 const wrapperProps = isPending 

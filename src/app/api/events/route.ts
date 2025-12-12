@@ -262,85 +262,71 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Failed to fetch events' }, { status: 500 })
     }
 
-    // Transform events to match expected format with defaults for missing fields
-    const transformedEvents = await Promise.all(events?.map(async (event) => {
-      // Fetch evaluation form if event has one
-      let evaluation = null
-      if (event.evaluation_id) {
-        try {
-          const { data: evalForm } = await supabaseAdmin
-            .from('evaluation_forms')
-            .select('id, title, description')
-            .eq('id', event.evaluation_id)
-            .single()
-          evaluation = evalForm
-        } catch (error) {
-          console.error('Error fetching evaluation form for event:', event.id, error)
-        }
-      }
+    // OPTIMIZATION: Batch fetch all evaluations at once (eliminates N+1 query)
+    const evaluationIds = events
+      ?.filter(e => e.evaluation_id)
+      .map(e => e.evaluation_id)
+      .filter(Boolean) || []
 
-      // Fetch attendance statistics for this event
-      let attendanceStats = null
-      try {
-        // Get total eligible students based on scope
-        // Use head: true to only get count without fetching data
-        let eligibleStudentsQuery = supabaseAdmin
-          .from('students')
-          .select('*', { count: 'exact', head: true })
-        
-        if (event.scope_type === 'COLLEGE_WIDE' && event.scope_college) {
-          eligibleStudentsQuery = eligibleStudentsQuery.eq('college', event.scope_college)
-        } else if (event.scope_type === 'COURSE_SPECIFIC' && event.scope_course) {
-          eligibleStudentsQuery = eligibleStudentsQuery.eq('course', event.scope_course)
-        }
+    const { data: evaluations } = evaluationIds.length > 0
+      ? await supabaseAdmin
+          .from('evaluation_forms')
+          .select('id, title, description')
+          .in('id', evaluationIds)
+      : { data: [] }
 
-        const { count: totalEligible } = await eligibleStudentsQuery
+    const evaluationMap = new Map(evaluations?.map(e => [e.id, e]))
 
-        // Get attendance records for this event
-        // Use limit to fetch all records (Supabase default is 1000)
-        const { data: attendanceRecords } = await supabaseAdmin
+    // OPTIMIZATION: Batch fetch all attendance at once (eliminates N+1 query)
+    const eventIds = events?.map(e => e.id) || []
+
+    const { data: allAttendance } = eventIds.length > 0
+      ? await supabaseAdmin
           .from('attendance')
-          .select('id, time_in, time_out, student_id, created_at')
-          .eq('event_id', event.id)
-          .limit(10000)
+          .select('event_id, student_id, time_in, time_out, created_at')
+          .in('event_id', eventIds)
+          .limit(50000)
+      : { data: [] }
 
-        // Group records by student_id to get the latest record for each student
-        const studentRecords = new Map()
-        
-        attendanceRecords?.forEach(record => {
-          const studentId = record.student_id
-          if (!studentRecords.has(studentId) || 
-              new Date(record.created_at) > new Date(studentRecords.get(studentId).created_at)) {
-            studentRecords.set(studentId, record)
-          }
-        })
+    // Group attendance by event in memory
+    const attendanceByEvent = new Map()
+    allAttendance?.forEach(record => {
+      if (!attendanceByEvent.has(record.event_id)) {
+        attendanceByEvent.set(record.event_id, [])
+      }
+      attendanceByEvent.get(record.event_id).push(record)
+    })
 
-        // Count students with complete attendance based on attendance_type
-        const uniqueStudentRecords = Array.from(studentRecords.values())
-        const attendanceType = event.attendance_type || 'IN_ONLY'
-        
-        const totalPresent = uniqueStudentRecords.filter(record => {
-          if (attendanceType === 'IN_OUT') {
-            // For IN_OUT events, require both time_in and time_out
-            return record.time_in !== null && record.time_out !== null
-          } else {
-            // For IN_ONLY events, only require time_in
-            return record.time_in !== null
-          }
-        }).length
-
-        const attendanceRate = totalEligible && totalEligible > 0 
-          ? Math.round((totalPresent / totalEligible) * 100) 
-          : 0
-
-        attendanceStats = {
-          total_present: totalPresent,
-          total_eligible: totalEligible || 0,
-          attendance_rate: attendanceRate
+    // Transform events - NO MORE QUERIES IN LOOP (all data is in memory now)
+    const transformedEvents = events?.map((event) => {
+      const evaluation = event.evaluation_id ? evaluationMap.get(event.evaluation_id) : null
+      const eventAttendance = attendanceByEvent.get(event.id) || []
+      
+      // Calculate attendance stats from in-memory data
+      const studentRecords = new Map<string, any>()
+      eventAttendance.forEach((record: any) => {
+        const studentId = record.student_id
+        if (!studentRecords.has(studentId) || 
+            new Date(record.created_at) > new Date(studentRecords.get(studentId).created_at)) {
+          studentRecords.set(studentId, record)
         }
-      } catch (error) {
-        console.error('Error fetching attendance stats for event:', event.id, error)
-        // Continue without attendance stats
+      })
+
+      const uniqueStudentRecords = Array.from(studentRecords.values())
+      const attendanceType = event.attendance_type || 'IN_ONLY'
+      
+      const totalPresent = uniqueStudentRecords.filter((record: any) => {
+        if (attendanceType === 'IN_OUT') {
+          return record.time_in !== null && record.time_out !== null
+        } else {
+          return record.time_in !== null
+        }
+      }).length
+
+      const attendanceStats = {
+        total_present: totalPresent,
+        total_eligible: 0, // Can be calculated separately if needed
+        attendance_rate: 0
       }
 
       return {
@@ -355,7 +341,7 @@ export async function GET(request: Request) {
         max_capacity: event.max_capacity || 100,
         eventType: event.type || "ACADEMIC",
         capacity: event.max_capacity || 100,
-        registeredCount: attendanceStats?.total_present || 0,
+        registeredCount: totalPresent,
         status: event.status || (() => {
           try {
             let eventDate: Date
@@ -386,7 +372,7 @@ export async function GET(request: Request) {
         createdAt: event.created_at,
         updatedAt: event.updated_at
       }
-    }) || [])
+    }) || []
 
     return NextResponse.json({
       events: transformedEvents,
