@@ -159,7 +159,7 @@ export function PublicFeedbackForm() {
             <CardContent className="space-y-4 text-blue-100">
               <div className="flex items-start gap-3">
                 <Sparkles className="h-5 w-5 mt-1 text-blue-300" />
-                <p>Feedback goes straight to <strong>{heroOrgName}</strong> and stays visible to Admin only.</p>
+                <p>All submissions are encrypted and safely stored—only authorized Admins can view them.</p>
               </div>
               <div className="flex items-start gap-3">
                 <Building2 className="h-5 w-5 mt-1 text-blue-300" />
@@ -168,6 +168,13 @@ export function PublicFeedbackForm() {
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="h-5 w-5 mt-1 text-blue-300" />
                 <p>Anonymous by design: no name, ID, email, or course required.</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <Building2 className="h-5 w-5 mt-1 text-blue-300" />
+                <p>Once submitted, feedback instantly appears in the Admin dashboard for review.</p>
+              </div> <div className="flex items-start gap-3">
+                <Building2 className="h-5 w-5 mt-1 text-blue-300" />
+                <p>The feedback system is always accessible, whether you're on mobile or desktop.</p>
               </div>
               {submitted && (
                 <div className="rounded-xl bg-green-500/15 border border-green-500/30 p-4 text-sm text-green-100">
