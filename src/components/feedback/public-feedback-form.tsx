@@ -171,10 +171,12 @@ export function PublicFeedbackForm() {
               </div>
               <div className="flex items-start gap-3">
                 <Building2 className="h-5 w-5 mt-1 text-blue-300" />
+
+            
                 <p>Once submitted, feedback instantly appears in the Admin dashboard for review.</p>
-              </div> <div className="flex items-start gap-3">
+              </div>               <div className="flex items-start gap-3">
                 <Building2 className="h-5 w-5 mt-1 text-blue-300" />
-                <p>The feedback system is always accessible, whether you're on mobile or desktop.</p>
+                <p>The feedback system is always accessible, whether you&apos;re on mobile or desktop.</p>
               </div>
               {submitted && (
                 <div className="rounded-xl bg-green-500/15 border border-green-500/30 p-4 text-sm text-green-100">

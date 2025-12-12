@@ -193,15 +193,6 @@ export function IntramuralsMedalManagement() {
     }
   }, [])
 
-  const fetchAllData = useCallback(async () => {
-    try {
-      setLoading(true)
-      await Promise.all([fetchTeams(), fetchEvents(), fetchSettings(), fetchMatches()])
-    } finally {
-      setLoading(false)
-    }
-  }, [fetchTeams, fetchEvents, fetchSettings])
-
   const fetchMatches = useCallback(async () => {
     try {
       const response = await fetch("/api/intramurals/admin/matches")
@@ -214,6 +205,15 @@ export function IntramuralsMedalManagement() {
       toast.error("Failed to fetch matches")
     }
   }, [])
+
+  const fetchAllData = useCallback(async () => {
+    try {
+      setLoading(true)
+      await Promise.all([fetchTeams(), fetchEvents(), fetchSettings(), fetchMatches()])
+    } finally {
+      setLoading(false)
+    }
+  }, [fetchTeams, fetchEvents, fetchSettings, fetchMatches])
 
   useEffect(() => {
     fetchAllData()
