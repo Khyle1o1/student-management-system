@@ -160,6 +160,74 @@ export async function sendCertificateNotification(
   })
 }
 
+export async function sendPendingFeeApprovalNotification(
+  adminEmail: string,
+  adminName: string,
+  feeName: string,
+  feeAmount: number,
+  submittedBy: string,
+  submitterRole: string,
+  scopeType: string,
+  scopeCollege?: string,
+  scopeCourse?: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const subject = `New Fee Pending Approval: ${feeName}`
+  
+  const html = generatePendingFeeApprovalTemplate(
+    adminName,
+    feeName,
+    feeAmount,
+    submittedBy,
+    submitterRole,
+    scopeType,
+    scopeCollege,
+    scopeCourse
+  )
+
+  return sendEmail({
+    to: adminEmail,
+    subject,
+    html,
+    text: `Hi ${adminName}, a new fee "${feeName}" (₱${feeAmount}) has been submitted by ${submittedBy} (${submitterRole}) and is pending your approval. Please log in to review and approve.`,
+  })
+}
+
+export async function sendPendingEventApprovalNotification(
+  adminEmail: string,
+  adminName: string,
+  eventTitle: string,
+  eventDate: string,
+  eventTime: string,
+  location: string,
+  submittedBy: string,
+  submitterRole: string,
+  scopeType: string,
+  scopeCollege?: string,
+  scopeCourse?: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const subject = `New Event Pending Approval: ${eventTitle}`
+  
+  const html = generatePendingEventApprovalTemplate(
+    adminName,
+    eventTitle,
+    eventDate,
+    eventTime,
+    location,
+    submittedBy,
+    submitterRole,
+    scopeType,
+    scopeCollege,
+    scopeCourse
+  )
+
+  return sendEmail({
+    to: adminEmail,
+    subject,
+    html,
+    text: `Hi ${adminName}, a new event "${eventTitle}" has been submitted by ${submittedBy} (${submitterRole}) and is pending your approval. Event date: ${eventDate} at ${eventTime}. Please log in to review and approve.`,
+  })
+}
+
 // Email Template Generators
 function generateEventReminderTemplate(
   studentName: string,
@@ -393,3 +461,222 @@ function generateCertificateNotificationTemplate(
   `
 }
 
+function generatePendingFeeApprovalTemplate(
+  adminName: string,
+  feeName: string,
+  feeAmount: number,
+  submittedBy: string,
+  submitterRole: string,
+  scopeType: string,
+  scopeCollege?: string,
+  scopeCourse?: string
+): string {
+  const scopeText = scopeType === 'UNIVERSITY_WIDE' 
+    ? 'University-Wide' 
+    : scopeType === 'COLLEGE_WIDE' 
+    ? `College: ${scopeCollege}` 
+    : `Course: ${scopeCourse} (${scopeCollege})`
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fee Pending Approval</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #191970 0%, #0f1349 100%); padding: 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px;">SmartU</h1>
+              <p style="color: #ffffff; margin: 5px 0 0 0; font-size: 12px;">Smart Solutions for a Smarter BukSU</p>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px 30px;">
+              <h2 style="color: #191970; margin: 0 0 20px 0; font-size: 22px;">⏳ New Fee Pending Approval</h2>
+              
+              <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                Hi <strong>${adminName}</strong>,
+              </p>
+              
+              <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                A new fee has been submitted and requires your approval before it can be activated in the system.
+              </p>
+              
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff8e1; border-radius: 8px; padding: 20px; margin-bottom: 30px; border: 2px solid #ffa726;">
+                <tr>
+                  <td>
+                    <p style="color: #191970; font-weight: bold; margin: 0 0 15px 0; font-size: 16px;">📋 Fee Details:</p>
+                    <p style="color: #333333; margin: 5px 0; font-size: 14px;"><strong>Fee Name:</strong> ${feeName}</p>
+                    <p style="color: #333333; margin: 5px 0; font-size: 18px;"><strong>Amount:</strong> <span style="color: #d32f2f;">₱${feeAmount.toLocaleString()}</span></p>
+                    <p style="color: #333333; margin: 5px 0; font-size: 14px;"><strong>Scope:</strong> ${scopeText}</p>
+                    <p style="color: #333333; margin: 5px 0; font-size: 14px;"><strong>Status:</strong> <span style="color: #ff6f00;">Pending Approval</span></p>
+                  </td>
+                </tr>
+              </table>
+              
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #e3f2fd; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+                <tr>
+                  <td>
+                    <p style="color: #191970; font-weight: bold; margin: 0 0 10px 0; font-size: 14px;">👤 Submitted By:</p>
+                    <p style="color: #333333; margin: 5px 0; font-size: 14px;">${submittedBy}</p>
+                    <p style="color: #666666; margin: 5px 0; font-size: 13px;">Role: ${submitterRole}</p>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="color: #666666; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+                Please log in to your admin dashboard to review the fee details and approve or reject it.
+              </p>
+              
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding: 20px 0;">
+                    <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://your-domain.com'}/dashboard/fees" style="display: inline-block; background-color: #191970; color: #ffffff; text-decoration: none; padding: 14px 35px; border-radius: 6px; font-weight: bold; font-size: 16px;">Review Fee</a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="color: #999999; font-size: 12px; line-height: 1.5; margin: 20px 0 0 0; padding-top: 20px; border-top: 1px solid #e9ecef;">
+                <strong>Note:</strong> This fee will remain in pending status and will not be assigned to students until you approve it. Notifications will remain visible in your dashboard until action is taken.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8f9fa; padding: 20px 30px; text-align: center; border-top: 1px solid #e9ecef;">
+              <p style="color: #666666; font-size: 12px; margin: 0;">
+                This is an automated notification from SmartU.<br>
+                Smart Solutions for a Smarter BukSU
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `
+}
+
+function generatePendingEventApprovalTemplate(
+  adminName: string,
+  eventTitle: string,
+  eventDate: string,
+  eventTime: string,
+  location: string,
+  submittedBy: string,
+  submitterRole: string,
+  scopeType: string,
+  scopeCollege?: string,
+  scopeCourse?: string
+): string {
+  const scopeText = scopeType === 'UNIVERSITY_WIDE' 
+    ? 'University-Wide' 
+    : scopeType === 'COLLEGE_WIDE' 
+    ? `College: ${scopeCollege}` 
+    : `Course: ${scopeCourse} (${scopeCollege})`
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Pending Approval</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #191970 0%, #0f1349 100%); padding: 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px;">SmartU</h1>
+              <p style="color: #ffffff; margin: 5px 0 0 0; font-size: 12px;">Smart Solutions for a Smarter BukSU</p>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px 30px;">
+              <h2 style="color: #191970; margin: 0 0 20px 0; font-size: 22px;">⏳ New Event Pending Approval</h2>
+              
+              <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                Hi <strong>${adminName}</strong>,
+              </p>
+              
+              <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                A new event has been submitted and requires your approval before it can be activated in the system.
+              </p>
+              
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #e8f5e9; border-radius: 8px; padding: 20px; margin-bottom: 30px; border: 2px solid #4caf50;">
+                <tr>
+                  <td>
+                    <p style="color: #191970; font-weight: bold; margin: 0 0 15px 0; font-size: 16px;">📅 Event Details:</p>
+                    <p style="color: #333333; margin: 5px 0; font-size: 14px;"><strong>Event:</strong> ${eventTitle}</p>
+                    <p style="color: #333333; margin: 5px 0; font-size: 14px;"><strong>Date:</strong> ${eventDate}</p>
+                    <p style="color: #333333; margin: 5px 0; font-size: 14px;"><strong>Time:</strong> ${eventTime}</p>
+                    <p style="color: #333333; margin: 5px 0; font-size: 14px;"><strong>Location:</strong> ${location}</p>
+                    <p style="color: #333333; margin: 5px 0; font-size: 14px;"><strong>Scope:</strong> ${scopeText}</p>
+                    <p style="color: #333333; margin: 5px 0; font-size: 14px;"><strong>Status:</strong> <span style="color: #ff6f00;">Pending Approval</span></p>
+                  </td>
+                </tr>
+              </table>
+              
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #e3f2fd; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+                <tr>
+                  <td>
+                    <p style="color: #191970; font-weight: bold; margin: 0 0 10px 0; font-size: 14px;">👤 Submitted By:</p>
+                    <p style="color: #333333; margin: 5px 0; font-size: 14px;">${submittedBy}</p>
+                    <p style="color: #666666; margin: 5px 0; font-size: 13px;">Role: ${submitterRole}</p>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="color: #666666; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+                Please log in to your admin dashboard to review the event details and approve or reject it.
+              </p>
+              
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding: 20px 0;">
+                    <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://your-domain.com'}/dashboard/events" style="display: inline-block; background-color: #191970; color: #ffffff; text-decoration: none; padding: 14px 35px; border-radius: 6px; font-weight: bold; font-size: 16px;">Review Event</a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="color: #999999; font-size: 12px; line-height: 1.5; margin: 20px 0 0 0; padding-top: 20px; border-top: 1px solid #e9ecef;">
+                <strong>Note:</strong> This event will remain in pending status until you approve it. Notifications will remain visible in your dashboard until action is taken.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8f9fa; padding: 20px 30px; text-align: center; border-top: 1px solid #e9ecef;">
+              <p style="color: #666666; font-size: 12px; margin: 0;">
+                This is an automated notification from SmartU.<br>
+                Smart Solutions for a Smarter BukSU
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `
+}

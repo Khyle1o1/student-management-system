@@ -382,12 +382,39 @@ export function FeeForm({ feeId, initialData }: FeeFormProps) {
       })
 
       if (response.ok) {
-        await Swal.fire({
-          icon: "success",
-          title: isEditing ? "Fee updated" : "Fee created",
-          text: "The fee has been saved successfully.",
-          confirmButtonColor: "#0f172a",
-        })
+        // Different messages for admins vs org users
+        const isOrgUser = role === 'COLLEGE_ORG' || role === 'COURSE_ORG'
+        const isAdmin = role === 'ADMIN'
+        
+        if (isEditing) {
+          await Swal.fire({
+            icon: "success",
+            title: "Fee updated",
+            text: "The fee has been updated successfully.",
+            confirmButtonColor: "#0f172a",
+          })
+        } else {
+          // Different message for org users creating new fees
+          if (isOrgUser) {
+            await Swal.fire({
+              icon: "success",
+              title: "Fee submitted successfully",
+              html: `
+                <p style="margin-bottom: 10px;">Your fee has been submitted and is pending approval.</p>
+                <p style="color: #4caf50; font-weight: bold;">✓ Admin has been notified via email for approval.</p>
+              `,
+              confirmButtonColor: "#0f172a",
+            })
+          } else {
+            await Swal.fire({
+              icon: "success",
+              title: "Fee created",
+              text: "The fee has been created and activated successfully.",
+              confirmButtonColor: "#0f172a",
+            })
+          }
+        }
+        
         router.push("/dashboard/fees")
         router.refresh()
       } else {

@@ -6,6 +6,7 @@ import { feeSchema } from "@/lib/validations"
 import { z } from "zod"
 import { getOrgAccessLevelFromSession } from "@/lib/org-permissions"
 import { logActivity } from "@/lib/activity-logger"
+import { notifyAdminsPendingFee } from "@/lib/notification-helpers"
 
 // Force dynamic rendering to prevent static generation issues
 export const dynamic = 'force-dynamic'
@@ -243,6 +244,28 @@ export async function POST(request: Request) {
           scope_type: (fee as any)?.scope_type,
         },
       })
+
+      // Send email notification to all admins
+      try {
+        const roleDisplayName = actor.role === 'COLLEGE_ORG' ? 'College Organization' : 
+                                actor.role === 'COURSE_ORG' ? 'Course Organization' : actor.role
+        
+        const notificationResult = await notifyAdminsPendingFee(
+          (fee as any)?.id,
+          (fee as any)?.name,
+          (fee as any)?.amount,
+          actor.name || 'Unknown User',
+          roleDisplayName,
+          (fee as any)?.scope_type,
+          (fee as any)?.scope_college,
+          (fee as any)?.scope_course
+        )
+
+        console.log(`Admin email notifications: ${notificationResult.sent} sent, ${notificationResult.failed} failed`)
+      } catch (emailError) {
+        // Don't fail fee creation if email fails
+        console.error('Error sending admin email notifications:', emailError)
+      }
     }
 
     // OPTIMIZATION: Use PostgreSQL function instead of looping in JavaScript

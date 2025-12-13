@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin"
 import { z } from "zod"
 import { getOrgAccessLevelFromSession } from "@/lib/org-permissions"
 import { logActivity } from "@/lib/activity-logger"
+import { notifyAdminsPendingEvent } from "@/lib/notification-helpers"
 
 export const dynamic = 'force-dynamic'
 
@@ -166,6 +167,34 @@ export async function POST(request: NextRequest) {
         }
       } catch (e) {
         console.warn('Failed to notify admins about pending event:', e)
+      }
+
+      // Send email notification to all admins
+      try {
+        const roleDisplayName = session.user.role === 'COLLEGE_ORG' ? 'College Organization' : 
+                                session.user.role === 'COURSE_ORG' ? 'Course Organization' : session.user.role
+        
+        const eventTime = (event as any)?.start_time 
+          ? `${(event as any)?.start_time}${(event as any)?.end_time ? ` - ${(event as any)?.end_time}` : ''}` 
+          : 'TBA'
+        
+        const notificationResult = await notifyAdminsPendingEvent(
+          (event as any)?.id,
+          (event as any)?.title,
+          (event as any)?.date,
+          eventTime,
+          (event as any)?.location || 'TBA',
+          session.user.name || 'Unknown User',
+          roleDisplayName,
+          (event as any)?.scope_type,
+          (event as any)?.scope_college,
+          (event as any)?.scope_course
+        )
+
+        console.log(`Admin email notifications: ${notificationResult.sent} sent, ${notificationResult.failed} failed`)
+      } catch (emailError) {
+        // Don't fail event creation if email fails
+        console.error('Error sending admin email notifications:', emailError)
       }
     }
 

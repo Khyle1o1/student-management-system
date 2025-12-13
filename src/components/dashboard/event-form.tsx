@@ -17,6 +17,8 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Save, Loader2, Calendar, Clock, MapPin, AlertTriangle, CheckSquare, ClipboardCheck, RefreshCw } from "lucide-react"
 import { COLLEGES, COURSES_BY_COLLEGE, EVENT_SCOPE_TYPES, EVENT_SCOPE_LABELS, EVENT_SCOPE_DESCRIPTIONS } from "@/lib/constants/academic-programs"
+import Swal from "sweetalert2"
+import "sweetalert2/dist/sweetalert2.min.css"
 
 interface Evaluation {
   id: string
@@ -41,6 +43,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
   const router = useRouter()
   const { data: session } = useSession()
   const userRole = session?.user?.role
+  const role = userRole
   const assignedCollege = (session?.user as any)?.assigned_college || null
   const assignedCourse = (session?.user as any)?.assigned_course || null
   const assignedCourses: string[] = useMemo(() => {
@@ -439,6 +442,40 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
       
       if (response.ok) {
         console.log("Event created/updated successfully")
+        
+        // Different messages for admins vs org users
+        const isOrgUser = role === 'COLLEGE_ORG' || role === 'COURSE_ORG'
+        const isAdmin = role === 'ADMIN'
+        
+        if (isEditing) {
+          await Swal.fire({
+            icon: "success",
+            title: "Event updated",
+            text: "The event has been updated successfully.",
+            confirmButtonColor: "#0f172a",
+          })
+        } else {
+          // Different message for org users creating new events
+          if (isOrgUser) {
+            await Swal.fire({
+              icon: "success",
+              title: "Event submitted successfully",
+              html: `
+                <p style="margin-bottom: 10px;">Your event has been submitted and is pending approval.</p>
+                <p style="color: #4caf50; font-weight: bold;">✓ Admin has been notified via email for approval.</p>
+              `,
+              confirmButtonColor: "#0f172a",
+            })
+          } else {
+            await Swal.fire({
+              icon: "success",
+              title: "Event created",
+              text: "The event has been created and activated successfully.",
+              confirmButtonColor: "#0f172a",
+            })
+          }
+        }
+        
         router.push("/dashboard/events")
       } else {
         console.error("Failed to create/update event:", data)
