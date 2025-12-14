@@ -74,7 +74,7 @@ export class ResendEmailProvider implements IEmailProvider {
         subject: payload.subject,
         html: payload.html,
         text: payload.text,
-        reply_to: payload.replyTo,
+        replyTo: payload.replyTo,
       })
 
       const duration = Date.now() - startTime
