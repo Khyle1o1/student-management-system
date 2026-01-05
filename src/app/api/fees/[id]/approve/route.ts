@@ -48,57 +48,27 @@ export async function POST(
         return NextResponse.json({ error: 'Failed to approve fee' }, { status: 500 })
       }
       // Assign payments to eligible students now that fee is active
+      // Use the assign_fee_to_students RPC function to avoid duplicates
       try {
-        const PAGE_SIZE = 1000
-        let allStudents: { id: string }[] = []
-        let page = 0
-        let hasMore = true
         const scopeType = (updated as any).scope_type as string
         const scopeCollege = (updated as any).scope_college as string | null
         const scopeCourse = (updated as any).scope_course as string | null
-        while (hasMore) {
-          let pageQuery = supabaseAdmin
-            .from('students')
-            .select('id')
-            .or('archived.is.null,archived.eq.false')
-            .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+        const exemptedStudents = (updated as any).exempted_students || []
 
-          if (scopeType === 'COLLEGE_WIDE' && scopeCollege) {
-            pageQuery = pageQuery.eq('college', scopeCollege)
-          } else if (scopeType === 'COURSE_SPECIFIC' && scopeCourse) {
-            pageQuery = pageQuery.eq('course', scopeCourse)
-          }
+        const { data: assignResult, error: assignError } = await supabaseAdmin
+          .rpc('assign_fee_to_students', {
+            p_fee_id: (updated as any).id,
+            p_amount: (updated as any).amount,
+            p_scope_type: scopeType,
+            p_scope_college: scopeCollege,
+            p_scope_course: scopeCourse,
+            p_exempted_student_ids: exemptedStudents
+          })
 
-          const { data: pageData, error: pageError } = await pageQuery
-          if (pageError) {
-            console.warn('Error fetching students for approval assignment:', pageError)
-            break
-          }
-          if (pageData && pageData.length > 0) {
-            allStudents = [...allStudents, ...pageData]
-            if (pageData.length < PAGE_SIZE) {
-              hasMore = false
-            } else {
-              page++
-            }
-          } else {
-            hasMore = false
-          }
-        }
-
-        if (allStudents && allStudents.length > 0) {
-          const paymentRecords = allStudents.map(s => ({
-            student_id: s.id,
-            fee_id: (updated as any).id,
-            amount: (updated as any).amount,
-            status: 'UNPAID',
-            payment_date: null,
-          }))
-          const BATCH_SIZE = 500
-          for (let i = 0; i < paymentRecords.length; i += BATCH_SIZE) {
-            const batch = paymentRecords.slice(i, i + BATCH_SIZE)
-            await supabaseAdmin.from('payments').insert(batch)
-          }
+        if (assignError) {
+          console.error('Error assigning fee to students during approval:', assignError)
+        } else if (assignResult && assignResult.length > 0) {
+          console.log(`✅ Assigned fee to ${assignResult[0].total_assigned} students during approval`)
         }
       } catch (assignErr) {
         console.warn('Fee approval: failed to assign payments:', assignErr)

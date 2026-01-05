@@ -270,26 +270,33 @@ export async function POST(request: Request) {
 
     // OPTIMIZATION: Use PostgreSQL function instead of looping in JavaScript
     // This moves all the student filtering and payment insertion to the database
-    const { data: assignResult, error: assignError } = await supabaseAdmin
-      .rpc('assign_fee_to_students', {
-        p_fee_id: fee.id,
-        p_amount: validatedData.amount,
-        p_scope_type: validatedData.scope_type,
-        p_scope_college: validatedData.scope_college || null,
-        p_scope_course: validatedData.scope_course || null,
-        p_exempted_student_ids: validatedData.exempted_students || []
-      })
+    // Only assign fees if they are active (created by admin) to avoid duplicates when approving
+    let assignedStudentCount = 0
+    if (isAdmin) {
+      const { data: assignResult, error: assignError } = await supabaseAdmin
+        .rpc('assign_fee_to_students', {
+          p_fee_id: fee.id,
+          p_amount: validatedData.amount,
+          p_scope_type: validatedData.scope_type,
+          p_scope_college: validatedData.scope_college || null,
+          p_scope_course: validatedData.scope_course || null,
+          p_exempted_student_ids: validatedData.exempted_students || []
+        })
 
-    if (assignError) {
-      console.error('Error assigning fee to students:', assignError)
-      // Don't fail fee creation if student assignment fails
-    } else if (assignResult && assignResult.length > 0) {
-      console.log(`✅ Assigned fee to ${assignResult[0].total_assigned} students in ${assignResult[0].execution_time_ms}ms`)
+      if (assignError) {
+        console.error('Error assigning fee to students:', assignError)
+        // Don't fail fee creation if student assignment fails
+      } else if (assignResult && assignResult.length > 0) {
+        assignedStudentCount = assignResult[0].total_assigned
+        console.log(`✅ Assigned fee to ${assignedStudentCount} students in ${assignResult[0].execution_time_ms}ms`)
+      }
+    } else {
+      console.log('Fee created in pending status. Will assign to students upon approval.')
     }
 
     return NextResponse.json({
       ...fee,
-      assignedStudents: assignResult?.[0]?.total_assigned || 0
+      assignedStudents: assignedStudentCount
     }, { status: 201 })
 
   } catch (error) {
