@@ -330,7 +330,7 @@ export default function AttendancePage() {
                                   <span className="font-medium">Type:</span> {event.type}
                                 </div>
                                 <div>
-                                  <span className="font-medium">Scope:</span> {event.scope_type.replace('_', ' ')}
+                                  <span className="font-medium">Scope:</span> {event.scope_type.replaceAll('_', ' ')}
                                 </div>
                               </div>
                               

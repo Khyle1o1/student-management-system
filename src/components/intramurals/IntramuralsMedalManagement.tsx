@@ -1049,7 +1049,7 @@ export function IntramuralsMedalManagement() {
                         </TableCell>
                         <TableCell>{match.location || "TBA"}</TableCell>
                         <TableCell className="capitalize text-sm">
-                          {match.status === "pending" ? "Scheduled" : match.status.replace("_", " ")}
+                          {match.status === "pending" ? "Scheduled" : match.status.replaceAll("_", " ")}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end space-x-2">

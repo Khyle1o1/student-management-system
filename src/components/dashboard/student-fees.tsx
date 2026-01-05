@@ -150,7 +150,7 @@ export function StudentFees({ studentId }: StudentFeesProps) {
 
     return (
       <Badge className={typeColors[type as keyof typeof typeColors] || typeColors.OTHER}>
-        {type.replace('_', ' ')}
+        {type.replaceAll('_', ' ')}
       </Badge>
     )
   }

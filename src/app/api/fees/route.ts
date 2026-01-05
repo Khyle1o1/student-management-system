@@ -105,7 +105,7 @@ export async function GET(request: Request) {
     const transformedFees = fees?.map((fee: any) => ({
       id: fee.id,
       name: fee.name,
-      type: fee.type?.toLowerCase().replace('_', ' ') || 'other',
+      type: fee.type?.toLowerCase().replaceAll('_', ' ') || 'other',
       amount: fee.amount,
       description: fee.description || "",
       dueDate: fee.due_date ? new Date(fee.due_date).toISOString().split('T')[0] : "",

@@ -1182,7 +1182,7 @@ export default function EventAttendancePage() {
                               }
                               variant="outline"
                             >
-                              {record.status.replace("_", " ")}
+                              {record.status.replaceAll("_", " ")}
                             </Badge>
                           </TableCell>
                         </TableRow>

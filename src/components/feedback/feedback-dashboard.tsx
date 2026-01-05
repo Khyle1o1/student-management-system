@@ -291,7 +291,7 @@ export function FeedbackDashboard() {
   const categoryChartData = useMemo(() => {
     if (!stats) return []
     return Object.entries(stats.categoryAverages || {}).map(([name, value]) => ({
-      name: name.replace("_", " "),
+      name: name.replaceAll("_", " "),
       value,
     }))
   }, [stats])
@@ -703,7 +703,7 @@ export function FeedbackDashboard() {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                               {["accessibility","responsiveness","transparency","professionalism","helpfulness","communication","event_quality","overall_rating"].map((key) => (
                                 <div key={key} className="bg-muted rounded p-2">
-                                  <p className="text-xs text-muted-foreground">{key.replace("_", " ")}</p>
+                                  <p className="text-xs text-muted-foreground">{key.replaceAll("_", " ")}</p>
                                   <p className="font-semibold">{(item as any)[key] ?? "—"}</p>
                                 </div>
                               ))}

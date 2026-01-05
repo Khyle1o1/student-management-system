@@ -674,7 +674,7 @@ export function FormStatistics({ formId }: FormStatisticsProps) {
                       <h3 className="font-medium">{questionStat.question_text}</h3>
                     </div>
                     <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                      <span>Type: {questionStat.question_type.replace('_', ' ')}</span>
+                      <span>Type: {questionStat.question_type.replaceAll('_', ' ')}</span>
                       <span>•</span>
                       <span>{questionStat.total_responses} responses</span>
                       <span>•</span>
