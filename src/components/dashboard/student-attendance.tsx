@@ -17,31 +17,33 @@ import { format } from "date-fns"
 import { Calendar, CheckCircle, XCircle, Clock, AlertTriangle, RefreshCw, Star, Award } from "lucide-react"
 import Link from "next/link"
 
-interface AttendanceRecord {
+interface EventWithStatus {
   id: string
-  student_id: string
-  time_in: string
-  time_out: string | null
-  status: string
-  mode: string
-  created_at: string
-  event: {
-    id: string
-    title: string
-    description: string
-    date: string
-    require_evaluation?: boolean
-    evaluation_id?: string | null
-  }
-  evaluation_completed?: boolean
+  title: string
+  description: string
+  date: string
+  start_time?: string
+  end_time?: string
+  location?: string
+  type?: string
+  scope_type: string
+  scope_college?: string
+  scope_course?: string
+  attendanceStatus: 'ATTENDED' | 'MISSED' | 'LATE'
+  statusDetails: {
+    timeIn?: string
+    timeOut?: string
+    recordedAt?: string
+  } | null
+  require_evaluation?: boolean
+  evaluation_id?: string | null
 }
 
 interface AttendanceStats {
   total: number
-  present: number
-  absent: number
-  late: number
-  rate: number
+  attended: number
+  missed: number
+  attendanceRate: number
 }
 
 interface StudentAttendanceProps {
@@ -49,7 +51,7 @@ interface StudentAttendanceProps {
 }
 
 export function StudentAttendance({ studentId }: StudentAttendanceProps) {
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
+  const [events, setEvents] = useState<EventWithStatus[]>([])
   const [stats, setStats] = useState<AttendanceStats | null>(null)
   const [evaluationStatuses, setEvaluationStatuses] = useState<Record<string, boolean>>({})
   const [activeTab, setActiveTab] = useState("all")
@@ -62,81 +64,59 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
     try {
       setLoading(true)
       setError(null)
-      const response = await fetch(`/api/students/attendance/${studentId}`)
+      
+      // Fetch all events with attendance status
+      const response = await fetch(`/api/students/${studentId}/events-with-status?filter=all`)
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch attendance data')
+        throw new Error(data.error || 'Failed to fetch events data')
       }
 
-      const records = data.attendance || []
-      setAttendanceRecords(records)
-      
-      // Calculate stats
-      const total = records.length
-      const present = records.filter((r: AttendanceRecord) => r.status === 'PRESENT').length
-      const absent = records.filter((r: AttendanceRecord) => r.status === 'ABSENT').length
-      const late = records.filter((r: AttendanceRecord) => r.status === 'LATE').length
-      const rate = total > 0 ? Math.round((present / total) * 100) : 0
-
-      setStats({ total, present, absent, late, rate })
+      const eventsData = data.events || []
+      setEvents(eventsData)
+      setStats(data.stats)
 
       // Fetch evaluation statuses for attended events that require evaluation
-      const attendedEvents = records.filter((r: AttendanceRecord) => 
-        r.status === 'PRESENT' && r.event.require_evaluation && r.event.evaluation_id
+      const attendedEvents = eventsData.filter((event: EventWithStatus) => 
+        (event.attendanceStatus === 'ATTENDED' || event.attendanceStatus === 'LATE') 
+        && event.require_evaluation 
+        && event.evaluation_id
       )
 
       if (attendedEvents.length > 0) {
         const statuses: Record<string, boolean> = {}
         
         // Initialize all to false first
-        attendedEvents.forEach((record: AttendanceRecord) => {
-          statuses[record.event.id] = false
+        attendedEvents.forEach((event: EventWithStatus) => {
+          statuses[event.id] = false
         })
         
         // Check evaluation completion for each event
-        for (const record of attendedEvents) {
+        for (const event of attendedEvents) {
           try {
-            // Get the evaluation form ID for this event
-            if (record.event.evaluation_id) {
-              // Use student_id parameter to check if student has submitted
-              const evalResponse = await fetch(`/api/forms/${record.event.evaluation_id}/responses?student_id=${studentId}`)
+            if (event.evaluation_id) {
+              const evalResponse = await fetch(`/api/forms/${event.evaluation_id}/responses?student_id=${studentId}`)
               if (evalResponse.ok) {
                 const evalData = await evalResponse.json()
-                // Check if there are any responses (the API filters by student_id)
-                // Make sure we're checking the response array properly
                 const hasSubmitted = Array.isArray(evalData.responses) && evalData.responses.length > 0
-                statuses[record.event.id] = hasSubmitted
-                console.log(`Evaluation status for event ${record.event.id}: ${hasSubmitted ? 'COMPLETED' : 'NOT COMPLETED'}`, {
-                  eventId: record.event.id,
-                  evaluationId: record.event.evaluation_id,
-                  studentId: studentId,
-                  responseCount: evalData.responses?.length || 0,
-                  hasSubmitted
-                })
+                statuses[event.id] = hasSubmitted
               } else {
-                // If API call fails, assume not completed
-                statuses[record.event.id] = false
-                console.log(`Evaluation check failed for event ${record.event.id}:`, evalResponse.status)
+                statuses[event.id] = false
               }
-            } else {
-              // No evaluation_id means no evaluation required
-              statuses[record.event.id] = false
             }
           } catch (error) {
-            console.error(`Error checking evaluation for event ${record.event.id}:`, error)
-            // On error, assume not completed
-            statuses[record.event.id] = false
+            console.error(`Error checking evaluation for event ${event.id}:`, error)
+            statuses[event.id] = false
           }
         }
         
         setEvaluationStatuses(statuses)
       } else {
-        // If no events require evaluation, clear the statuses
         setEvaluationStatuses({})
       }
     } catch (error: any) {
-      console.error("Error fetching attendance data:", error)
+      console.error("Error fetching events data:", error)
       setError(error.message)
     } finally {
       setLoading(false)
@@ -149,35 +129,37 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
     }
   }, [studentId, fetchAttendanceData])
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: 'ATTENDED' | 'MISSED' | 'LATE') => {
     switch (status) {
-      case "PRESENT": return <CheckCircle className="h-4 w-4 text-green-600" />
-      case "ABSENT": return <XCircle className="h-4 w-4 text-red-600" />
+      case "ATTENDED": return <CheckCircle className="h-4 w-4 text-green-600" />
+      case "MISSED": return <XCircle className="h-4 w-4 text-red-600" />
       case "LATE": return <Clock className="h-4 w-4 text-yellow-600" />
       default: return <AlertTriangle className="h-4 w-4 text-gray-600" />
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: 'ATTENDED' | 'MISSED' | 'LATE') => {
     switch (status) {
-      case "PRESENT": return "bg-green-100 text-green-800"
-      case "ABSENT": return "bg-red-100 text-red-800"
-      case "LATE": return "bg-yellow-100 text-yellow-800"
+      case "ATTENDED": return "bg-green-100 text-green-800 border-green-200"
+      case "MISSED": return "bg-red-100 text-red-800 border-red-200"
+      case "LATE": return "bg-yellow-100 text-yellow-800 border-yellow-200"
       default: return "bg-gray-100 text-gray-800"
     }
   }
 
-  const renderActionButton = (record: AttendanceRecord) => {
-    // Only show actions for attended events (PRESENT status)
-    if (record.status !== 'PRESENT') {
-      return <span className="text-muted-foreground text-sm">-</span>
+  const renderActionButton = (event: EventWithStatus) => {
+    // Only show actions for attended events
+    if (event.attendanceStatus === 'MISSED') {
+      return (
+        <span className="text-sm text-muted-foreground italic">
+          You did not attend this event
+        </span>
+      )
     }
 
     // Check if event requires evaluation
-    if (record.event.require_evaluation) {
-      // Explicitly check if the evaluation status exists and is true
-      // Default to false if not found (safer approach)
-      const hasCompleted = evaluationStatuses[record.event.id] === true
+    if (event.require_evaluation) {
+      const hasCompleted = evaluationStatuses[event.id] === true
       
       if (hasCompleted) {
         return (
@@ -197,7 +179,7 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
       } else {
         return (
           <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700">
-            <Link href={`/dashboard/events/${record.event.id}/evaluation`}>
+            <Link href={`/dashboard/events/${event.id}/evaluation`}>
               <Star className="h-3 w-3 mr-1" />
               Evaluate
             </Link>
@@ -217,14 +199,12 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
     )
   }
 
-  const filteredRecords = attendanceRecords.filter((record) => {
+  const filteredEvents = events.filter((event) => {
     switch (activeTab) {
-      case "present":
-        return record.status === "PRESENT"
-      case "absent":
-        return record.status === "ABSENT"
-      case "late":
-        return record.status === "LATE"
+      case "attended":
+        return event.attendanceStatus === "ATTENDED" || event.attendanceStatus === "LATE"
+      case "missed":
+        return event.attendanceStatus === "MISSED"
       default:
         return true
     }
@@ -295,8 +275,8 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
                   <CheckCircle className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Present</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.present}</p>
+                  <p className="text-sm font-medium text-gray-600">Attended</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.attended}</p>
                 </div>
               </div>
             </CardContent>
@@ -305,12 +285,12 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
           <Card>
             <CardContent className="flex items-center p-6">
               <div className="flex items-center space-x-3">
-                <div className="p-2 bg-yellow-100 rounded-lg">
-                  <Clock className="h-5 w-5 text-yellow-600" />
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <XCircle className="h-5 w-5 text-red-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Late</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.late}</p>
+                  <p className="text-sm font-medium text-gray-600">Missed</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.missed}</p>
                 </div>
               </div>
             </CardContent>
@@ -324,7 +304,7 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600">Attendance Rate</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.rate}%</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.attendanceRate}%</p>
                 </div>
               </div>
             </CardContent>
@@ -332,28 +312,51 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
         </div>
       )}
 
-      {/* Attendance Records */}
+      {/* Events with Attendance Status */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Calendar className="h-5 w-5" />
-            <span>Attendance History</span>
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center space-x-2">
+              <Calendar className="h-5 w-5" />
+              <span>My Events</span>
+            </CardTitle>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={fetchAttendanceData}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="all">All ({attendanceRecords.length})</TabsTrigger>
-              <TabsTrigger value="present">Present ({stats?.present || 0})</TabsTrigger>
-              <TabsTrigger value="late">Late ({stats?.late || 0})</TabsTrigger>
-              <TabsTrigger value="absent">Absent ({stats?.absent || 0})</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="all">
+                <Calendar className="h-4 w-4 mr-2" />
+                All ({events.length})
+              </TabsTrigger>
+              <TabsTrigger value="attended">
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Attended ({stats?.attended || 0})
+              </TabsTrigger>
+              <TabsTrigger value="missed">
+                <XCircle className="h-4 w-4 mr-2" />
+                Missed ({stats?.missed || 0})
+              </TabsTrigger>
             </TabsList>
             
             <TabsContent value={activeTab} className="mt-6">
-              {filteredRecords.length === 0 ? (
+              {filteredEvents.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                  <p>No attendance records found</p>
+                  <p>
+                    {activeTab === 'attended' && 'No events attended yet'}
+                    {activeTab === 'missed' && 'Great! No events missed'}
+                    {activeTab === 'all' && 'No events found'}
+                  </p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -369,41 +372,48 @@ export function StudentAttendance({ studentId }: StudentAttendanceProps) {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredRecords.map((record) => (
-                        <TableRow key={record.id}>
+                      {filteredEvents.map((event) => (
+                        <TableRow key={event.id}>
                           <TableCell>
                             <div>
-                              <p className="font-medium">{record.event.title}</p>
-                              {record.event.description && (
-                                <p className="text-sm text-gray-500">{record.event.description}</p>
+                              <p className="font-medium">{event.title}</p>
+                              {event.description && (
+                                <p className="text-sm text-gray-500">{event.description}</p>
                               )}
+                              <div className="flex gap-1 mt-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {event.scope_type === 'UNIVERSITY_WIDE' && '🌐 University'}
+                                  {event.scope_type === 'COLLEGE_WIDE' && '🏫 College'}
+                                  {event.scope_type === 'COURSE_SPECIFIC' && '📚 Course'}
+                                </Badge>
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell>
-                            {format(new Date(record.event.date), "MMM d, yyyy")}
+                            {format(new Date(event.date), "MMM d, yyyy")}
                           </TableCell>
                           <TableCell>
-                            {record.time_in 
-                              ? format(new Date(record.time_in), "HH:mm")
+                            {event.statusDetails?.timeIn
+                              ? format(new Date(event.statusDetails.timeIn), "HH:mm")
                               : "-"
                             }
                           </TableCell>
                           <TableCell>
-                            {record.time_out
-                              ? format(new Date(record.time_out), "HH:mm")
+                            {event.statusDetails?.timeOut
+                              ? format(new Date(event.statusDetails.timeOut), "HH:mm")
                               : "-"
                             }
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
-                              {getStatusIcon(record.status)}
-                              <Badge className={getStatusColor(record.status)}>
-                                {record.status}
+                              {getStatusIcon(event.attendanceStatus)}
+                              <Badge className={getStatusColor(event.attendanceStatus)}>
+                                {event.attendanceStatus}
                               </Badge>
                             </div>
                           </TableCell>
                           <TableCell>
-                            {renderActionButton(record)}
+                            {renderActionButton(event)}
                           </TableCell>
                         </TableRow>
                       ))}

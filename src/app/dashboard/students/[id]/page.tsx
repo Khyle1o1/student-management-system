@@ -69,6 +69,19 @@ interface Payment {
   }
 }
 
+interface EventWithStatus {
+  id: string
+  title: string
+  description: string
+  date: string
+  attendanceStatus: 'ATTENDED' | 'MISSED' | 'LATE'
+  statusDetails: {
+    timeIn?: string
+    timeOut?: string
+    recordedAt?: string
+  } | null
+}
+
 interface StudentDashboardData {
   student: Student
   attendance: {
@@ -90,6 +103,13 @@ interface StudentDashboardData {
     }
   }
   upcomingEvents: any[]
+  eventsWithStatus?: EventWithStatus[]
+  eventsStats?: {
+    total: number
+    attended: number
+    missed: number
+    attendanceRate: number
+  }
 }
 
 export default function StudentProfilePage() {
@@ -109,14 +129,42 @@ export default function StudentProfilePage() {
   const fetchStudentData = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/students/dashboard/${id}`)
       
-      if (!response.ok) {
-        const error = await response.json()
+      // Fetch both dashboard data and events with status in parallel
+      const [dashboardRes, eventsRes] = await Promise.all([
+        fetch(`/api/students/dashboard/${id}`),
+        fetch(`/api/students/${id}/events-with-status?filter=all`)
+      ])
+      
+      if (!dashboardRes.ok) {
+        const error = await dashboardRes.json()
         throw new Error(error.error || 'Failed to fetch student data')
       }
       
-      const studentData = await response.json()
+      const studentData = await dashboardRes.json()
+      
+      // Add events with status to the data if available
+      if (eventsRes.ok) {
+        const eventsData = await eventsRes.json()
+        console.log('✅ Events with status loaded:', eventsData)
+        console.log('✅ Stats from API:', eventsData.stats)
+        studentData.eventsWithStatus = eventsData.events
+        studentData.eventsStats = eventsData.stats
+        console.log('✅ studentData after update:', {
+          hasEventsStats: !!studentData.eventsStats,
+          eventsStats: studentData.eventsStats,
+          eventsCount: studentData.eventsWithStatus?.length
+        })
+      } else {
+        console.error('❌ Failed to fetch events with status:', eventsRes.status)
+        const errorData = await eventsRes.json()
+        console.error('Error details:', errorData)
+      }
+      
+      console.log('📊 Final data being set:', {
+        hasEventsStats: !!studentData.eventsStats,
+        stats: studentData.eventsStats
+      })
       setData(studentData)
     } catch (error) {
       console.error("Error fetching student data:", error)
@@ -322,15 +370,24 @@ export default function StudentProfilePage() {
     )
   }
 
-  const { student, attendance, payments } = data
+  const { student, attendance, payments, eventsWithStatus, eventsStats } = data
 
-  // Separate attended and missed events
-  const attendedEvents = attendance.records.filter(record => 
-    record.status === 'PRESENT' || record.status === 'LATE'
-  )
-  const missedEvents = attendance.records.filter(record => 
-    record.status === 'ABSENT'
-  )
+  // Debug logging
+  console.log('🔍 Component render - eventsStats:', eventsStats)
+  console.log('🔍 Component render - eventsWithStatus:', eventsWithStatus?.length)
+
+  // Use the new events with status if available, otherwise fall back to old behavior
+  const attendedEvents = eventsWithStatus 
+    ? eventsWithStatus.filter(event => 
+        event.attendanceStatus === 'ATTENDED' || event.attendanceStatus === 'LATE'
+      )
+    : attendance.records.filter(record => 
+        record.status === 'PRESENT' || record.status === 'LATE'
+      )
+  
+  const missedEvents = eventsWithStatus
+    ? eventsWithStatus.filter(event => event.attendanceStatus === 'MISSED')
+    : attendance.records.filter(record => record.status === 'ABSENT')
 
   // Separate paid and unpaid fees
   const paidPayments = payments.records.filter(payment => 
@@ -411,7 +468,9 @@ export default function StudentProfilePage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-blue-600">Attendance Rate</p>
-                  <p className="text-3xl font-bold text-blue-700">{attendance.stats.rate}%</p>
+                  <p className="text-3xl font-bold text-blue-700">
+                    {eventsStats ? eventsStats.attendanceRate : attendance.stats.rate}%
+                  </p>
                 </div>
                 <TrendingUp className="h-10 w-10 text-blue-500" />
               </div>
@@ -423,7 +482,9 @@ export default function StudentProfilePage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-green-600">Events Attended</p>
-                  <p className="text-3xl font-bold text-green-700">{attendedEvents.length}</p>
+                  <p className="text-3xl font-bold text-green-700">
+                    {eventsStats ? eventsStats.attended : attendedEvents.length}
+                  </p>
                 </div>
                 <CheckCircle className="h-10 w-10 text-green-500" />
               </div>
@@ -435,7 +496,9 @@ export default function StudentProfilePage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-red-600">Events Missed</p>
-                  <p className="text-3xl font-bold text-red-700">{missedEvents.length}</p>
+                  <p className="text-3xl font-bold text-red-700">
+                    {eventsStats ? eventsStats.missed : missedEvents.length}
+                  </p>
                 </div>
                 <XCircle className="h-10 w-10 text-red-500" />
               </div>
@@ -457,10 +520,14 @@ export default function StudentProfilePage() {
 
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <User className="h-4 w-4" />
               Overview
+            </TabsTrigger>
+            <TabsTrigger value="all-events" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              All Events ({eventsWithStatus?.length || 0})
             </TabsTrigger>
             <TabsTrigger value="attended" className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4" />
@@ -479,6 +546,67 @@ export default function StudentProfilePage() {
               Unpaid ({unpaidPayments.length})
             </TabsTrigger>
           </TabsList>
+
+          {/* All Events Tab */}
+          <TabsContent value="all-events">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  All Applicable Events ({eventsWithStatus?.length || 0})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!eventsWithStatus || eventsWithStatus.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>No applicable events found for this student</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Event Title</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Time In</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Description</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {eventsWithStatus.map((event) => (
+                        <TableRow key={event.id}>
+                          <TableCell className="font-medium">{event.title}</TableCell>
+                          <TableCell>{format(new Date(event.date), "MMM dd, yyyy")}</TableCell>
+                          <TableCell>
+                            {event.statusDetails?.timeIn 
+                              ? format(new Date(event.statusDetails.timeIn), "HH:mm")
+                              : '-'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={
+                              event.attendanceStatus === 'ATTENDED'
+                                ? 'bg-green-100 text-green-800 border-green-200'
+                                : event.attendanceStatus === 'LATE'
+                                ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                                : 'bg-red-100 text-red-800 border-red-200'
+                            }>
+                              {event.attendanceStatus === 'ATTENDED' && '🟢 ATTENDED'}
+                              {event.attendanceStatus === 'LATE' && '🟡 LATE'}
+                              {event.attendanceStatus === 'MISSED' && '🔴 MISSED'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-gray-600">
+                            {event.description || 'No description'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
@@ -566,24 +694,28 @@ export default function StudentProfilePage() {
                 <CardContent className="space-y-4">
                   <div className="flex justify-between">
                     <span className="text-sm font-medium text-gray-500">Total Events</span>
-                    <span className="font-semibold">{attendance.stats.total}</span>
+                    <span className="font-semibold">
+                      {eventsStats ? eventsStats.total : attendance.stats.total}
+                    </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm font-medium text-green-600">Present</span>
-                    <span className="font-semibold text-green-700">{attendance.stats.present}</span>
+                    <span className="text-sm font-medium text-green-600">Attended</span>
+                    <span className="font-semibold text-green-700">
+                      {eventsStats ? eventsStats.attended : attendance.stats.present}
+                    </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm font-medium text-red-600">Absent</span>
-                    <span className="font-semibold text-red-700">{attendance.stats.absent}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium text-yellow-600">Late</span>
-                    <span className="font-semibold text-yellow-700">{attendance.stats.late}</span>
+                    <span className="text-sm font-medium text-red-600">Missed</span>
+                    <span className="font-semibold text-red-700">
+                      {eventsStats ? eventsStats.missed : attendance.stats.absent}
+                    </span>
                   </div>
                   <div className="pt-2 border-t">
                     <div className="flex justify-between">
                       <span className="text-sm font-medium text-blue-600">Attendance Rate</span>
-                      <span className="font-bold text-blue-700">{attendance.stats.rate}%</span>
+                      <span className="font-bold text-blue-700">
+                        {eventsStats ? eventsStats.attendanceRate : attendance.stats.rate}%
+                      </span>
                     </div>
                   </div>
                 </CardContent>
@@ -638,29 +770,43 @@ export default function StudentProfilePage() {
                       <TableRow>
                         <TableHead>Event Title</TableHead>
                         <TableHead>Date</TableHead>
+                        <TableHead>Time In</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Description</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {attendedEvents.map((record) => (
-                        <TableRow key={record.id}>
-                          <TableCell className="font-medium">{record.event.title}</TableCell>
-                          <TableCell>{format(new Date(record.event.date), "MMM dd, yyyy")}</TableCell>
-                          <TableCell>
-                            <Badge className={
-                              record.status === 'PRESENT' 
-                                ? 'bg-green-100 text-green-800 border-green-200'
-                                : 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                            }>
-                              {record.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-gray-600">
-                            {record.event.description || 'No description'}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {attendedEvents.map((event: any) => {
+                        // Handle both old AttendanceRecord format and new EventWithStatus format
+                        const isNewFormat = 'attendanceStatus' in event
+                        const title = isNewFormat ? event.title : event.event.title
+                        const date = isNewFormat ? event.date : event.event.date
+                        const description = isNewFormat ? event.description : event.event.description
+                        const status = isNewFormat ? event.attendanceStatus : event.status
+                        const timeIn = isNewFormat ? event.statusDetails?.timeIn : event.time_in
+                        
+                        return (
+                          <TableRow key={event.id}>
+                            <TableCell className="font-medium">{title}</TableCell>
+                            <TableCell>{format(new Date(date), "MMM dd, yyyy")}</TableCell>
+                            <TableCell>
+                              {timeIn ? format(new Date(timeIn), "HH:mm") : '-'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={
+                                status === 'PRESENT' || status === 'ATTENDED'
+                                  ? 'bg-green-100 text-green-800 border-green-200'
+                                  : 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                              }>
+                                {status === 'ATTENDED' ? '🟢 ATTENDED' : status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-gray-600">
+                              {description || 'No description'}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
                     </TableBody>
                   </Table>
                 )}
@@ -690,24 +836,36 @@ export default function StudentProfilePage() {
                         <TableHead>Event Title</TableHead>
                         <TableHead>Date</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Note</TableHead>
                         <TableHead>Description</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {missedEvents.map((record) => (
-                        <TableRow key={record.id}>
-                          <TableCell className="font-medium">{record.event.title}</TableCell>
-                          <TableCell>{format(new Date(record.event.date), "MMM dd, yyyy")}</TableCell>
-                          <TableCell>
-                            <Badge className="bg-red-100 text-red-800 border-red-200">
-                              ABSENT
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-gray-600">
-                            {record.event.description || 'No description'}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {missedEvents.map((event: any) => {
+                        // Handle both old AttendanceRecord format and new EventWithStatus format
+                        const isNewFormat = 'attendanceStatus' in event
+                        const title = isNewFormat ? event.title : event.event.title
+                        const date = isNewFormat ? event.date : event.event.date
+                        const description = isNewFormat ? event.description : event.event.description
+                        
+                        return (
+                          <TableRow key={event.id}>
+                            <TableCell className="font-medium">{title}</TableCell>
+                            <TableCell>{format(new Date(date), "MMM dd, yyyy")}</TableCell>
+                            <TableCell>
+                              <Badge className="bg-red-100 text-red-800 border-red-200">
+                                🔴 MISSED
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm text-red-600 italic">
+                              Student did not attend this event
+                            </TableCell>
+                            <TableCell className="text-gray-600">
+                              {description || 'No description'}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
                     </TableBody>
                   </Table>
                 )}

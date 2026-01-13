@@ -43,6 +43,18 @@ interface StudentDetailsModalProps {
   onClose: () => void
 }
 
+interface EventWithStatus {
+  id: string
+  title: string
+  date: string
+  location?: string
+  attendanceStatus: 'ATTENDED' | 'MISSED' | 'LATE'
+  statusDetails: {
+    timeIn?: string
+    timeOut?: string
+  } | null
+}
+
 interface StudentDetails {
   id: string
   student_id: string
@@ -70,6 +82,13 @@ interface StudentDetails {
         location: string
       }
     }>
+  }
+  eventsWithStatus?: EventWithStatus[]
+  eventsStats?: {
+    total: number
+    attended: number
+    missed: number
+    attendanceRate: number
   }
   payments: {
     paid: number
@@ -123,10 +142,26 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
     
     setLoading(true)
     try {
-      const response = await fetch(`/api/students/${studentId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setStudent(data)
+      // Fetch both old student data and new events with status
+      const [studentRes, eventsRes] = await Promise.all([
+        fetch(`/api/students/${studentId}`),
+        fetch(`/api/students/${studentId}/events-with-status?filter=all`)
+      ])
+      
+      if (studentRes.ok) {
+        const studentData = await studentRes.json()
+        
+        // Add events with status if available
+        if (eventsRes.ok) {
+          const eventsData = await eventsRes.json()
+          console.log('✅ Modal: Events with status loaded:', eventsData.stats)
+          studentData.eventsWithStatus = eventsData.events
+          studentData.eventsStats = eventsData.stats
+        } else {
+          console.error('❌ Modal: Failed to fetch events with status')
+        }
+        
+        setStudent(studentData)
       }
     } catch (error) {
       console.error("Error fetching student details:", error)
@@ -337,20 +372,22 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
                 <CardContent className="space-y-2">
                   <div className="flex justify-between">
                     <span className="text-sm">Total Events:</span>
-                    <span className="font-bold">{student.attendance.total}</span>
+                    <span className="font-bold">
+                      {student.eventsStats ? student.eventsStats.total : student.attendance.total}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm">Attended:</span>
                     <Badge variant="default" className="bg-green-100 text-green-800">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
-                      {student.attendance.attended}
+                      {student.eventsStats ? student.eventsStats.attended : student.attendance.attended}
                     </Badge>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm">Missed:</span>
                     <Badge variant="default" className="bg-red-100 text-red-800">
                       <XCircle className="h-3 w-3 mr-1" />
-                      {student.attendance.missed}
+                      {student.eventsStats ? student.eventsStats.missed : student.attendance.missed}
                     </Badge>
                   </div>
                 </CardContent>
@@ -393,7 +430,45 @@ export function StudentDetailsModal({ studentId, open, onClose }: StudentDetails
               <TabsContent value="attendance" className="space-y-4">
                 <Card>
                   <CardContent className="pt-6">
-                    {student.attendance.records.length === 0 ? (
+                    {/* Use new eventsWithStatus if available, otherwise fall back to old records */}
+                    {student.eventsWithStatus && student.eventsWithStatus.length > 0 ? (
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Event</TableHead>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Location</TableHead>
+                              <TableHead>Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {student.eventsWithStatus.map((event) => (
+                              <TableRow key={event.id}>
+                                <TableCell className="font-medium">
+                                  {event.title || 'Unknown Event'}
+                                </TableCell>
+                                <TableCell>{formatDate(event.date)}</TableCell>
+                                <TableCell>{event.location || 'N/A'}</TableCell>
+                                <TableCell>
+                                  {event.attendanceStatus === 'ATTENDED' || event.attendanceStatus === 'LATE' ? (
+                                    <Badge className="bg-green-100 text-green-800">
+                                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                                      {event.attendanceStatus === 'LATE' ? 'Late' : 'Attended'}
+                                    </Badge>
+                                  ) : (
+                                    <Badge className="bg-red-100 text-red-800">
+                                      <XCircle className="h-3 w-3 mr-1" />
+                                      Missed
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : student.attendance.records.length === 0 ? (
                       <p className="text-center text-muted-foreground py-4">
                         No attendance records found
                       </p>
