@@ -38,6 +38,7 @@ import { completeLogout } from "@/lib/google-oauth-utils"
 import NotificationBell from "@/components/notifications/NotificationBell"
 import { AdminHeader } from "./admin-header"
 import { getOrgAccessLevelFromSession, hasOrgModuleAccess } from "@/lib/org-permissions"
+import { useMaintenanceCheck } from "@/hooks/use-maintenance-check"
 
 interface DashboardShellProps {
   children: ReactNode
@@ -45,6 +46,7 @@ interface DashboardShellProps {
 
 interface SystemSettings {
   deletion_lock: boolean
+  maintenance_mode: boolean
 }
 
 export const SystemSettingsContext = createContext<SystemSettings | null>(null)
@@ -91,6 +93,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const [dbConnectionError, setDbConnectionError] = useState<string | null>(null)
   const [showDbError, setShowDbError] = useState(false)
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null)
+
+  // Check maintenance mode and redirect if necessary
+  useMaintenanceCheck()
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -151,6 +156,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
           const data = await response.json()
           setSystemSettings({
             deletion_lock: !!data.settings?.deletion_lock,
+            maintenance_mode: !!data.settings?.maintenance_mode,
           })
         }
       } catch (error) {

@@ -100,6 +100,7 @@ export async function PUT(request: Request) {
       settings: {
         id: data.id,
         deletion_lock: !!data.deletion_lock,
+        maintenance_mode: !!data.maintenance_mode,
       },
     })
   } catch (error) {

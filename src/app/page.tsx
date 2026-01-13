@@ -24,6 +24,7 @@ import { IntramuralsStandings } from "@/components/intramurals/IntramuralsStandi
 import { IntramuralsSchedule } from "@/components/intramurals/IntramuralsSchedule"
 import { useToast } from "@/hooks/use-toast"
 import { PublicFeedbackForm } from "@/components/feedback/public-feedback-form"
+import { MaintenanceBanner } from "@/components/maintenance-banner"
 
 // --- Components ---
 
@@ -483,6 +484,9 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-[#0B1121] text-slate-200 font-sans selection:bg-blue-500/30">
+      {/* Maintenance Banner - Shows when system is in maintenance mode */}
+      <MaintenanceBanner />
+      
       <style dangerouslySetInnerHTML={{__html: `
         /* Dark mode styles for intramurals-related modals only */
         body .intramurals-dark-mode .fixed.inset-0 .bg-white {
