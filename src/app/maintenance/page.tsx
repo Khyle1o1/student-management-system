@@ -1,6 +1,7 @@
-import { Wrench, AlertCircle } from "lucide-react"
+import { Wrench, AlertCircle, Shield } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import Link from "next/link"
 
 export const metadata = {
   title: "System Maintenance",
@@ -47,9 +48,19 @@ export default function MaintenancePage() {
         </div>
 
         <div className="pt-6 border-t border-slate-200 dark:border-slate-700">
-          <p className="text-xs text-slate-400 dark:text-slate-500">
-            Student Management System
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              Student Management System
+            </p>
+            <Link 
+              href="/auth/login"
+              className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors flex items-center gap-1 group"
+              title="Admin Login"
+            >
+              <Shield className="h-3 w-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+              <span className="opacity-50 group-hover:opacity-100 transition-opacity">Admin</span>
+            </Link>
+          </div>
         </div>
       </Card>
     </div>

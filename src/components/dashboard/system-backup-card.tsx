@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { formatDistanceToNow, format } from "date-fns"
-import { DownloadCloud, RefreshCcw, History, HardDrive } from "lucide-react"
+import { DownloadCloud, RefreshCcw, History, HardDrive, Download } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -183,6 +183,21 @@ export function SystemBackupCard() {
       setIsRestoring(false)
     }
   }, [fetchBackups, selectedBackup])
+
+  const handleDownload = useCallback((backupName: string) => {
+    // Create a temporary anchor element to trigger download
+    const link = document.createElement('a')
+    link.href = `/api/system/backups/download/${backupName}`
+    link.download = backupName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    toast({
+      title: "Download started",
+      description: `Downloading ${backupName}...`,
+    })
+  }, [])
 
   const lastBackupText = useMemo(() => {
     if (!data?.summary.lastBackupAt) {
@@ -375,7 +390,7 @@ export function SystemBackupCard() {
                           <li
                             key={backup.name}
                             className={cn(
-                              "flex flex-col gap-2 px-3 sm:px-4 py-3 md:flex-row md:items-center md:justify-between",
+                              "flex flex-col gap-2 px-3 sm:px-4 py-3 md:flex-row md:items-center md:justify-between hover:bg-accent/50 transition-colors",
                               selectedBackup === backup.name && "bg-background",
                             )}
                           >
@@ -394,6 +409,15 @@ export function SystemBackupCard() {
                                 </Badge>
                               )}
                               <Badge variant="outline" className="text-xs">{trigLabel}</Badge>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                onClick={() => handleDownload(backup.name)}
+                                title="Download backup"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                              </Button>
                             </div>
                           </li>
                         )

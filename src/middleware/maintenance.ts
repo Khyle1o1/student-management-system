@@ -31,10 +31,11 @@ export async function checkMaintenanceMode(request: NextRequest): Promise<NextRe
       
       // If this is an API request, return JSON response
       if (url.pathname.startsWith('/api/')) {
-        // Allow access to settings and auth endpoints
+        // Allow access to settings, auth, and system monitoring endpoints
         if (
           url.pathname === '/api/settings' ||
-          url.pathname.startsWith('/api/auth/')
+          url.pathname.startsWith('/api/auth/') ||
+          url.pathname.startsWith('/api/system/')
         ) {
           return null
         }
