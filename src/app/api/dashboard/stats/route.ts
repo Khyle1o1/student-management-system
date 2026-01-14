@@ -116,49 +116,84 @@ export async function GET() {
     // Get accessible fee IDs for payment filtering
     const accessibleFeeIds = accessibleFees?.map((f: { id: string }) => f.id) || []
 
-    // Build payment queries with fee filtering
-    let totalPaymentsQuery = supabaseAdmin.from('payments').select('*', { count: 'exact', head: true })
-    let totalAmountQuery = supabaseAdmin.from('payments').select('amount').eq('status', 'PAID')
-    let totalRevenueQuery = supabaseAdmin.from('payments').select('amount').eq('status', 'PAID')
-    let monthlyAmountQuery = supabaseAdmin.from('payments').select('amount').eq('status', 'PAID').gte('payment_date', startOfMonth.toISOString())
-    let lastMonthRevenueQuery = supabaseAdmin.from('payments').select('amount').eq('status', 'PAID').gte('payment_date', lastMonth.toISOString()).lt('payment_date', startOfMonth.toISOString())
-    let pendingPaymentsQuery = supabaseAdmin.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'PENDING')
-    let totalPaymentsCountQuery = supabaseAdmin.from('payments').select('*', { count: 'exact', head: true })
+    // Build payment count queries with fee filtering
+    let totalPaymentsQuery = supabaseAdmin.from('payments').select('*', { count: 'exact', head: true }).is('deleted_at', null)
+    let pendingPaymentsQuery = supabaseAdmin.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'PENDING').is('deleted_at', null)
+    let totalPaymentsCountQuery = supabaseAdmin.from('payments').select('*', { count: 'exact', head: true }).is('deleted_at', null)
 
     if (accessibleFeeIds.length > 0 && (userRole === 'COLLEGE_ORG' || userRole === 'COURSE_ORG')) {
       totalPaymentsQuery = totalPaymentsQuery.in('fee_id', accessibleFeeIds)
-      totalAmountQuery = totalAmountQuery.in('fee_id', accessibleFeeIds)
-      totalRevenueQuery = totalRevenueQuery.in('fee_id', accessibleFeeIds)
-      monthlyAmountQuery = monthlyAmountQuery.in('fee_id', accessibleFeeIds)
-      lastMonthRevenueQuery = lastMonthRevenueQuery.in('fee_id', accessibleFeeIds)
       pendingPaymentsQuery = pendingPaymentsQuery.in('fee_id', accessibleFeeIds)
       totalPaymentsCountQuery = totalPaymentsCountQuery.in('fee_id', accessibleFeeIds)
     }
 
-    // Execute payment queries in parallel
+    // Execute payment count queries in parallel
     const [
       { count: totalPayments },
-      { data: totalAmountData },
-      { data: totalRevenueData },
-      { data: monthlyAmountData },
-      { data: lastMonthRevenueData },
       { count: pendingPayments },
       { count: totalPaymentsCount }
     ] = await Promise.all([
       totalPaymentsQuery,
-      totalAmountQuery,
-      totalRevenueQuery,
-      monthlyAmountQuery,
-      lastMonthRevenueQuery,
       pendingPaymentsQuery,
       totalPaymentsCountQuery
     ])
 
+    // Fetch ALL payment amounts using pagination to avoid hitting Supabase limits
+    const pageSize = 1000
+    let allTotalAmountPayments: any[] = []
+    let allMonthlyPayments: any[] = []
+    let allLastMonthPayments: any[] = []
+    
+    // Helper function to fetch all payments with pagination
+    const fetchAllPayments = async (baseQuery: any) => {
+      let allPayments: any[] = []
+      let page = 0
+      let hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await baseQuery
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+
+        if (error) {
+          console.error('Error fetching payments:', error)
+          break
+        }
+
+        if (data && data.length > 0) {
+          allPayments = allPayments.concat(data)
+          hasMore = data.length === pageSize
+          page++
+        } else {
+          hasMore = false
+        }
+      }
+
+      return allPayments
+    }
+
+    // Build base queries for different time periods
+    let totalAmountBaseQuery = supabaseAdmin.from('payments').select('amount').eq('status', 'PAID').is('deleted_at', null)
+    let monthlyAmountBaseQuery = supabaseAdmin.from('payments').select('amount').eq('status', 'PAID').is('deleted_at', null).gte('payment_date', startOfMonth.toISOString())
+    let lastMonthRevenueBaseQuery = supabaseAdmin.from('payments').select('amount').eq('status', 'PAID').is('deleted_at', null).gte('payment_date', lastMonth.toISOString()).lt('payment_date', startOfMonth.toISOString())
+
+    if (accessibleFeeIds.length > 0 && (userRole === 'COLLEGE_ORG' || userRole === 'COURSE_ORG')) {
+      totalAmountBaseQuery = totalAmountBaseQuery.in('fee_id', accessibleFeeIds)
+      monthlyAmountBaseQuery = monthlyAmountBaseQuery.in('fee_id', accessibleFeeIds)
+      lastMonthRevenueBaseQuery = lastMonthRevenueBaseQuery.in('fee_id', accessibleFeeIds)
+    }
+
+    // Fetch all payments with pagination
+    const [totalAmountData, monthlyAmountData, lastMonthRevenueData] = await Promise.all([
+      fetchAllPayments(totalAmountBaseQuery),
+      fetchAllPayments(monthlyAmountBaseQuery),
+      fetchAllPayments(lastMonthRevenueBaseQuery)
+    ])
+
     // Calculate aggregated values
-    const totalAmount = totalAmountData?.reduce((sum, payment) => sum + payment.amount, 0) || 0
-    const totalRevenue = totalRevenueData?.reduce((sum, payment) => sum + payment.amount, 0) || 0
-    const monthlyAmount = monthlyAmountData?.reduce((sum, payment) => sum + payment.amount, 0) || 0
-    const lastMonthRevenue = lastMonthRevenueData?.reduce((sum, payment) => sum + payment.amount, 0) || 0
+    const totalAmount = totalAmountData.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0)
+    const totalRevenue = totalAmountData.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0)
+    const monthlyAmount = monthlyAmountData.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0)
+    const lastMonthRevenue = lastMonthRevenueData.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0)
 
     // Calculate percentages
     const studentGrowthPercent = lastMonthStudents && newStudents ? 

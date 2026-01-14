@@ -84,6 +84,7 @@ export async function GET(
     let hasMorePayments = true
     const payments: any[] = []
     const uniqueStudentIds = new Set<string>()
+    const processedPaymentIds = new Set<string>() // Track unique payments
     let totalPaid = 0
 
     while (hasMorePayments) {
@@ -93,6 +94,7 @@ export async function GET(
       const { data: paymentsData, error: paymentsError } = await supabaseAdmin
         .from('payments')
         .select(`
+          id,
           student_id,
           amount,
           status,
@@ -121,9 +123,21 @@ export async function GET(
 
       if (paymentsData && paymentsData.length > 0) {
         for (const p of paymentsData) {
+          const paymentId = p.id as string
           const studentId = p.student_id as string | null
+
+          // Skip if we've already processed this payment (avoid duplicates)
+          if (processedPaymentIds.has(paymentId)) {
+            console.warn(`Duplicate payment detected in PDF report: ${paymentId}`)
+            continue
+          }
+
           if (!studentId) continue
           if (eligibleStudentIds.size > 0 && !eligibleStudentIds.has(studentId)) continue
+
+          // Mark this payment as processed
+          processedPaymentIds.add(paymentId)
+
           payments.push(p)
           uniqueStudentIds.add(studentId)
           totalPaid += Number(p.amount || 0)
