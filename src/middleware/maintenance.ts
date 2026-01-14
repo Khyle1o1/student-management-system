@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getToken } from "next-auth/jwt"
-import { getSystemSettings } from "@/lib/system-settings"
 
 /**
  * Maintenance Mode Middleware
@@ -11,11 +10,11 @@ import { getSystemSettings } from "@/lib/system-settings"
  */
 export async function checkMaintenanceMode(request: NextRequest): Promise<NextResponse | null> {
   try {
-    // Get system settings to check maintenance mode
-    const settings = await getSystemSettings()
+    // Check environment variable first (for Vercel Edge Runtime compatibility)
+    const maintenanceMode = process.env.MAINTENANCE_MODE === 'true'
     
     // If maintenance mode is not enabled, allow all requests
-    if (!settings.maintenance_mode) {
+    if (!maintenanceMode) {
       return null
     }
 
