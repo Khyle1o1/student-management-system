@@ -13,7 +13,7 @@ export default async function NewEventPage() {
     redirect("/auth/login")
   }
 
-  if (!['ADMIN','COLLEGE_ORG'].includes(session.user.role as any)) {
+  if (!['ADMIN','EVENTS_STAFF','COLLEGE_ORG'].includes(session.user.role as any)) {
     redirect("/dashboard")
   }
 

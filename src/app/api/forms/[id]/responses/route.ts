@@ -150,10 +150,12 @@ export async function GET(
     console.log('Form creator:', form.created_by)
     console.log('User ID:', session.user.id)
     console.log('Is admin?', session.user.role === "ADMIN")
+    console.log('Is Events Staff?', session.user.role === "EVENTS_STAFF")
     console.log('Is creator?', form.created_by === session.user.id)
     
-    if (session.user.role !== "ADMIN" && form.created_by !== session.user.id) {
-      console.log('❌ FORBIDDEN - Not admin and not creator')
+    // ADMIN and EVENTS_STAFF can view any form responses, others only their own
+    if (session.user.role !== "ADMIN" && session.user.role !== "EVENTS_STAFF" && form.created_by !== session.user.id) {
+      console.log('❌ FORBIDDEN - Not admin/events staff and not creator')
       console.log('========================================\n')
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }

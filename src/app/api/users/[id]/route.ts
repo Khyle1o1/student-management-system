@@ -8,7 +8,7 @@ import { ensureDeletionNotLocked } from '@/lib/system-settings';
 // Validation schema for updating a user (ONLY administrative users)
 const updateUserSchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
-  role: z.enum(['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG'] as const).optional(),
+  role: z.enum(['ADMIN', 'EVENTS_STAFF', 'INTRAMURALS_STAFF', 'COLLEGE_ORG', 'COURSE_ORG'] as const).optional(),
   assigned_college: z.string().optional().nullable(),
   assigned_course: z.string().optional().nullable(),
   status: z.enum(['ACTIVE', 'ARCHIVED', 'SUSPENDED'] as const).optional(),

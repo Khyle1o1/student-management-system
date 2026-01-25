@@ -21,8 +21,9 @@ export default async function EditCertificateTemplatePage({ params }: Readonly<E
     redirect("/auth/login")
   }
 
-  if (session.user.role !== "ADMIN") {
-    redirect("/dashboard")
+  // ADMIN and EVENTS_STAFF can edit certificate templates
+  if (session.user.role !== "ADMIN" && session.user.role !== "EVENTS_STAFF") {
+    redirect("/403")
   }
 
   // Await params to fix Next.js 15 compatibility

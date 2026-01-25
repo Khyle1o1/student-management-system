@@ -33,7 +33,8 @@ export async function POST(request: NextRequest) {
     }
 
     const role = session.user.role
-    if (!['ADMIN','COLLEGE_ORG','COURSE_ORG'].includes(role)) {
+    // ADMIN, EVENTS_STAFF, COLLEGE_ORG, and COURSE_ORG can create events
+    if (!['ADMIN','EVENTS_STAFF','COLLEGE_ORG','COURSE_ORG'].includes(role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
       : data.scope_type
 
     const isAdmin = role === 'ADMIN'
+    const isEventsStaff = role === 'EVENTS_STAFF'
     const isCollegeOrg = role === 'COLLEGE_ORG'
     const isCourseOrg = role === 'COURSE_ORG'
 
@@ -54,8 +56,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: Finance accounts cannot create events' }, { status: 403 })
     }
 
-    // Validate scope for orgs
-    if (isCollegeOrg || isCourseOrg) {
+    // Events Staff can create events without scope restrictions (like ADMIN)
+    // Validate scope for orgs (but not for ADMIN or EVENTS_STAFF)
+    if ((isCollegeOrg || isCourseOrg) && !isAdmin && !isEventsStaff) {
       if (normalizedScope === 'UNIVERSITY_WIDE') {
         return NextResponse.json({ error: 'Only Admin can create university-wide events' }, { status: 403 })
       }
@@ -76,7 +79,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Pending approval status for org-created events
-    const status = isAdmin ? 'APPROVED' : 'PENDING'
+    // ADMIN and EVENTS_STAFF events are auto-approved
+    const status = (isAdmin || isEventsStaff) ? 'APPROVED' : 'PENDING'
 
     const { data: event, error } = await supabaseAdmin
       .from('events')
@@ -218,6 +222,7 @@ export async function GET(request: Request) {
     }
     const role = session.user.role
     const isAdmin = role === 'ADMIN'
+    const isEventsStaff = role === 'EVENTS_STAFF'
     const isCollegeOrg = role === 'COLLEGE_ORG'
     const isCourseOrg = role === 'COURSE_ORG'
 
@@ -228,7 +233,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    if (!(isAdmin || isCollegeOrg || isCourseOrg)) {
+    // ADMIN, EVENTS_STAFF, and org accounts can access events
+    if (!(isAdmin || isEventsStaff || isCollegeOrg || isCourseOrg)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     const { searchParams } = new URL(request.url)
@@ -272,6 +278,7 @@ export async function GET(request: Request) {
       .order('date', { ascending: false })
 
     // Scope filtering for org roles
+    // ADMIN and EVENTS_STAFF see ALL events (no filtering)
     if (isCollegeOrg) {
       eventsQuery = eventsQuery.or(
         `and(scope_type.eq.COLLEGE_WIDE,scope_college.eq.${session.user.assigned_college}),and(scope_type.eq.COURSE_SPECIFIC,scope_college.eq.${session.user.assigned_college})`
@@ -283,6 +290,7 @@ export async function GET(request: Request) {
         .eq('scope_college', session.user.assigned_college || '')
         .eq('scope_course', course)
     }
+    // Note: ADMIN and EVENTS_STAFF skip filtering and see all events
 
     const { data: events, error } = await eventsQuery
 

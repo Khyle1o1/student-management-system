@@ -10,9 +10,9 @@ export default async function IntramuralsPage() {
     redirect("/auth/login")
   }
 
-  // Intramurals admin panel is restricted to System Admin only
-  if (session.user.role !== 'ADMIN') {
-    redirect("/dashboard")
+  // Intramurals admin panel is restricted to ADMIN and INTRAMURALS_STAFF only
+  if (session.user.role !== 'ADMIN' && session.user.role !== 'INTRAMURALS_STAFF') {
+    redirect("/403")
   }
 
   return (

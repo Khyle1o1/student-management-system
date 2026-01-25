@@ -121,7 +121,8 @@ export async function GET(request: Request) {
     }
 
     // Role-based filtering
-    if (session.user.role !== "ADMIN") {
+    // ADMIN and EVENTS_STAFF can see all forms, others only see their own
+    if (session.user.role !== "ADMIN" && session.user.role !== "EVENTS_STAFF") {
       query = query.eq('created_by', session.user.id)
     }
 
@@ -169,7 +170,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (session.user.role !== "ADMIN" && session.user.role !== "COLLEGE_ORG" && session.user.role !== "COURSE_ORG") {
+    // ADMIN, EVENTS_STAFF, and org accounts can create forms
+    if (!['ADMIN','EVENTS_STAFF','COLLEGE_ORG','COURSE_ORG'].includes(session.user.role as string)) {
       return NextResponse.json({ error: "Forbidden - Only admins can create forms" }, { status: 403 })
     }
 

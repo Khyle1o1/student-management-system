@@ -10,8 +10,9 @@ export default async function FormsPage() {
     redirect("/auth/login")
   }
 
-  if (!['ADMIN','COLLEGE_ORG','COURSE_ORG'].includes(session.user.role as any)) {
-    redirect("/dashboard")
+  // ADMIN, EVENTS_STAFF, and org accounts can manage forms/evaluations
+  if (!['ADMIN','EVENTS_STAFF','COLLEGE_ORG','COURSE_ORG'].includes(session.user.role as any)) {
+    redirect("/403")
   }
 
   return (

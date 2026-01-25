@@ -134,7 +134,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Form not found' }, { status: 404 })
     }
 
-    if (session.user.role !== "ADMIN" && existingForm.created_by !== session.user.id) {
+    // ADMIN and EVENTS_STAFF can update any form, others only their own
+    if (session.user.role !== "ADMIN" && session.user.role !== "EVENTS_STAFF" && existingForm.created_by !== session.user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -225,7 +226,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Form not found' }, { status: 404 })
     }
 
-    if (session.user.role !== "ADMIN" && existingForm.created_by !== session.user.id) {
+    // ADMIN and EVENTS_STAFF can delete any form, others only their own
+    if (session.user.role !== "ADMIN" && session.user.role !== "EVENTS_STAFF" && existingForm.created_by !== session.user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

@@ -48,8 +48,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Only admins can access certificate templates
-    if (session.user.role !== "ADMIN") {
+    // Only ADMIN and EVENTS_STAFF can access certificate templates
+    if (session.user.role !== "ADMIN" && session.user.role !== "EVENTS_STAFF") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -112,8 +112,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Only admins can create certificate templates
-    if (session.user.role !== "ADMIN") {
+    // Only ADMIN and EVENTS_STAFF can create certificate templates
+    if (session.user.role !== "ADMIN" && session.user.role !== "EVENTS_STAFF") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

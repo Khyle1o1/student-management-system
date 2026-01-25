@@ -31,7 +31,8 @@ export async function GET(
       return NextResponse.json({ error: 'Form not found' }, { status: 404 })
     }
 
-    if (session.user.role !== "ADMIN" && form.created_by !== session.user.id) {
+    // ADMIN and EVENTS_STAFF can export any form, others only their own
+    if (session.user.role !== "ADMIN" && session.user.role !== "EVENTS_STAFF" && form.created_by !== session.user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

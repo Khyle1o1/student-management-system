@@ -12,7 +12,8 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (session.user.role !== 'ADMIN') {
+    // Only ADMIN and INTRAMURALS_STAFF can access intramurals settings
+    if (session.user.role !== 'ADMIN' && session.user.role !== 'INTRAMURALS_STAFF') {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -47,7 +48,8 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (session.user.role !== 'ADMIN') {
+    // Only ADMIN and INTRAMURALS_STAFF can update intramurals settings
+    if (session.user.role !== 'ADMIN' && session.user.role !== 'INTRAMURALS_STAFF') {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

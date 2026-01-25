@@ -44,8 +44,9 @@ export default async function SettingsPage() {
     redirect("/auth/login")
   }
 
+  // Only ADMIN can access system settings
   if (session.user.role !== "ADMIN") {
-    redirect("/dashboard")
+    redirect("/403")
   }
 
   return (

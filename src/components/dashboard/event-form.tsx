@@ -52,6 +52,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
     return assignedCourse ? [assignedCourse] : []
   }, [session?.user, assignedCourse])
   const isAdmin = userRole === 'ADMIN'
+  const isEventsStaff = userRole === 'EVENTS_STAFF'
   const isCollegeOrg = userRole === 'COLLEGE_ORG'
   const isCourseOrg = userRole === 'COURSE_ORG'
   const [loading, setLoading] = useState(false)
@@ -402,9 +403,10 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
       }
 
       // Final guardrails based on role
-      const enforcedScopeType = isAdmin ? formData.scope_type : (isCollegeOrg ? (formData.scope_type === 'COURSE_SPECIFIC' ? 'COURSE_SPECIFIC' : 'COLLEGE_WIDE') : 'COURSE_SPECIFIC')
-      const enforcedCollege = isAdmin ? (formData.scope_type !== "UNIVERSITY_WIDE" ? formData.scope_college : null) : (assignedCollege)
-      const enforcedCourse = isAdmin 
+      const canSetAnyScopeType = isAdmin || isEventsStaff
+      const enforcedScopeType = canSetAnyScopeType ? formData.scope_type : (isCollegeOrg ? (formData.scope_type === 'COURSE_SPECIFIC' ? 'COURSE_SPECIFIC' : 'COLLEGE_WIDE') : 'COURSE_SPECIFIC')
+      const enforcedCollege = canSetAnyScopeType ? (formData.scope_type !== "UNIVERSITY_WIDE" ? formData.scope_college : null) : (assignedCollege)
+      const enforcedCourse = canSetAnyScopeType 
         ? (formData.scope_type === "COURSE_SPECIFIC" ? formData.scope_course : null)
         : (isCourseOrg ? ((assignedCourses && assignedCourses.length > 0) ? formData.scope_course : assignedCourse) : (formData.scope_type === 'COURSE_SPECIFIC' ? formData.scope_course : null))
 
@@ -860,7 +862,7 @@ export function EventForm({ eventId, initialData }: EventFormProps) {
                     <SelectValue placeholder="Select event scope" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(isAdmin
+                    {(isAdmin || isEventsStaff
                       ? EVENT_SCOPE_TYPES
                       : isCollegeOrg
                         ? ["COLLEGE_WIDE","COURSE_SPECIFIC"]

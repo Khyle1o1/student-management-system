@@ -10,8 +10,9 @@ export default async function EditFormPage({ params }: any) {
     redirect("/auth/login")
   }
 
-  if (!['ADMIN','COLLEGE_ORG','COURSE_ORG'].includes(session.user.role as any)) {
-    redirect("/dashboard")
+  // ADMIN, EVENTS_STAFF, and org accounts can edit forms/evaluations
+  if (!['ADMIN','EVENTS_STAFF','COLLEGE_ORG','COURSE_ORG'].includes(session.user.role as any)) {
+    redirect("/403")
   }
 
   const formId = params.id

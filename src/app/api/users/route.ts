@@ -9,7 +9,7 @@ const createUserSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   name: z.string().min(1, 'Name is required'),
-  role: z.enum(['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG'] as const),
+  role: z.enum(['ADMIN', 'EVENTS_STAFF', 'INTRAMURALS_STAFF', 'COLLEGE_ORG', 'COURSE_ORG'] as const),
   assigned_college: z.string().optional().nullable(),
   assigned_course: z.string().optional().nullable(),
   assigned_courses: z.array(z.string()).max(2).min(1).optional().nullable(),
@@ -19,7 +19,7 @@ const createUserSchema = z.object({
 // Validation schema for updating a user (ONLY administrative users)
 const updateUserSchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
-  role: z.enum(['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG'] as const).optional(),
+  role: z.enum(['ADMIN', 'EVENTS_STAFF', 'INTRAMURALS_STAFF', 'COLLEGE_ORG', 'COURSE_ORG'] as const).optional(),
   assigned_college: z.string().optional().nullable(),
   assigned_course: z.string().optional().nullable(),
   assigned_courses: z.array(z.string()).max(2).min(1).optional().nullable(),
@@ -62,13 +62,13 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '100'); // Default 100 per page
 
     // Build query based on user's access level
-    // IMPORTANT: Only show administrative users (ADMIN, COLLEGE_ORG, COURSE_ORG)
+    // IMPORTANT: Only show administrative users (ADMIN, EVENTS_STAFF, INTRAMURALS_STAFF, COLLEGE_ORG, COURSE_ORG)
     // Students are managed separately in the students table
     let query = supabaseAdmin
       .from('users')
       .select('id, email, name, role, status, assigned_college, assigned_course, assigned_courses, org_access_level, created_at, updated_at, archived_at', { count: 'exact' })
       .is('deleted_at', null) // Don't show permanently deleted users
-      .in('role', ['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG']); // Only administrative users
+      .in('role', ['ADMIN', 'EVENTS_STAFF', 'INTRAMURALS_STAFF', 'COLLEGE_ORG', 'COURSE_ORG']); // Only administrative users
 
     // Apply access filter based on role
     const accessFilter = getAccessFilter(currentUser);

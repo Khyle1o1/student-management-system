@@ -12,9 +12,10 @@ export async function GET() {
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-    // Allow all administrative roles to access dashboard stats
+    // Allow administrative roles to access dashboard stats
+    // EVENTS_STAFF and INTRAMURALS_STAFF have no dashboard access, so deny them
     if (!['ADMIN','COLLEGE_ORG','COURSE_ORG'].includes(session.user.role as any)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      return NextResponse.json({ error: "Forbidden - No dashboard access" }, { status: 403 })
     }
 
     // Get user's assigned college and course

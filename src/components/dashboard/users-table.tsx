@@ -200,6 +200,14 @@ export function UsersTable() {
       }
     }
 
+    // EVENTS_STAFF and INTRAMURALS_STAFF don't need college/course assignments
+    if (formData.role === "EVENTS_STAFF" || formData.role === "INTRAMURALS_STAFF") {
+      // Clear any assigned college/course data
+      formData.assigned_college = ""
+      formData.assigned_course = ""
+      formData.assigned_courses = []
+    }
+
     if (formData.role === "COLLEGE_ORG") {
       if (!formData.org_access_level) {
         newErrors.org_access_level = "Access level is required for college organizations"
@@ -361,7 +369,7 @@ export function UsersTable() {
 
   const getAvailableRoles = (): UserRole[] => {
     if (session?.user.role === 'ADMIN') {
-      return ['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG']
+      return ['ADMIN', 'EVENTS_STAFF', 'INTRAMURALS_STAFF', 'COLLEGE_ORG', 'COURSE_ORG']
     }
     if (session?.user.role === 'COLLEGE_ORG') {
       // College Org can create both College-level org accounts (with access-level)
@@ -435,6 +443,8 @@ export function UsersTable() {
               >
                 <option value="all">All Roles</option>
                 <option value="ADMIN">System Administrator (SSC)</option>
+                <option value="EVENTS_STAFF">Events Staff</option>
+                <option value="INTRAMURALS_STAFF">Intramurals Staff</option>
                 <option value="COLLEGE_ORG">College Organization</option>
                 <option value="COURSE_ORG">Course Organization</option>
               </select>

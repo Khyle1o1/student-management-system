@@ -480,7 +480,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (session.user.role !== "ADMIN") {
+    // Only ADMIN and EVENTS_STAFF can generate sample certificates
+    if (session.user.role !== "ADMIN" && session.user.role !== "EVENTS_STAFF") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

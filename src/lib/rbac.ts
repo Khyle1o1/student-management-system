@@ -2,11 +2,16 @@
  * Role-Based Access Control (RBAC) Utilities
  * Manages permissions for different user roles in the system
  * 
- * Note: This is for ADMINISTRATIVE users only (users table)
- * Students are managed separately in the students table
+ * Roles:
+ * - ADMIN: Full system access (Supreme Student Council)
+ * - EVENTS_STAFF: Limited to events, attendance, certificates, evaluations
+ * - INTRAMURALS_STAFF: Limited to intramurals only
+ * - COLLEGE_ORG: College organization access
+ * - COURSE_ORG: Course organization access
+ * - USER: Regular student user
  */
 
-export type UserRole = 'ADMIN' | 'COLLEGE_ORG' | 'COURSE_ORG';
+export type UserRole = 'ADMIN' | 'EVENTS_STAFF' | 'INTRAMURALS_STAFF' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER';
 export type UserStatus = 'ACTIVE' | 'ARCHIVED' | 'SUSPENDED';
 
 export interface UserPermissions {
@@ -29,6 +34,20 @@ export function isAdmin(user: UserPermissions | null): boolean {
 }
 
 /**
+ * Check if user is Events Staff
+ */
+export function isEventsStaff(user: UserPermissions | null): boolean {
+  return user?.role === 'EVENTS_STAFF' && user?.status === 'ACTIVE';
+}
+
+/**
+ * Check if user is Intramurals Staff
+ */
+export function isIntramuralsStaff(user: UserPermissions | null): boolean {
+  return user?.role === 'INTRAMURALS_STAFF' && user?.status === 'ACTIVE';
+}
+
+/**
  * Check if user is a College Organization
  */
 export function isCollegeOrg(user: UserPermissions | null): boolean {
@@ -43,19 +62,14 @@ export function isCourseOrg(user: UserPermissions | null): boolean {
 }
 
 /**
- * Note: Students are managed in the students table, not in users table
- * This RBAC module is only for administrative users
- */
-
-/**
  * Check if user has access to manage other users
  */
 export function canManageUsers(user: UserPermissions | null): boolean {
   if (!user || user.status !== 'ACTIVE') return false;
   
-  // ADMIN can manage all users
-  // COLLEGE_ORG can manage users within their college (enforced in queries)
-  return user.role === 'ADMIN' || user.role === 'COLLEGE_ORG';
+  // Only ADMIN can manage users
+  // Events Staff and Intramurals Staff cannot manage users
+  return user.role === 'ADMIN';
 }
 
 /**
@@ -64,13 +78,13 @@ export function canManageUsers(user: UserPermissions | null): boolean {
 export function canCreateRole(user: UserPermissions | null, targetRole: UserRole): boolean {
   if (!user || user.status !== 'ACTIVE') return false;
   
-  // ADMIN can create any administrative role
+  // ADMIN can create any role
   if (user.role === 'ADMIN') return true;
 
   // COLLEGE_ORG can create COLLEGE_ORG and COURSE_ORG accounts under their college (enforced elsewhere)
   if (user.role === 'COLLEGE_ORG' && (targetRole === 'COURSE_ORG' || targetRole === 'COLLEGE_ORG')) return true;
 
-  // COURSE_ORG cannot create any users
+  // Other roles cannot create users
   return false;
 }
 
@@ -151,7 +165,10 @@ export function hasEventAccess(
   // ADMIN has access to all events
   if (user.role === 'ADMIN') return true;
   
-  // University-wide events are only accessible by ADMIN (already checked above)
+  // EVENTS_STAFF has access to all events
+  if (user.role === 'EVENTS_STAFF') return true;
+  
+  // University-wide events are only accessible by ADMIN and EVENTS_STAFF (already checked above)
   if (eventScopeType === 'UNIVERSITY_WIDE') {
     return false;
   }
@@ -272,8 +289,11 @@ export function getAccessFilter(user: UserPermissions | null): {
 export function getRoleDisplayName(role: UserRole): string {
   const roleNames: Record<UserRole, string> = {
     'ADMIN': 'System Administrator (SSC)',
+    'EVENTS_STAFF': 'Events Staff',
+    'INTRAMURALS_STAFF': 'Intramurals Staff',
     'COLLEGE_ORG': 'College Organization',
     'COURSE_ORG': 'Course Organization',
+    'USER': 'Student User',
   };
   
   return roleNames[role] || role;
@@ -306,6 +326,28 @@ export function validateUserAssignment(
       return {
         valid: false,
         error: 'System Administrator should not have college or course assignments'
+      };
+    }
+    return { valid: true };
+  }
+  
+  if (role === 'EVENTS_STAFF') {
+    // Events Staff shouldn't have college/course assignments
+    if (assignedCollege || assignedCourse) {
+      return {
+        valid: false,
+        error: 'Events Staff should not have college or course assignments'
+      };
+    }
+    return { valid: true };
+  }
+  
+  if (role === 'INTRAMURALS_STAFF') {
+    // Intramurals Staff shouldn't have college/course assignments
+    if (assignedCollege || assignedCourse) {
+      return {
+        valid: false,
+        error: 'Intramurals Staff should not have college or course assignments'
       };
     }
     return { valid: true };
@@ -345,11 +387,102 @@ export function validateUserAssignment(
     return { valid: true };
   }
   
-  // This function is only for administrative users
-  // Students are managed separately
+  if (role === 'USER') {
+    // Regular user (student) - no specific requirements for this validation
+    return { valid: true };
+  }
+  
   return {
     valid: false,
-    error: 'Invalid role for administrative user'
+    error: 'Invalid role'
   };
 }
 
+/**
+ * Page-level access control
+ */
+
+/**
+ * Check if user can access dashboard analytics
+ */
+export function canAccessDashboard(user: UserPermissions | null): boolean {
+  if (!user || user.status !== 'ACTIVE') return false;
+  
+  // Events Staff and Intramurals Staff cannot access dashboard analytics
+  if (user.role === 'EVENTS_STAFF' || user.role === 'INTRAMURALS_STAFF') return false;
+  
+  return true;
+}
+
+/**
+ * Check if user can access events page
+ */
+export function canAccessEvents(user: UserPermissions | null): boolean {
+  if (!user || user.status !== 'ACTIVE') return false;
+  
+  // ADMIN and EVENTS_STAFF can access events
+  // INTRAMURALS_STAFF cannot access events
+  if (user.role === 'INTRAMURALS_STAFF') return false;
+  
+  return user.role === 'ADMIN' || user.role === 'EVENTS_STAFF' || user.role === 'COLLEGE_ORG' || user.role === 'COURSE_ORG';
+}
+
+/**
+ * Check if user can access attendance
+ */
+export function canAccessAttendance(user: UserPermissions | null): boolean {
+  if (!user || user.status !== 'ACTIVE') return false;
+  
+  // ADMIN and EVENTS_STAFF can access attendance management
+  return user.role === 'ADMIN' || user.role === 'EVENTS_STAFF';
+}
+
+/**
+ * Check if user can access certificates
+ */
+export function canAccessCertificates(user: UserPermissions | null): boolean {
+  if (!user || user.status !== 'ACTIVE') return false;
+  
+  // ADMIN and EVENTS_STAFF can access certificates
+  return user.role === 'ADMIN' || user.role === 'EVENTS_STAFF';
+}
+
+/**
+ * Check if user can access evaluations
+ */
+export function canAccessEvaluations(user: UserPermissions | null): boolean {
+  if (!user || user.status !== 'ACTIVE') return false;
+  
+  // ADMIN and EVENTS_STAFF can access evaluations
+  return user.role === 'ADMIN' || user.role === 'EVENTS_STAFF';
+}
+
+/**
+ * Check if user can access intramurals
+ */
+export function canAccessIntramurals(user: UserPermissions | null): boolean {
+  if (!user || user.status !== 'ACTIVE') return false;
+  
+  // Only ADMIN and INTRAMURALS_STAFF can access intramurals
+  return user.role === 'ADMIN' || user.role === 'INTRAMURALS_STAFF';
+}
+
+/**
+ * Check if user can access system settings
+ */
+export function canAccessSettings(user: UserPermissions | null): boolean {
+  if (!user || user.status !== 'ACTIVE') return false;
+  
+  // Only ADMIN can access system settings
+  return user.role === 'ADMIN';
+}
+
+/**
+ * Check if user can access user management
+ */
+export function canAccessUserManagement(user: UserPermissions | null): boolean {
+  if (!user || user.status !== 'ACTIVE') return false;
+  
+  // Only ADMIN can access user management
+  return user.role === 'ADMIN';
+}

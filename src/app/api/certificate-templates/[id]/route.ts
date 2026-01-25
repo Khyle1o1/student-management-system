@@ -52,8 +52,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Only admins can access certificate templates
-    if (session.user.role !== "ADMIN") {
+    // Only ADMIN and EVENTS_STAFF can access certificate templates
+    if (session.user.role !== "ADMIN" && session.user.role !== "EVENTS_STAFF") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -98,8 +98,8 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Only admins can update certificate templates
-    if (session.user.role !== "ADMIN") {
+    // Only ADMIN and EVENTS_STAFF can update certificate templates
+    if (session.user.role !== "ADMIN" && session.user.role !== "EVENTS_STAFF") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -247,8 +247,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Only admins can delete certificate templates
-    if (session.user.role !== "ADMIN") {
+    // Only ADMIN and EVENTS_STAFF can delete certificate templates
+    if (session.user.role !== "ADMIN" && session.user.role !== "EVENTS_STAFF") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

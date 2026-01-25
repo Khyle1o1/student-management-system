@@ -87,7 +87,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const userRole = session?.user?.role
   const orgAccessLevel = getOrgAccessLevelFromSession(session as any)
   const isSystemAdmin = userRole === "ADMIN"
-  const isAdmin = userRole === "ADMIN" || userRole === 'COLLEGE_ORG' || userRole === 'COURSE_ORG'
+  const isAdmin = userRole === "ADMIN" || userRole === 'EVENTS_STAFF' || userRole === 'INTRAMURALS_STAFF' || userRole === 'COLLEGE_ORG' || userRole === 'COURSE_ORG'
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [dbConnectionError, setDbConnectionError] = useState<string | null>(null)
@@ -197,57 +197,93 @@ export function DashboardShell({ children }: DashboardShellProps) {
     { href: "/dashboard/reports", label: "Reports", icon: FileText },
   ]
 
-  // Add Users menu item for ADMIN and COLLEGE_ORG only
+  // Add Users menu item for ADMIN only
   const usersNavItem: NavigationItem[] = 
-    userRole === 'ADMIN' || userRole === 'COLLEGE_ORG'
+    userRole === 'ADMIN'
       ? [{ href: "/dashboard/users", label: "Users", icon: UserCog }]
       : []
 
   const showSettingsNavItem = userRole === 'ADMIN'
 
-  // Base admin navigation (System Admin / non-split roles)
-  const fullAdminNavItems: NavigationItem[] = [
-    { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
-    { 
-      href: "/dashboard/students", 
-      label: "Students", 
-      icon: Users, 
-      badge: stats?.students?.total?.toString() || "0"
-    },
-    { href: "/dashboard/events", label: "Events", icon: Calendar },
-    { href: "/dashboard/fees", label: "Fees", icon: CreditCard },
-  { href: "/dashboard/feedback", label: "Feedback", icon: Mail },
-    { href: "/dashboard/reports", label: "Reports", icon: FileText },
-    { href: "/dashboard/intramurals", label: "Intramurals", icon: Trophy },
-    ...usersNavItem,
-    ...(showSettingsNavItem ? [{ href: "/dashboard/settings", label: "Settings", icon: Settings }] : [])
-  ]
+  // Role-based navigation configuration
+  let adminNavItems: NavigationItem[] = []
 
-  // Apply college org access-level permissions to sidebar
-  let adminNavItems: NavigationItem[] = fullAdminNavItems
-
-  if (userRole === "COLLEGE_ORG" && orgAccessLevel) {
+  if (userRole === 'ADMIN') {
+    // Admin has full access to all pages
+    adminNavItems = [
+      { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
+      { 
+        href: "/dashboard/students", 
+        label: "Students", 
+        icon: Users, 
+        badge: stats?.students?.total?.toString() || "0"
+      },
+      { href: "/dashboard/events", label: "Events", icon: Calendar },
+      { href: "/dashboard/attendance/student", label: "Attendance", icon: ClipboardCheck },
+      { href: "/dashboard/certificates/templates", label: "Certificates", icon: Award },
+      { href: "/dashboard/forms", label: "Evaluations", icon: FileText },
+      { href: "/dashboard/fees", label: "Fees", icon: CreditCard },
+      { href: "/dashboard/feedback", label: "Feedback", icon: Mail },
+      { href: "/dashboard/reports", label: "Reports", icon: FileText },
+      { href: "/dashboard/intramurals", label: "Intramurals", icon: Trophy },
+      ...usersNavItem,
+      ...(showSettingsNavItem ? [{ href: "/dashboard/settings", label: "Settings", icon: Settings }] : [])
+    ]
+  } else if (userRole === 'EVENTS_STAFF') {
+    // Events Staff: Limited to events, certificates, evaluations
+    adminNavItems = [
+      { href: "/dashboard/events", label: "Events", icon: Calendar },
+      { href: "/dashboard/certificates/templates", label: "Certificates", icon: Award },
+      { href: "/dashboard/forms", label: "Evaluations", icon: FileText },
+    ]
+  } else if (userRole === 'INTRAMURALS_STAFF') {
+    // Intramurals Staff: Limited to intramurals only
+    adminNavItems = [
+      { href: "/dashboard/intramurals", label: "Intramurals", icon: Trophy },
+    ]
+  } else if (userRole === 'COLLEGE_ORG') {
+    // College Organization (with org_access_level filtering)
+    const fullCollegeNavItems: NavigationItem[] = [
+      { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
+      { 
+        href: "/dashboard/students", 
+        label: "Students", 
+        icon: Users, 
+        badge: stats?.students?.total?.toString() || "0"
+      },
+      { href: "/dashboard/events", label: "Events", icon: Calendar },
+      { href: "/dashboard/fees", label: "Fees", icon: CreditCard },
+      { href: "/dashboard/reports", label: "Reports", icon: FileText },
+    ]
+    
     if (orgAccessLevel === "finance") {
       // Finance: Dashboard + Students + Fees + Reports
-      adminNavItems = fullAdminNavItems.filter((item) =>
-        ["/dashboard", "/dashboard/students", "/dashboard/fees", "/dashboard/reports", "/dashboard/feedback"].includes(item.href)
+      adminNavItems = fullCollegeNavItems.filter((item) =>
+        ["/dashboard", "/dashboard/students", "/dashboard/fees", "/dashboard/reports"].includes(item.href)
       )
     } else if (orgAccessLevel === "event") {
-      // Event: Dashboard + Events + Feedback
-      adminNavItems = fullAdminNavItems.filter((item) =>
-        ["/dashboard", "/dashboard/events", "/dashboard/feedback"].includes(item.href)
+      // Event: Dashboard + Events
+      adminNavItems = fullCollegeNavItems.filter((item) =>
+        ["/dashboard", "/dashboard/events"].includes(item.href)
       )
     } else {
-      // college (full org access) -> keep fullAdminNavItems
-      adminNavItems = fullAdminNavItems
+      // college (full org access)
+      adminNavItems = fullCollegeNavItems
     }
-  }
-
-  // Intramurals is restricted to system admin only
-  if (userRole !== "ADMIN") {
-    adminNavItems = adminNavItems.filter(
-      (item) => item.href !== "/dashboard/intramurals" && item.href !== "/dashboard/feedback"
-    )
+  } else if (userRole === 'COURSE_ORG') {
+    // Course Organization
+    adminNavItems = [
+      { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
+      { 
+        href: "/dashboard/students", 
+        label: "Students", 
+        icon: Users, 
+        badge: stats?.students?.total?.toString() || "0"
+      },
+      { href: "/dashboard/events", label: "Events", icon: Calendar },
+      { href: "/dashboard/fees", label: "Fees", icon: CreditCard },
+      { href: "/dashboard/reports", label: "Reports", icon: FileText },
+    ]
   }
 
   const studentNavItems: NavigationItem[] = [

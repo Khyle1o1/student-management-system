@@ -13,8 +13,9 @@ export default async function CertificateTemplatesPage() {
     redirect("/auth/login")
   }
 
-  if (session.user.role !== "ADMIN") {
-    redirect("/dashboard")
+  // ADMIN and EVENTS_STAFF can manage certificate templates
+  if (session.user.role !== "ADMIN" && session.user.role !== "EVENTS_STAFF") {
+    redirect("/403")
   }
 
   return (

@@ -60,7 +60,7 @@ declare module "next-auth" {
       id: string
       email: string
       name?: string | null
-      role: 'ADMIN' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER'
+      role: 'ADMIN' | 'EVENTS_STAFF' | 'INTRAMURALS_STAFF' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER'
       student_id: string | null
       studentId: string | null
       assigned_college?: string | null
@@ -76,7 +76,7 @@ declare module "next-auth" {
     id: string
     email: string
     name?: string | null
-    role: 'ADMIN' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER'
+    role: 'ADMIN' | 'EVENTS_STAFF' | 'INTRAMURALS_STAFF' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER'
     student_id: string | null
     studentId: string | null
     assigned_college?: string | null
@@ -90,7 +90,7 @@ declare module "next-auth" {
 
 declare module "next-auth/jwt" {
   interface JWT {
-    role: 'ADMIN' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER'
+    role: 'ADMIN' | 'EVENTS_STAFF' | 'INTRAMURALS_STAFF' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER'
     student_id: string | null
     studentId: string | null
     assigned_college?: string | null
@@ -107,8 +107,11 @@ const userCache = new Map<string, { user: DBUser | null, timestamp: number }>()
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
 export async function getUserByEmail(email: string): Promise<DBUser | null> {
+  // Normalize email to lowercase
+  const normalizedEmail = email.toLowerCase().trim()
+  
   // Check cache first
-  const cached = userCache.get(email)
+  const cached = userCache.get(normalizedEmail)
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
     return cached.user
   }
@@ -119,20 +122,20 @@ export async function getUserByEmail(email: string): Promise<DBUser | null> {
       *,
       student:students(*)
     `)
-    .eq('email', email)
+    .eq('email', normalizedEmail)
     .is('deleted_at', null) // Don't return deleted users
     .single()
   
   if (error) {
     console.error('getUserByEmail - Error fetching user:', error)
-    userCache.set(email, { user: null, timestamp: Date.now() })
+    userCache.set(normalizedEmail, { user: null, timestamp: Date.now() })
     return null
   }
 
   const dbUser = user as DBUser
   
   // Cache the result
-  userCache.set(email, { user: dbUser, timestamp: Date.now() })
+  userCache.set(normalizedEmail, { user: dbUser, timestamp: Date.now() })
   
   return dbUser
 }
@@ -148,10 +151,13 @@ export async function getStudentByEmail(email: string): Promise<{
   course: string
   year_level: number
 } | null> {
+  // Normalize email to lowercase
+  const normalizedEmail = email.toLowerCase().trim()
+  
   const { data, error } = await supabaseAdmin
     .from('students')
     .select('id, user_id, student_id, name, email, college, course, year_level')
-    .eq('email', email)
+    .eq('email', normalizedEmail)
     .single()
 
   if (error) {
@@ -168,7 +174,7 @@ export async function hashPassword(password: string) {
   return await hash(password, 12)
 }
 
-export async function createUser(email: string, password: string, name?: string, role: 'ADMIN' | 'COLLEGE_ORG' | 'COURSE_ORG' = 'COURSE_ORG') {
+export async function createUser(email: string, password: string, name?: string, role: 'ADMIN' | 'EVENTS_STAFF' | 'INTRAMURALS_STAFF' | 'COLLEGE_ORG' | 'COURSE_ORG' = 'COURSE_ORG') {
   const hashedPassword = await hashPassword(password)
   
   const { data: existingUser, error: checkError } = await supabaseAdmin
@@ -232,7 +238,9 @@ export const authOptions: NextAuthOptions = {
         try {
           const { email, password } = loginSchema.parse(credentials)
 
-          const dbUser = await getUserByEmail(email)
+          // Normalize email to lowercase for case-insensitive comparison
+          const normalizedEmail = email.toLowerCase().trim()
+          const dbUser = await getUserByEmail(normalizedEmail)
 
           if (!dbUser || dbUser.deletedAt) {
             return null
@@ -252,14 +260,14 @@ export const authOptions: NextAuthOptions = {
           const studentData = Array.isArray(dbUser.student) ? dbUser.student[0] : dbUser.student
 
           // Determine if this is an administrative user or a student
-          const isAdminUser = ['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG'].includes(dbUser.role)
+          const isAdminUser = ['ADMIN', 'EVENTS_STAFF', 'INTRAMURALS_STAFF', 'COLLEGE_ORG', 'COURSE_ORG'].includes(dbUser.role)
 
           // Convert DBUser to NextAuth User
           const user: User = {
             id: dbUser.id,
             email: dbUser.email,
             name: dbUser.name,
-            role: dbUser.role as 'ADMIN' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER',
+            role: dbUser.role as 'ADMIN' | 'EVENTS_STAFF' | 'INTRAMURALS_STAFF' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER',
             student_id: studentData?.student_id || null,
             studentId: studentData?.student_id || null,
             assigned_college: (dbUser as any).assigned_college || null,
@@ -340,9 +348,9 @@ export const authOptions: NextAuthOptions = {
           // Fix: Handle student as array - get first element
           const studentData = Array.isArray(dbUser.student) ? dbUser.student[0] : dbUser.student
           
-          const isAdminUser = ['ADMIN', 'COLLEGE_ORG', 'COURSE_ORG'].includes(dbUser.role)
+          const isAdminUser = ['ADMIN', 'EVENTS_STAFF', 'INTRAMURALS_STAFF', 'COLLEGE_ORG', 'COURSE_ORG'].includes(dbUser.role)
           
-          token.role = dbUser.role as 'ADMIN' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER'
+          token.role = dbUser.role as 'ADMIN' | 'EVENTS_STAFF' | 'INTRAMURALS_STAFF' | 'COLLEGE_ORG' | 'COURSE_ORG' | 'USER'
           token.student_id = studentData?.student_id || null
           token.studentId = studentData?.student_id || null
           token.name = dbUser.name

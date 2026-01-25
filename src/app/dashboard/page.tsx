@@ -12,6 +12,16 @@ export default async function DashboardPage() {
   }
 
   const isAdminUser = ['ADMIN','COLLEGE_ORG','COURSE_ORG'].includes(session.user.role as any)
+  
+  // EVENTS_STAFF and INTRAMURALS_STAFF don't have dashboard access
+  // Redirect them to their specific pages
+  if (session.user.role === 'EVENTS_STAFF') {
+    redirect("/dashboard/events")
+  }
+  
+  if (session.user.role === 'INTRAMURALS_STAFF') {
+    redirect("/dashboard/intramurals")
+  }
 
   return (
     <DashboardShell>

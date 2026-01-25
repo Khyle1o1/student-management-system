@@ -222,12 +222,12 @@ export default function AttendancePage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Attendance Management</h1>
-        <p className="text-muted-foreground">
-          Manage attendance tracking for all events and view attendance statistics
-        </p>
+        {/* Header */}
+        <div className="flex flex-col space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight">Attendance Management</h1>
+          <p className="text-muted-foreground">
+            Manage attendance tracking for all events and view attendance statistics
+          </p>
       </div>
 
       {/* Overview Cards */}

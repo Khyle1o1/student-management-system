@@ -64,7 +64,7 @@ export default async function EventsPage() {
     redirect("/auth/login")
   }
 
-  if (!['ADMIN','COLLEGE_ORG','COURSE_ORG'].includes(session.user.role as any)) {
+  if (!['ADMIN','EVENTS_STAFF','COLLEGE_ORG','COURSE_ORG'].includes(session.user.role as any)) {
     redirect("/dashboard")
   }
 
@@ -75,9 +75,10 @@ export default async function EventsPage() {
     redirect("/403")
   }
 
-  // Event and full college org accounts can manage events; course org cannot create
+  // ADMIN, EVENTS_STAFF, and authorized org accounts can manage events
   const canManageEvents =
     session.user.role === 'ADMIN' ||
+    session.user.role === 'EVENTS_STAFF' ||
     (session.user.role === 'COLLEGE_ORG' && (orgAccessLevel === "event" || orgAccessLevel === "college"))
 
   return (
