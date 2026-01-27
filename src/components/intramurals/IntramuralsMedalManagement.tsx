@@ -107,7 +107,7 @@ export function IntramuralsMedalManagement() {
     location: "",
   })
 
-  // Medal assignment
+  // Medal assignment (Sports only)
   const [showMedalDialog, setShowMedalDialog] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [medalForm, setMedalForm] = useState({
@@ -115,6 +115,25 @@ export function IntramuralsMedalManagement() {
     silver_team_id: "",
     bronze_team_id: "",
   })
+
+  // Points assignment (Socio-cultural only)
+  const [showPointsDialog, setShowPointsDialog] = useState(false)
+  const [selectedPointsEvent, setSelectedPointsEvent] = useState<Event | null>(null)
+  const [pointsForm, setPointsForm] = useState({
+    first_place: "",  // 10 points
+    second_place: "", // 7 points
+    third_place: "",  // 5 points
+    fourth_place: "", // 3 points
+    fifth_place: "",  // 1 point
+  })
+  
+  interface PointsData {
+    event_id: string
+    team_id: string
+    placement: number
+    points: number
+  }
+  const [eventPoints, setEventPoints] = useState<Record<string, PointsData[]>>({})
 
   // Match schedule
   interface Match {
@@ -180,6 +199,34 @@ export function IntramuralsMedalManagement() {
     }
   }, [])
 
+  const fetchPoints = useCallback(async () => {
+    try {
+      const response = await fetch("/api/intramurals/admin/points")
+      if (response.ok) {
+        const data = await response.json()
+        // Group points by event_id
+        const pointsByEvent: Record<string, PointsData[]> = {}
+        data.points?.forEach((point: any) => {
+          const eventId = point.event?.id
+          if (!eventId) return
+          if (!pointsByEvent[eventId]) {
+            pointsByEvent[eventId] = []
+          }
+          pointsByEvent[eventId].push({
+            event_id: eventId,
+            team_id: point.team_id,
+            placement: point.placement,
+            points: point.points,
+          })
+        })
+        setEventPoints(pointsByEvent)
+      }
+    } catch (error) {
+      console.error("Error fetching points:", error)
+      toast.error("Failed to fetch points")
+    }
+  }, [])
+
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -209,11 +256,11 @@ export function IntramuralsMedalManagement() {
   const fetchAllData = useCallback(async () => {
     try {
       setLoading(true)
-      await Promise.all([fetchTeams(), fetchEvents(), fetchSettings(), fetchMatches()])
+      await Promise.all([fetchTeams(), fetchEvents(), fetchSettings(), fetchMatches(), fetchPoints()])
     } finally {
       setLoading(false)
     }
-  }, [fetchTeams, fetchEvents, fetchSettings, fetchMatches])
+  }, [fetchTeams, fetchEvents, fetchSettings, fetchMatches, fetchPoints])
 
   useEffect(() => {
     fetchAllData()
@@ -503,6 +550,17 @@ export function IntramuralsMedalManagement() {
   const handleAssignMedals = async () => {
     if (!selectedEvent) return
 
+    // Validate that it's a sports event
+    if (selectedEvent.category !== 'sports') {
+      await Swal.fire({
+        icon: "error",
+        title: "Invalid Operation",
+        text: "Medals can only be assigned to sports events. Please use the Points Assignment feature for socio-cultural events.",
+        confirmButtonColor: "#dc2626",
+      })
+      return
+    }
+
     try {
       const response = await fetch("/api/intramurals/admin/medals", {
         method: "POST",
@@ -524,12 +582,120 @@ export function IntramuralsMedalManagement() {
         fetchSettings() // Update last_updated
       } else {
         const error = await response.json()
-        toast.error(error.error || "Failed to assign medals")
+        await Swal.fire({
+          icon: "error",
+          title: "Failed to Assign Medals",
+          text: error.error || "An error occurred while assigning medals.",
+          confirmButtonColor: "#dc2626",
+        })
       }
     } catch (error) {
       console.error("Error assigning medals:", error)
       toast.error("Failed to assign medals")
     }
+  }
+
+  const handleAssignPoints = async () => {
+    if (!selectedPointsEvent) return
+
+    // Validate that it's a socio-cultural event
+    if (selectedPointsEvent.category !== 'socio-cultural') {
+      await Swal.fire({
+        icon: "error",
+        title: "Invalid Operation",
+        text: "Points can only be assigned to socio-cultural events. Please use the Medal Assignment feature for sports events.",
+        confirmButtonColor: "#dc2626",
+      })
+      return
+    }
+
+    // Build points array from form
+    const pointsToAssign = []
+    const placementMap: Record<string, number> = {
+      first_place: 1,
+      second_place: 2,
+      third_place: 3,
+      fourth_place: 4,
+      fifth_place: 5,
+    }
+
+    for (const [key, teamId] of Object.entries(pointsForm)) {
+      if (teamId) {
+        pointsToAssign.push({
+          team_id: teamId,
+          placement: placementMap[key],
+        })
+      }
+    }
+
+    if (pointsToAssign.length === 0) {
+      toast.error("Please assign at least one placement")
+      return
+    }
+
+    try {
+      const response = await fetch("/api/intramurals/admin/points", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event_id: selectedPointsEvent.id,
+          points: pointsToAssign,
+        }),
+      })
+
+      if (response.ok) {
+        await Swal.fire({
+          icon: "success",
+          title: "Points Assigned!",
+          text: "Points have been assigned successfully.",
+          confirmButtonColor: "#16a34a",
+        })
+        setShowPointsDialog(false)
+        setSelectedPointsEvent(null)
+        setPointsForm({
+          first_place: "",
+          second_place: "",
+          third_place: "",
+          fourth_place: "",
+          fifth_place: "",
+        })
+        fetchPoints()
+        fetchSettings() // Update last_updated
+      } else {
+        const error = await response.json()
+        await Swal.fire({
+          icon: "error",
+          title: "Failed to Assign Points",
+          text: error.error || "An error occurred while assigning points.",
+          confirmButtonColor: "#dc2626",
+        })
+      }
+    } catch (error) {
+      console.error("Error assigning points:", error)
+      toast.error("Failed to assign points")
+    }
+  }
+
+  const openPointsDialog = (event: Event) => {
+    setSelectedPointsEvent(event)
+    // Load existing points if any
+    const existingPoints = eventPoints[event.id] || []
+    const formData = {
+      first_place: "",
+      second_place: "",
+      third_place: "",
+      fourth_place: "",
+      fifth_place: "",
+    }
+    existingPoints.forEach((point) => {
+      if (point.placement === 1) formData.first_place = point.team_id
+      else if (point.placement === 2) formData.second_place = point.team_id
+      else if (point.placement === 3) formData.third_place = point.team_id
+      else if (point.placement === 4) formData.fourth_place = point.team_id
+      else if (point.placement === 5) formData.fifth_place = point.team_id
+    })
+    setPointsForm(formData)
+    setShowPointsDialog(true)
   }
 
   const handleToggleVisibility = async (isVisible: boolean) => {
@@ -698,8 +864,12 @@ export function IntramuralsMedalManagement() {
             Events ({events.length})
           </TabsTrigger>
           <TabsTrigger value="medals">
-            <Medal className="mr-2 h-4 w-4" />
-            Medal Assignment
+            <Trophy className="mr-2 h-4 w-4" />
+            🏆 Sports Medals
+          </TabsTrigger>
+          <TabsTrigger value="points">
+            <Award className="mr-2 h-4 w-4" />
+            🎭 Socio-Cultural Points
           </TabsTrigger>
           <TabsTrigger value="matches">
             <Calendar className="mr-2 h-4 w-4" />
@@ -915,21 +1085,20 @@ export function IntramuralsMedalManagement() {
           </Card>
         </TabsContent>
 
-        {/* Medal Assignment Tab */}
+        {/* Medal Assignment Tab - SPORTS ONLY */}
         <TabsContent value="medals" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Medal Assignment</CardTitle>
+              <CardTitle>🏆 Sports Medal Assignment</CardTitle>
               <CardDescription>
-                Assign Gold, Silver, and Bronze winners for each event
+                Assign Gold, Silver, and Bronze medals for sports events only
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Event</TableHead>
-                    <TableHead>Category</TableHead>
+                    <TableHead>Sports Event</TableHead>
                     <TableHead className="text-center">🥇 Gold</TableHead>
                     <TableHead className="text-center">🥈 Silver</TableHead>
                     <TableHead className="text-center">🥉 Bronze</TableHead>
@@ -937,45 +1106,130 @@ export function IntramuralsMedalManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {events.length === 0 ? (
+                  {events.filter(e => e.category === "sports").length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        No events available. Create events first.
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        No sports events available. Create sports events first.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    events.map((event) => {
-                      const medalAward = event.medal_awards?.[0]
-                      return (
-                        <TableRow key={event.id}>
-                          <TableCell className="font-medium">{event.name}</TableCell>
-                          <TableCell>
-                            <Badge variant={event.category === "sports" ? "default" : "secondary"}>
-                              {event.category === "sports" ? "🏆 Sports" : "🎭 Socio-Cultural"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {medalAward?.gold_team?.name || "-"}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {medalAward?.silver_team?.name || "-"}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {medalAward?.bronze_team?.name || "-"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openMedalDialog(event)}
-                            >
-                              <Medal className="mr-2 h-4 w-4" />
-                              Assign
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })
+                    events
+                      .filter(e => e.category === "sports")
+                      .map((event) => {
+                        const medalAward = event.medal_awards?.[0]
+                        return (
+                          <TableRow key={event.id}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <Trophy className="h-4 w-4 text-yellow-600" />
+                                {event.name}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {medalAward?.gold_team?.name || "-"}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {medalAward?.silver_team?.name || "-"}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {medalAward?.bronze_team?.name || "-"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openMedalDialog(event)}
+                              >
+                                <Medal className="mr-2 h-4 w-4" />
+                                Assign Medals
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Points Assignment Tab - SOCIO-CULTURAL ONLY */}
+        <TabsContent value="points" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>🎭 Socio-Cultural Points Assignment</CardTitle>
+              <CardDescription>
+                Assign placements (1st-5th) for socio-cultural events. Points are automatically calculated: 1st=10pts, 2nd=7pts, 3rd=5pts, 4th=3pts, 5th=1pt
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Socio-Cultural Event</TableHead>
+                    <TableHead className="text-center">🥇 1st (10pts)</TableHead>
+                    <TableHead className="text-center">🥈 2nd (7pts)</TableHead>
+                    <TableHead className="text-center">🥉 3rd (5pts)</TableHead>
+                    <TableHead className="text-center">4th (3pts)</TableHead>
+                    <TableHead className="text-center">5th (1pt)</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {events.filter(e => e.category === "socio-cultural").length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        No socio-cultural events available. Create socio-cultural events first.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    events
+                      .filter(e => e.category === "socio-cultural")
+                      .map((event) => {
+                        const points = eventPoints[event.id] || []
+                        const getTeamName = (placement: number) => {
+                          const point = points.find(p => p.placement === placement)
+                          if (!point) return "-"
+                          const team = teams.find(t => t.id === point.team_id)
+                          return team?.name || "-"
+                        }
+                        return (
+                          <TableRow key={event.id}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <Award className="h-4 w-4 text-purple-600" />
+                                {event.name}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center text-sm">
+                              {getTeamName(1)}
+                            </TableCell>
+                            <TableCell className="text-center text-sm">
+                              {getTeamName(2)}
+                            </TableCell>
+                            <TableCell className="text-center text-sm">
+                              {getTeamName(3)}
+                            </TableCell>
+                            <TableCell className="text-center text-sm">
+                              {getTeamName(4)}
+                            </TableCell>
+                            <TableCell className="text-center text-sm">
+                              {getTeamName(5)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openPointsDialog(event)}
+                              >
+                                <Award className="mr-2 h-4 w-4" />
+                                Assign Points
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
                   )}
                 </TableBody>
               </Table>
@@ -1333,7 +1587,7 @@ export function IntramuralsMedalManagement() {
           <DialogHeader>
             <DialogTitle>Assign Medals - {selectedEvent?.name}</DialogTitle>
             <DialogDescription>
-              Select Gold, Silver, and Bronze winners for this event
+              Select Gold, Silver, and Bronze winners for this event. Each team can only win one medal per event.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1352,11 +1606,20 @@ export function IntramuralsMedalManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">None</SelectItem>
-                  {teams.map((team) => (
-                    <SelectItem key={team.id} value={team.id}>
-                      {team.name}
-                    </SelectItem>
-                  ))}
+                  {teams
+                    .filter((team) => {
+                      // Allow current selection or teams not selected for other medals
+                      const selectedTeams = [
+                        medalForm.silver_team_id,
+                        medalForm.bronze_team_id,
+                      ].filter(Boolean)
+                      return team.id === medalForm.gold_team_id || !selectedTeams.includes(team.id)
+                    })
+                    .map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1375,11 +1638,20 @@ export function IntramuralsMedalManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">None</SelectItem>
-                  {teams.map((team) => (
-                    <SelectItem key={team.id} value={team.id}>
-                      {team.name}
-                    </SelectItem>
-                  ))}
+                  {teams
+                    .filter((team) => {
+                      // Allow current selection or teams not selected for other medals
+                      const selectedTeams = [
+                        medalForm.gold_team_id,
+                        medalForm.bronze_team_id,
+                      ].filter(Boolean)
+                      return team.id === medalForm.silver_team_id || !selectedTeams.includes(team.id)
+                    })
+                    .map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1398,11 +1670,20 @@ export function IntramuralsMedalManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">None</SelectItem>
-                  {teams.map((team) => (
-                    <SelectItem key={team.id} value={team.id}>
-                      {team.name}
-                    </SelectItem>
-                  ))}
+                  {teams
+                    .filter((team) => {
+                      // Allow current selection or teams not selected for other medals
+                      const selectedTeams = [
+                        medalForm.gold_team_id,
+                        medalForm.silver_team_id,
+                      ].filter(Boolean)
+                      return team.id === medalForm.bronze_team_id || !selectedTeams.includes(team.id)
+                    })
+                    .map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1676,6 +1957,214 @@ export function IntramuralsMedalManagement() {
             >
               <Save className="mr-2 h-4 w-4" />
               Save Score
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Points Assignment Dialog - SOCIO-CULTURAL */}
+      <Dialog open={showPointsDialog} onOpenChange={setShowPointsDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>🎭 Assign Points - {selectedPointsEvent?.name}</DialogTitle>
+            <DialogDescription>
+              Select teams for each placement. Points are automatically assigned: 1st=10pts, 2nd=7pts, 3rd=5pts, 4th=3pts, 5th=1pt
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-blue-800">
+                <strong>Note:</strong> You can assign as many placements as needed (1-5). Each placement automatically receives its fixed point value. Each team can only be selected once.
+              </p>
+            </div>
+
+            {/* 1st Place - 10 points */}
+            <div>
+              <Label htmlFor="first-place" className="flex items-center">
+                <span className="text-yellow-600 mr-2">🥇</span> 1st Place (10 points)
+              </Label>
+              <Select
+                value={pointsForm.first_place || undefined}
+                onValueChange={(value) =>
+                  setPointsForm({ ...pointsForm, first_place: value === "__none__" ? "" : value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select 1st place team" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
+                  {teams
+                    .filter((team) => {
+                      // Allow current selection or teams not selected in other placements
+                      const selectedTeams = [
+                        pointsForm.second_place,
+                        pointsForm.third_place,
+                        pointsForm.fourth_place,
+                        pointsForm.fifth_place,
+                      ].filter(Boolean)
+                      return team.id === pointsForm.first_place || !selectedTeams.includes(team.id)
+                    })
+                    .map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 2nd Place - 7 points */}
+            <div>
+              <Label htmlFor="second-place" className="flex items-center">
+                <span className="text-gray-400 mr-2">🥈</span> 2nd Place (7 points)
+              </Label>
+              <Select
+                value={pointsForm.second_place || undefined}
+                onValueChange={(value) =>
+                  setPointsForm({ ...pointsForm, second_place: value === "__none__" ? "" : value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select 2nd place team" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
+                  {teams
+                    .filter((team) => {
+                      // Allow current selection or teams not selected in other placements
+                      const selectedTeams = [
+                        pointsForm.first_place,
+                        pointsForm.third_place,
+                        pointsForm.fourth_place,
+                        pointsForm.fifth_place,
+                      ].filter(Boolean)
+                      return team.id === pointsForm.second_place || !selectedTeams.includes(team.id)
+                    })
+                    .map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 3rd Place - 5 points */}
+            <div>
+              <Label htmlFor="third-place" className="flex items-center">
+                <span className="text-amber-700 mr-2">🥉</span> 3rd Place (5 points)
+              </Label>
+              <Select
+                value={pointsForm.third_place || undefined}
+                onValueChange={(value) =>
+                  setPointsForm({ ...pointsForm, third_place: value === "__none__" ? "" : value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select 3rd place team" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
+                  {teams
+                    .filter((team) => {
+                      // Allow current selection or teams not selected in other placements
+                      const selectedTeams = [
+                        pointsForm.first_place,
+                        pointsForm.second_place,
+                        pointsForm.fourth_place,
+                        pointsForm.fifth_place,
+                      ].filter(Boolean)
+                      return team.id === pointsForm.third_place || !selectedTeams.includes(team.id)
+                    })
+                    .map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 4th Place - 3 points */}
+            <div>
+              <Label htmlFor="fourth-place" className="flex items-center">
+                <span className="mr-2">4️⃣</span> 4th Place (3 points)
+              </Label>
+              <Select
+                value={pointsForm.fourth_place || undefined}
+                onValueChange={(value) =>
+                  setPointsForm({ ...pointsForm, fourth_place: value === "__none__" ? "" : value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select 4th place team" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
+                  {teams
+                    .filter((team) => {
+                      // Allow current selection or teams not selected in other placements
+                      const selectedTeams = [
+                        pointsForm.first_place,
+                        pointsForm.second_place,
+                        pointsForm.third_place,
+                        pointsForm.fifth_place,
+                      ].filter(Boolean)
+                      return team.id === pointsForm.fourth_place || !selectedTeams.includes(team.id)
+                    })
+                    .map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 5th Place - 1 point */}
+            <div>
+              <Label htmlFor="fifth-place" className="flex items-center">
+                <span className="mr-2">5️⃣</span> 5th Place (1 point)
+              </Label>
+              <Select
+                value={pointsForm.fifth_place || undefined}
+                onValueChange={(value) =>
+                  setPointsForm({ ...pointsForm, fifth_place: value === "__none__" ? "" : value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select 5th place team" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
+                  {teams
+                    .filter((team) => {
+                      // Allow current selection or teams not selected in other placements
+                      const selectedTeams = [
+                        pointsForm.first_place,
+                        pointsForm.second_place,
+                        pointsForm.third_place,
+                        pointsForm.fourth_place,
+                      ].filter(Boolean)
+                      return team.id === pointsForm.fifth_place || !selectedTeams.includes(team.id)
+                    })
+                    .map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPointsDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAssignPoints}>
+              <Save className="mr-2 h-4 w-4" />
+              Save Points
             </Button>
           </DialogFooter>
         </DialogContent>

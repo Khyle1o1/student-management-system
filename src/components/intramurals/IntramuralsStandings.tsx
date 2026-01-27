@@ -24,7 +24,16 @@ interface StandingsEntry {
   total: number
 }
 
-type StandingsScope = "overall" | "sports" | "socio_cultural"
+interface PointsStandingsEntry {
+  rank: number
+  team_id: string
+  team_name: string
+  team_color: string | null
+  team_logo: string | null
+  total_points: number
+}
+
+type StandingsScope = "sports" | "socio_cultural"
 
 export interface MedalEventBreakdown {
   event_id: string
@@ -41,26 +50,15 @@ interface SelectedTeamDetails {
   team_color: string | null
   team_logo: string | null
   rank: number
-  gold: number
-  silver: number
-  bronze: number
-  total: number
   scope: StandingsScope
-  // Optional extra metadata
+  // For sports (medals)
+  gold?: number
+  silver?: number
+  bronze?: number
+  total?: number
+  // For socio-cultural (points)
   total_points?: number
-  sportsMedals?: {
-    gold: number
-    silver: number
-    bronze: number
-    total: number
-  }
-  socioCulturalMedals?: {
-    gold: number
-    silver: number
-    bronze: number
-    total: number
-  }
-  eventsBreakdown?: MedalEventBreakdown[]
+  eventsBreakdown?: any[]
 }
 
 interface MedalDetailsModalProps {
@@ -77,17 +75,17 @@ const MedalDetailsModal: React.FC<MedalDetailsModalProps> = ({ isOpen, onClose, 
     team_logo,
     team_color,
     rank,
+    scope,
     gold,
     silver,
     bronze,
     total,
     total_points,
-    sportsMedals,
-    socioCulturalMedals,
     eventsBreakdown,
   } = team
 
-  const formatCategoryLabel = (category: MedalEventBreakdown["category"]) =>
+  const isSports = scope === "sports"
+  const formatCategoryLabel = (category: string) =>
     category === "sports" ? "Sports" : "Socio-Cultural"
 
   return (
@@ -118,9 +116,12 @@ const MedalDetailsModal: React.FC<MedalDetailsModalProps> = ({ isOpen, onClose, 
               {team_name}
             </h3>
             <p className="text-xs sm:text-sm text-slate-600">
-              Rank #{rank} &bull; Total Medals: {total}
-              {typeof total_points === "number" && (
-                <span className="ml-1">&bull; Points: {total_points}</span>
+              Rank #{rank}
+              {isSports && typeof total === "number" && (
+                <span className="ml-1">&bull; Total Medals: {total}</span>
+              )}
+              {!isSports && typeof total_points === "number" && (
+                <span className="ml-1">&bull; Total Points: {total_points}</span>
               )}
             </p>
           </div>
@@ -128,72 +129,48 @@ const MedalDetailsModal: React.FC<MedalDetailsModalProps> = ({ isOpen, onClose, 
 
         {/* Content */}
         <div className="px-4 sm:px-6 py-4 space-y-4 sm:space-y-5">
-          {/* Medal summary */}
-          <div>
-            <h4 className="text-sm font-semibold text-[#191970] mb-2">Medal Summary</h4>
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 text-center">
-              <div className="rounded-lg border border-yellow-100 bg-yellow-50 px-2 py-2 sm:py-3">
-                <div className="text-lg sm:text-xl">🥇</div>
-                <div className="text-xs sm:text-sm text-slate-600">Gold</div>
-                <div className="font-semibold text-[#191970] text-sm sm:text-base">
-                  {gold}
+          {/* Medal summary for Sports */}
+          {isSports && (
+            <div>
+              <h4 className="text-sm font-semibold text-[#191970] mb-2">🏆 Medal Summary</h4>
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 text-center">
+                <div className="rounded-lg border border-yellow-100 bg-yellow-50 px-2 py-2 sm:py-3">
+                  <div className="text-lg sm:text-xl">🥇</div>
+                  <div className="text-xs sm:text-sm text-slate-600">Gold</div>
+                  <div className="font-semibold text-[#191970] text-sm sm:text-base">
+                    {gold || 0}
+                  </div>
                 </div>
-              </div>
-              <div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-2 sm:py-3">
-                <div className="text-lg sm:text-xl">🥈</div>
-                <div className="text-xs sm:text-sm text-slate-600">Silver</div>
-                <div className="font-semibold text-[#191970] text-sm sm:text-base">
-                  {silver}
+                <div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-2 sm:py-3">
+                  <div className="text-lg sm:text-xl">🥈</div>
+                  <div className="text-xs sm:text-sm text-slate-600">Silver</div>
+                  <div className="font-semibold text-[#191970] text-sm sm:text-base">
+                    {silver || 0}
+                  </div>
                 </div>
-              </div>
-              <div className="rounded-lg border border-amber-100 bg-amber-50 px-2 py-2 sm:py-3">
-                <div className="text-lg sm:text-xl">🥉</div>
-                <div className="text-xs sm:text-sm text-slate-600">Bronze</div>
-                <div className="font-semibold text-[#191970] text-sm sm:text-base">
-                  {bronze}
+                <div className="rounded-lg border border-amber-100 bg-amber-50 px-2 py-2 sm:py-3">
+                  <div className="text-lg sm:text-xl">🥉</div>
+                  <div className="text-xs sm:text-sm text-slate-600">Bronze</div>
+                  <div className="font-semibold text-[#191970] text-sm sm:text-base">
+                    {bronze || 0}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Sports vs Socio-Cultural breakdown (shown only for Overall Tally) */}
-          {team.scope === "overall" && (sportsMedals || socioCulturalMedals) && (
+          {/* Points summary for Socio-Cultural */}
+          {!isSports && (
             <div>
-              <h4 className="text-sm font-semibold text-[#191970] mb-2">
-                Category Breakdown
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {sportsMedals && (
-                  <div className="rounded-lg border border-slate-100 px-3 py-2 bg-slate-50">
-                    <p className="text-xs font-semibold text-[#191970] mb-1">
-                      🏆 Sports Events
-                    </p>
-                    <p className="text-xs text-slate-600 mb-1">
-                      Total: <span className="font-semibold">{sportsMedals.total}</span>
-                    </p>
-                    <div className="flex justify-between text-[11px] sm:text-xs text-slate-700">
-                      <span>🥇 {sportsMedals.gold}</span>
-                      <span>🥈 {sportsMedals.silver}</span>
-                      <span>🥉 {sportsMedals.bronze}</span>
-                    </div>
-                  </div>
-                )}
-                {socioCulturalMedals && (
-                  <div className="rounded-lg border border-slate-100 px-3 py-2 bg-slate-50">
-                    <p className="text-xs font-semibold text-[#191970] mb-1">
-                      🎭 Socio-Cultural Events
-                    </p>
-                    <p className="text-xs text-slate-600 mb-1">
-                      Total:{" "}
-                      <span className="font-semibold">{socioCulturalMedals.total}</span>
-                    </p>
-                    <div className="flex justify-between text-[11px] sm:text-xs text-slate-700">
-                      <span>🥇 {socioCulturalMedals.gold}</span>
-                      <span>🥈 {socioCulturalMedals.silver}</span>
-                      <span>🥉 {socioCulturalMedals.bronze}</span>
-                    </div>
-                  </div>
-                )}
+              <h4 className="text-sm font-semibold text-[#191970] mb-2">🎭 Points Summary</h4>
+              <div className="rounded-lg border border-purple-100 bg-purple-50 px-4 py-6 text-center">
+                <div className="text-3xl sm:text-4xl font-bold text-[#191970] mb-2">
+                  {total_points || 0}
+                </div>
+                <div className="text-sm sm:text-base text-slate-600">Total Points</div>
+                <div className="text-xs text-slate-500 mt-2">
+                  Based on event placements (1st=10, 2nd=7, 3rd=5, 4th=3, 5th=1)
+                </div>
               </div>
             </div>
           )}
@@ -209,27 +186,45 @@ const MedalDetailsModal: React.FC<MedalDetailsModalProps> = ({ isOpen, onClose, 
                   <thead className="bg-slate-50 sticky top-0">
                     <tr className="text-slate-700">
                       <th className="px-3 py-2 font-semibold">Event</th>
-                      <th className="px-3 py-2 font-semibold hidden sm:table-cell">
-                        Category
-                      </th>
-                      <th className="px-3 py-2 font-semibold text-right">🥇</th>
-                      <th className="px-3 py-2 font-semibold text-right">🥈</th>
-                      <th className="px-3 py-2 font-semibold text-right">🥉</th>
+                      {isSports ? (
+                        <>
+                          <th className="px-3 py-2 font-semibold text-right">🥇</th>
+                          <th className="px-3 py-2 font-semibold text-right">🥈</th>
+                          <th className="px-3 py-2 font-semibold text-right">🥉</th>
+                        </>
+                      ) : (
+                        <>
+                          <th className="px-3 py-2 font-semibold text-center">Placement</th>
+                          <th className="px-3 py-2 font-semibold text-right">Points</th>
+                        </>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
-                    {eventsBreakdown.map((event, index) => (
+                    {eventsBreakdown.map((event: any, index: number) => (
                       <tr
                         key={`${event.event_name}-${index}`}
                         className="border-t text-slate-700"
                       >
                         <td className="px-3 py-2">{event.event_name}</td>
-                        <td className="px-3 py-2 hidden sm:table-cell text-slate-500">
-                          {formatCategoryLabel(event.category)}
-                        </td>
-                        <td className="px-3 py-2 text-right">{event.gold}</td>
-                        <td className="px-3 py-2 text-right">{event.silver}</td>
-                        <td className="px-3 py-2 text-right">{event.bronze}</td>
+                        {isSports ? (
+                          <>
+                            <td className="px-3 py-2 text-right">{event.gold || 0}</td>
+                            <td className="px-3 py-2 text-right">{event.silver || 0}</td>
+                            <td className="px-3 py-2 text-right">{event.bronze || 0}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-3 py-2 text-center">
+                              {event.placement === 1 && "🥇 1st"}
+                              {event.placement === 2 && "🥈 2nd"}
+                              {event.placement === 3 && "🥉 3rd"}
+                              {event.placement === 4 && "4th"}
+                              {event.placement === 5 && "5th"}
+                            </td>
+                            <td className="px-3 py-2 text-right font-semibold">{event.points}</td>
+                          </>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -259,10 +254,16 @@ interface StandingsData {
   last_updated: string
   standings: {
     sports: StandingsEntry[]
-    socio_cultural: StandingsEntry[]
-    overall: StandingsEntry[]
+    socio_cultural: PointsStandingsEntry[]
   }
-  breakdowns?: Record<string, MedalEventBreakdown[]>
+  champions: {
+    sports: StandingsEntry[]
+    socio_cultural: PointsStandingsEntry[]
+  }
+  breakdowns: {
+    sports: Record<string, MedalEventBreakdown[]>
+    socio_cultural: Record<string, any[]>
+  }
 }
 
 export function IntramuralsStandings() {
@@ -353,21 +354,12 @@ export function IntramuralsStandings() {
     )
   }
 
-  const handleViewDetails = (entry: StandingsEntry, scope: StandingsScope) => {
+  const handleViewDetails = (entry: StandingsEntry | PointsStandingsEntry, scope: StandingsScope) => {
     if (!data) return
 
-    const sportsRow = data.standings.sports.find((s) => s.team_id === entry.team_id)
-    const socioRow = data.standings.socio_cultural.find(
-      (s) => s.team_id === entry.team_id
-    )
-
-    const allEvents = data.breakdowns?.[entry.team_id] ?? []
-    const scopedEvents: MedalEventBreakdown[] =
-      scope === "sports"
-        ? allEvents.filter((e) => e.category === "sports")
-        : scope === "socio_cultural"
-        ? allEvents.filter((e) => e.category === "socio_cultural")
-        : allEvents
+    const isSportsEntry = (entry: StandingsEntry | PointsStandingsEntry): entry is StandingsEntry => {
+      return 'gold' in entry
+    }
 
     const details: SelectedTeamDetails = {
       team_id: entry.team_id,
@@ -375,49 +367,34 @@ export function IntramuralsStandings() {
       team_color: entry.team_color,
       team_logo: entry.team_logo,
       rank: entry.rank,
-      gold: entry.gold,
-      silver: entry.silver,
-      bronze: entry.bronze,
-      total: entry.total,
       scope,
-      total_points: entry.total,
-      sportsMedals:
-        scope === "socio_cultural" || !sportsRow
-          ? undefined
-          : {
-              gold: sportsRow.gold,
-              silver: sportsRow.silver,
-              bronze: sportsRow.bronze,
-              total: sportsRow.total,
-            },
-      socioCulturalMedals:
-        scope === "sports" || !socioRow
-          ? undefined
-          : {
-              gold: socioRow.gold,
-              silver: socioRow.silver,
-              bronze: socioRow.bronze,
-              total: socioRow.total,
-            },
-      eventsBreakdown: scopedEvents,
+    }
+
+    if (scope === "sports" && isSportsEntry(entry)) {
+      // Sports - show medals
+      details.gold = entry.gold
+      details.silver = entry.silver
+      details.bronze = entry.bronze
+      details.total = entry.total
+      details.eventsBreakdown = data.breakdowns?.sports?.[entry.team_id] || []
+    } else if (scope === "socio_cultural" && !isSportsEntry(entry)) {
+      // Socio-cultural - show points
+      details.total_points = entry.total_points
+      details.eventsBreakdown = data.breakdowns?.socio_cultural?.[entry.team_id] || []
     }
 
     setSelectedTeam(details)
     setIsModalOpen(true)
   }
 
-  const StandingsTable = ({
+  const SportsMedalTable = ({
     title,
     standings,
-    scope,
   }: {
     title: string
     standings: StandingsEntry[]
-    scope: StandingsScope
   }) => {
-    if (standings.length === 0) {
-      return null
-    }
+    if (standings.length === 0) return null
 
     return (
       <div className="mb-6 sm:mb-8">
@@ -480,31 +457,18 @@ export function IntramuralsStandings() {
                                   width: "150%",
                                   height: "150%",
                                 }}
-                                onError={(e) => {
-                                  // Hide image and show fallback
-                                  const target = e.target as HTMLImageElement
-                                  target.style.display = "none"
-                                  const parent = target.parentElement
-                                  if (parent) {
-                                    const fallback = parent.querySelector(
-                                      ".logo-fallback"
-                                    ) as HTMLElement
-                                    if (fallback) fallback.style.display = "flex"
-                                  }
-                                }}
                               />
                             </div>
-                          ) : null}
-                          <div
-                            className={`w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm logo-fallback flex-shrink-0 ${
-                              entry.team_logo ? "hidden" : ""
-                            }`}
-                            style={{
-                              backgroundColor: entry.team_color || "#191970",
-                            }}
-                          >
-                            {entry.team_name.substring(0, 2).toUpperCase()}
-                          </div>
+                          ) : (
+                            <div
+                              className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm flex-shrink-0"
+                              style={{
+                                backgroundColor: entry.team_color || "#191970",
+                              }}
+                            >
+                              {entry.team_name.substring(0, 2).toUpperCase()}
+                            </div>
+                          )}
                           <span className="font-medium text-[#191970] text-xs sm:text-sm md:text-base truncate">
                             {entry.team_name}
                           </span>
@@ -512,9 +476,7 @@ export function IntramuralsStandings() {
                       </TableCell>
                       <TableCell className="text-center px-2 sm:px-4">
                         <div className="flex items-center justify-center gap-1">
-                          <span className="text-yellow-600 text-sm sm:text-base">
-                            🥇
-                          </span>
+                          <span className="text-yellow-600 text-sm sm:text-base">🥇</span>
                           <span className="font-semibold text-xs sm:text-sm md:text-base">
                             {entry.gold}
                           </span>
@@ -522,9 +484,7 @@ export function IntramuralsStandings() {
                       </TableCell>
                       <TableCell className="text-center px-2 sm:px-4">
                         <div className="flex items-center justify-center gap-1">
-                          <span className="text-gray-400 text-sm sm:text-base">
-                            🥈
-                          </span>
+                          <span className="text-gray-400 text-sm sm:text-base">🥈</span>
                           <span className="font-semibold text-xs sm:text-sm md:text-base">
                             {entry.silver}
                           </span>
@@ -532,9 +492,7 @@ export function IntramuralsStandings() {
                       </TableCell>
                       <TableCell className="text-center px-2 sm:px-4">
                         <div className="flex items-center justify-center gap-1">
-                          <span className="text-amber-700 text-sm sm:text-base">
-                            🥉
-                          </span>
+                          <span className="text-amber-700 text-sm sm:text-base">🥉</span>
                           <span className="font-semibold text-xs sm:text-sm md:text-base">
                             {entry.bronze}
                           </span>
@@ -543,7 +501,110 @@ export function IntramuralsStandings() {
                       <TableCell className="text-center px-2 sm:px-4">
                         <button
                           type="button"
-                          onClick={() => handleViewDetails(entry, scope)}
+                          onClick={() => handleViewDetails(entry, "sports")}
+                          className="inline-flex items-center justify-center rounded-full border border-[#191970]/20 bg-white px-3 py-1 text-[11px] sm:text-xs font-semibold text-[#191970] hover:bg-[#191970] hover:text-white transition-colors"
+                        >
+                          View Details
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const SocioPointsTable = ({
+    title,
+    standings,
+  }: {
+    title: string
+    standings: PointsStandingsEntry[]
+  }) => {
+    if (standings.length === 0) return null
+
+    return (
+      <div className="mb-6 sm:mb-8">
+        <h2 className="text-xl sm:text-2xl font-bold text-[#191970] mb-3 sm:mb-4 px-2 sm:px-0">{title}</h2>
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <div className="inline-block min-w-full align-middle">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50 border-b-2 border-slate-200">
+                    <TableHead className="font-bold text-[#191970] text-center w-16 sm:w-20 px-2 sm:px-4">
+                      <span className="text-xs sm:text-sm">Rank</span>
+                    </TableHead>
+                    <TableHead className="font-bold text-[#191970] px-2 sm:px-4">
+                      <span className="text-xs sm:text-sm">College</span>
+                    </TableHead>
+                    <TableHead className="font-bold text-[#191970] text-center px-2 sm:px-4">
+                      <div className="flex items-center justify-center gap-1 sm:gap-2">
+                        <Award className="w-4 h-4 text-purple-600" />
+                        <span className="text-xs sm:text-sm">Total Points</span>
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-bold text-[#191970] text-center px-2 sm:px-4 w-28 sm:w-32">
+                      <span className="text-xs sm:text-sm">Actions</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {standings.map((entry) => (
+                    <TableRow
+                      key={`${title}-${entry.team_id}`}
+                      className="hover:bg-slate-50 transition-colors border-b border-slate-100"
+                    >
+                      <TableCell className="text-center px-2 sm:px-4">
+                        {getRankIcon(entry.rank)}
+                      </TableCell>
+                      <TableCell className="px-2 sm:px-4">
+                        <div className="flex items-center space-x-2 sm:space-x-3">
+                          {entry.team_logo ? (
+                            <div className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full border-slate-200 overflow-hidden flex items-center justify-center flex-shrink-0">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={entry.team_logo}
+                                alt={entry.team_name}
+                                className="w-full h-full object-cover"
+                                style={{
+                                  objectFit: "cover",
+                                  width: "150%",
+                                  height: "150%",
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm flex-shrink-0"
+                              style={{
+                                backgroundColor: entry.team_color || "#191970",
+                              }}
+                            >
+                              {entry.team_name.substring(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                          <span className="font-medium text-[#191970] text-xs sm:text-sm md:text-base truncate">
+                            {entry.team_name}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center px-2 sm:px-4">
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-2xl font-bold text-purple-600">
+                            {entry.total_points}
+                          </span>
+                          <span className="text-xs text-slate-500">pts</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center px-2 sm:px-4">
+                        <button
+                          type="button"
+                          onClick={() => handleViewDetails(entry, "socio_cultural")}
                           className="inline-flex items-center justify-center rounded-full border border-[#191970]/20 bg-white px-3 py-1 text-[11px] sm:text-xs font-semibold text-[#191970] hover:bg-[#191970] hover:text-white transition-colors"
                         >
                           View Details
@@ -600,8 +661,7 @@ export function IntramuralsStandings() {
 
       {/* Leaderboard Tables */}
       <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 md:py-8">
-        {data.standings.overall.length === 0 && 
-         data.standings.sports.length === 0 && 
+        {data.standings.sports.length === 0 && 
          data.standings.socio_cultural.length === 0 ? (
           <div className="text-center py-12 text-slate-500">
             <Trophy className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -609,25 +669,16 @@ export function IntramuralsStandings() {
           </div>
         ) : (
           <>
-            {/* Overall/Total Tally - Shown First */}
-            <StandingsTable 
-              title="🥇 Overall Tally" 
-              standings={data.standings.overall}
-              scope="overall" 
-            />
-            
-            {/* Sports Events Tally */}
-            <StandingsTable 
-              title="🏆 Sports Events Tally" 
+            {/* Sports Medal Tally */}
+            <SportsMedalTable 
+              title="🏆 Sports Medal Tally" 
               standings={data.standings.sports}
-              scope="sports" 
             />
             
-            {/* Socio-Cultural Events Tally */}
-            <StandingsTable 
-              title="🎭 Socio-Cultural Events Tally" 
+            {/* Socio-Cultural Points Tally */}
+            <SocioPointsTable 
+              title="🎭 Socio-Cultural Points Tally" 
               standings={data.standings.socio_cultural}
-              scope="socio_cultural" 
             />
           </>
         )}

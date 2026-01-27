@@ -26,10 +26,10 @@ export async function POST(request: Request) {
       )
     }
 
-    // Check if event exists
+    // Check if event exists and validate it's a sports event
     const { data: event, error: eventError } = await supabaseAdmin
       .from('intramurals_events')
-      .select('id')
+      .select('id, category')
       .eq('id', event_id)
       .single()
 
@@ -37,6 +37,17 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Event not found' },
         { status: 404 }
+      )
+    }
+
+    // STRICT VALIDATION: Only sports events can have medals
+    if (event.category !== 'sports') {
+      return NextResponse.json(
+        { 
+          error: 'Medals can only be assigned to sports events. Socio-cultural events use a point-based system.',
+          details: 'Please use the points assignment feature for socio-cultural events.'
+        },
+        { status: 400 }
       )
     }
 
