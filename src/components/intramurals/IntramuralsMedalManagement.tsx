@@ -45,10 +45,12 @@ import {
   Eye,
   RefreshCw,
   Medal,
+  Megaphone,
 } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { format } from "date-fns"
 import Swal from "sweetalert2"
+import { AnnouncementsManagement } from "./AnnouncementsManagement"
 
 interface Team {
   id: string
@@ -879,6 +881,10 @@ export function IntramuralsMedalManagement() {
             <Calendar className="mr-2 h-4 w-4" />
             Event Schedule
           </TabsTrigger>
+          <TabsTrigger value="announcements">
+            <Megaphone className="mr-2 h-4 w-4" />
+            📢 Announcements
+          </TabsTrigger>
         </TabsList>
 
         {/* Teams Tab */}
@@ -1413,6 +1419,11 @@ export function IntramuralsMedalManagement() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Announcements Tab */}
+        <TabsContent value="announcements" className="space-y-4">
+          <AnnouncementsManagement />
         </TabsContent>
 
       </Tabs>

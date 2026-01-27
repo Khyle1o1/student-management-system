@@ -145,6 +145,64 @@ export async function POST(request: Request) {
       team_name: teamsMap.get(point.team_id)?.name || 'Unknown'
     }))
 
+    // AUTO-GENERATE ANNOUNCEMENT
+    try {
+      // Check if auto-announcements are enabled
+      const { data: settings } = await supabaseAdmin
+        .from('intramurals_settings')
+        .select('auto_announcements_enabled, announcement_approval_required')
+        .single()
+
+      const autoAnnouncementsEnabled = settings?.auto_announcements_enabled ?? true
+      const approvalRequired = settings?.announcement_approval_required ?? false
+
+      if (autoAnnouncementsEnabled && responseData && responseData.length > 0) {
+        // Fetch full event details
+        const { data: eventDetails } = await supabaseAdmin
+          .from('intramurals_events')
+          .select('*')
+          .eq('id', event_id)
+          .single()
+
+        // Create announcement content with all point assignments
+        const pointsAwarded = responseData.map(point => ({
+          team_name: point.team_name,
+          placement: point.placement,
+          points: point.points
+        })).sort((a, b) => a.placement - b.placement) // Sort by placement
+
+        const announcementContent = {
+          event_name: eventDetails?.name || 'Unknown Event',
+          category: 'Socio-Cultural',
+          points_awarded: pointsAwarded,
+          event_date: eventDetails?.start_time || null,
+          location: eventDetails?.location || null
+        }
+
+        // Create the announcement
+        const { error: announcementError } = await supabaseAdmin
+          .from('intramurals_announcements')
+          .insert({
+            event_id,
+            announcement_type: 'sociocultural_points',
+            content: announcementContent,
+            admin_id: session.user.id,
+            admin_name: session.user.name,
+            is_visible: !approvalRequired, // Only visible if no approval required
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+
+        if (announcementError) {
+          console.error('Failed to create announcement:', announcementError)
+          // Don't fail the points assignment if announcement creation fails
+        }
+      }
+    } catch (announcementError) {
+      console.error('Error creating announcement:', announcementError)
+      // Don't fail the points assignment if announcement creation fails
+    }
+
     return NextResponse.json({ 
       points: responseData,
       message: 'Points assigned successfully'

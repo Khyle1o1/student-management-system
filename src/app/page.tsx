@@ -22,6 +22,7 @@ import {
 import { LoginModal } from "@/components/ui/login-modal"
 import { IntramuralsStandings } from "@/components/intramurals/IntramuralsStandings"
 import { IntramuralsSchedule } from "@/components/intramurals/IntramuralsSchedule"
+import { AnnouncementsFeed } from "@/components/intramurals/AnnouncementsFeed"
 import { useToast } from "@/hooks/use-toast"
 import { PublicFeedbackForm } from "@/components/feedback/public-feedback-form"
 import { MaintenanceBanner } from "@/components/maintenance-banner"
@@ -828,6 +829,7 @@ export default function HomePage() {
                   }
                 `}} />
                 <div className="p-6 space-y-8 intramurals-dark-mode">
+                  <AnnouncementsFeed limit={5} showTitle={true} />
                   <IntramuralsStandings />
                   <IntramuralsSchedule />
                 </div>
